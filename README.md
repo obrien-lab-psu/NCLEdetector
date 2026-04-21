@@ -51,44 +51,13 @@ CONDA_SUBDIR=osx-64 conda env create -f environment-mac.yml
 conda activate entdetect
 ```
 
-## Quick Start
+## Tutorials
 
-### Basic Order Parameter Calculation
+Step-by-step, runnable tutorials covering all four analysis workflows are in `Documentation/`. Start here:
 
-Calculate fraction of native contacts (Q) and entanglement changes (G) for a simulation trajectory:
+- [Documentation/index.md](Documentation/index.md) — master index with environment setup, path variables, and links to all workflows
 
-```bash
-python scripts/run_OP_on_simulation_traj.py \
-  --Traj 1 \
-  --PSF /path/to/structure.psf \
-  --DCD /path/to/trajectory.dcd \
-  --ID protein_name \
-  --COR /path/to/structure.cor \
-  --sec_elements /path/to/secondary_structure.txt \
-  --domain /path/to/domain_def.dat \
-  --outdir results/OP_analysis/ \
-  --start 0
-```
-
-### Native Entanglement Analysis
-
-Identify and cluster native entanglements in a protein structure:
-
-```bash
-python scripts/run_nativeNCLE.py \
-  --struct /path/to/structure.pdb \
-  --outdir results/native_entanglements/ \
-  --ID protein_name \
-  --organism Ecoli
-```
-
-## Tutorial
-
-For step-by-step, runnable examples (including both all-atom vs C-alpha structure examples, and a bundled CG trajectory example), see:
-
-- [Documentation/tutorial_examples.md](Documentation/tutorial_examples.md)
-
-For all scripts, `--help` is the most up-to-date reference for required inputs:
+For quick CLI reference, every script supports `--help`:
 
 ```bash
 python scripts/run_nativeNCLE.py --help
@@ -126,9 +95,13 @@ EntDetect/
 
 ## Documentation
 
-Detailed documentation for each module is available:
+Detailed documentation for each module:
 
-- [Tutorial (examples with included assets)](Documentation/tutorial_examples.md)
+- [Tutorial index](Documentation/index.md)
+- [Workflow 1: Native NCLE detection](Documentation/workflow1_native_ncle.md)
+- [Workflow 2: Trajectory analysis](Documentation/workflow2_trajectory_analysis.md)
+- [Workflow 3: Sim-to-experiment comparison](Documentation/workflow3_sim2exp.md)
+- [Workflow 4: Population-level analysis](Documentation/workflow4_population.md)
 - [Gaussian Entanglement](Documentation/gaussian_entanglement.md)
 - [Clustering](Documentation/clustering.md)
 - [Order Parameters](Documentation/order_params.md)
