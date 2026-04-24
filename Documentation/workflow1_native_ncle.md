@@ -21,27 +21,6 @@ Identify all native NCLEs present in a reference protein structure, filter for h
 
 ---
 
-## Pre-computed reference outputs
-
-Pre-computed results for the 1ZMR example system are available at:
-
-```
-$TESTDIR/nativeNCLE/
-├── Native_GE/
-│   └── 1zmr_model_clean_GE.txt          # raw entanglement output
-├── Native_HQ_GE/
-│   └── 1ZMR.csv                          # filtered high-quality entanglements
-├── Native_clustered_HQ_GE/
-│   └── 1ZMR.csv                          # clustered representative entanglements
-└── Native_clustered_HQ_GE_features/
-    └── P00558_1ZMR_A_uent_features.csv   # computed structural features
-```
-
-Where:
-```bash
-TESTDIR=/storage/group/epo2/default/ims86/git_repos/EntanGoPy/TestingGrounds
-```
-
 Tutorial outputs from re-running the steps below are written to:
 ```bash
 DATASTORE=/scratch/ims86/EntDetect_Datastore
@@ -58,6 +37,8 @@ OUTDIR=$DATASTORE/outputs/workflow1
 | Cα PSF topology | `$DATASTORE/user_input/reference_structures/1zmr_model_clean_ca.psf` | Topology reference |
 | Cα COR coordinates | `$DATASTORE/user_input/reference_structures/1zmr_model_clean_ca.cor` | Coordinate reference |
 
+> *Note*: This tutorial shows you how to handel both all-atom structures but it can handle alpha carbon coarse-grained structures as well.  
+  
 ---
 
 ## Step 1. Activate your environment and set paths
@@ -88,14 +69,15 @@ The `1zmr_model_clean.pdb` file in `$DATASTORE/user_input/reference_structures/`
 
 ## Step 3. Detect native entanglements
 
-Create a Python script `run_native_ncle.py` (or run interactively):
+Create a Python script `run_nativeNCLE.py` or run interactively:
+
+> *Note*: There is a complete version of this python script ready to use located at the end of the tutorial: [Jump to full workflow script section](#running-the-full-workflow-as-a-single-script)  
 
 ```python
 from EntDetect.gaussian_entanglement import GaussianEntanglement
 
 # ── Inputs ──────────────────────────────────────────────────────────────────
 DATASTORE = "/scratch/ims86/EntDetect_Datastore"
-TESTDIR   = "/storage/group/epo2/default/ims86/git_repos/EntanGoPy/TestingGrounds"
 OUTDIR    = f"{DATASTORE}/outputs/workflow1"
 
 pdb            = f"{DATASTORE}/user_input/reference_structures/1zmr_model_clean.pdb"
@@ -105,7 +87,7 @@ ID             = "1ZMR"
 # ── Initialize ───────────────────────────────────────────────────────────────
 # g_threshold         : Gaussian entanglement score cutoff (0.6 is the standard value)
 # density             : contact density filter (0.0 = no filter)
-# Calpha              : set True only if input is a Cα-only structure
+# Calpha              : set True only if user wants to use the Calpha distance to define contacts. False will use heavy atoms between residues. 
 # CG                  : set True only if input is a coarse-grained model
 # ent_detection_method: 2 = any nonzero TLN for either termini  ← tutorial default (matches class default)
 #                       3 = both GLN and TLN nonzero for same termini  ← recommended for production
@@ -128,17 +110,11 @@ A CSV file in `native_outdir` named `{ID}_GE.csv`:
 $OUTDIR/Native_GE/1ZMR_GE.csv
 ```
 
-Compare to the pre-computed reference:
-```
-$TESTDIR/nativeNCLE/Native_GE/1zmr_model_clean_GE.txt
-```
-
-> **Note:** The pre-computed reference uses the old `.txt` format; the current code outputs `.csv`. The entanglement entries are equivalent.
-
 ### Practical note
 
 - If your structure is all-atom (conventional PDB), keep `Calpha=False` and `CG=False`.
-- If the structure contains only Cα atoms (e.g., a COR/PSF model), set `Calpha=True`.
+- If your structure is all-atom and you wish to use the alpha carbons to define contacts rather than the residue heavy atoms use `Calpha=True` and `CG=False`.
+- If the structure contains only Cα atoms (e.g., a alpha carbon coarse-grained model), set `Calpha=True` and `CG=True`.
 - The `g_threshold=0.6` is the standard cutoff used in the published protocol. Lower values will detect more (but potentially noisier) entanglements.
 
 ---
@@ -151,7 +127,6 @@ This step is especially important when using **AlphaFold** or other predicted st
 from EntDetect.gaussian_entanglement import GaussianEntanglement
 
 DATASTORE = "/scratch/ims86/EntDetect_Datastore"
-TESTDIR   = "/storage/group/epo2/default/ims86/git_repos/EntanGoPy/TestingGrounds"
 OUTDIR    = f"{DATASTORE}/outputs/workflow1"
 
 pdb              = f"{DATASTORE}/user_input/reference_structures/1zmr_model_clean.pdb"
@@ -160,8 +135,6 @@ ID               = "1ZMR"
 
 # Point to the output from Step 3 (or the pre-computed reference)
 NCLE_file = f"{OUTDIR}/Native_GE/1ZMR_GE.csv"
-# If you have not re-run Step 3, use the pre-computed file instead:
-# NCLE_file = f"{TESTDIR}/nativeNCLE/Native_GE/1zmr_model_clean_GE.txt"
 
 ge = GaussianEntanglement(g_threshold=0.6, density=0.0, Calpha=False, CG=False,
                           ent_detection_method=2)
