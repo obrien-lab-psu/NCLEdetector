@@ -48,7 +48,6 @@ source ~/.bashrc
 conda activate entdetect
 
 DATASTORE=/scratch/ims86/EntDetect_Datastore
-TESTDIR=/storage/group/epo2/default/ims86/git_repos/EntanGoPy/TestingGrounds
 OUTDIR=$DATASTORE/outputs/workflow1
 
 mkdir -p $OUTDIR/Native_GE $OUTDIR/Native_HQ_GE $OUTDIR/Native_clustered_HQ_GE $OUTDIR/Native_clustered_HQ_GE_features
@@ -164,14 +163,7 @@ A CSV file of filtered high-quality entanglements:
 $OUTDIR/Native_HQ_GE/1ZMR.csv
 ```
 
-Compare to pre-computed reference:
-```
-$TESTDIR/nativeNCLE/Native_HQ_GE/1ZMR.csv
-```
-
-### Note on non-canonical regions
-
-If the structure contains residues that are not part of the canonical protein sequence (e.g., expression tags, fusion segments, or engineered regions), a **mapping file** can be supplied to restrict the filtered set to the canonical region only. See the module-level documentation for `select_high_quality_entanglements` for the expected format.
+> *Note*: (non-canonical regions) If the structure contains residues that are not part of the canonical protein sequence (e.g., expression tags, fusion segments, or engineered regions), a **mapping file** can be supplied to restrict the filtered set to the canonical region only. See the module-level documentation for `select_high_quality_entanglements` for the expected format.
 
 ---
 
@@ -183,7 +175,6 @@ Many entanglements are structurally degenerate variants of the same topological 
 from EntDetect.clustering import ClusterNativeEntanglements
 
 DATASTORE = "/scratch/ims86/EntDetect_Datastore"
-TESTDIR   = "/storage/group/epo2/default/ims86/git_repos/EntanGoPy/TestingGrounds"
 OUTDIR    = f"{DATASTORE}/outputs/workflow1"
 
 native_clustered_HQ_outdir = f"{OUTDIR}/Native_clustered_HQ_GE"
@@ -191,9 +182,8 @@ outfile = "1ZMR.csv"
 
 # Point to Step 4 output (or pre-computed reference)
 NCLE_file = f"{OUTDIR}/Native_HQ_GE/1ZMR.csv"
-# NCLE_file = f"{TESTDIR}/nativeNCLE/Native_HQ_GE/1ZMR.csv"  # pre-computed fallback
 
-clustering = ClusterNativeEntanglements(organism="Ecoli")
+clustering = ClusterNativeEntanglements(organism="Ecoli", cut_off=None)
 clustering.Cluster_NativeEntanglements(
     NCLE_file,
     outdir=native_clustered_HQ_outdir,
@@ -202,9 +192,7 @@ clustering.Cluster_NativeEntanglements(
 )
 ```
 
-### `organism` argument
-
-The `organism` parameter sets the reference proteome background used during clustering. Use `"Ecoli"` for *E. coli* proteins. Consult the package documentation for other supported organisms.
+> *Note*: The `organism` parameter sets the distance threshold used in clustering to that optimized on one of three model orgnaisms. Use `"Ecoli"` for *E. coli* proteins, `"Human"` for *H. sapiens* proteins, and `"Yeast"` for *S. cerevessa* proteins. If you are analyzing a protein outside these model organisms or wish to adjust the cut-off you can specify the `cut_off` parameter which will overide the organism defaults.  
 
 ### Expected output
 
@@ -218,13 +206,6 @@ This CSV contains:
 - associated **degenerate loop** variants;
 - a reduced set suitable for downstream feature generation and interpretation.
 
-Compare to pre-computed reference:
-```
-$TESTDIR/nativeNCLE/Native_clustered_HQ_GE/1ZMR.csv
-```
-
-> **Note:** Minor differences from the reference (e.g., one fewer cluster) reflect algorithm updates since the reference was generated. The core set of entangled loops is conserved.
-
 ---
 
 ## Step 6. Compute structural features for representative NCLEs
@@ -235,7 +216,6 @@ Once you have the representative set, calculate structural features that charact
 from EntDetect.entanglement_features import FeatureGen
 
 DATASTORE = "/scratch/ims86/EntDetect_Datastore"
-TESTDIR   = "/storage/group/epo2/default/ims86/git_repos/EntanGoPy/TestingGrounds"
 OUTDIR    = f"{DATASTORE}/outputs/workflow1"
 
 pdb                      = f"{DATASTORE}/user_input/reference_structures/1zmr_model_clean.pdb"
@@ -243,7 +223,6 @@ native_GQ_feature_outdir = f"{OUTDIR}/Native_clustered_HQ_GE_features"
 
 # Point to Step 5 output (or pre-computed reference)
 cluster_file = f"{OUTDIR}/Native_clustered_HQ_GE/1ZMR.csv"
-# cluster_file = f"{TESTDIR}/nativeNCLE/Native_clustered_HQ_GE/1ZMR.csv"  # pre-computed fallback
 
 FGen = FeatureGen(pdb, outdir=native_GQ_feature_outdir, cluster_file=cluster_file)
 
@@ -268,23 +247,11 @@ For each representative NCLE:
 $OUTDIR/Native_clustered_HQ_GE_features/P00558_1ZMR_A_uent_features.csv
 ```
 
-Compare to pre-computed reference:
-```
-$TESTDIR/nativeNCLE/Native_clustered_HQ_GE_features/P00558_1ZMR_A_uent_features.csv
-```
-
 ---
 
 ## Step 7. Visualize the representative entanglements
 
 Use **VMD** or **PyMOL** to inspect the representative NCLEs visually.
-
-### Loading the structure in VMD
-
-```tcl
-# In the VMD TkConsole:
-mol new /scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean.pdb
-```
 
 ### Why visualization matters
 
@@ -331,7 +298,7 @@ python scripts/run_nativeNCLE.py \
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| `FileNotFoundError` on PDB | Wrong path | Echo `$TESTDIR` and verify the file exists |
+| `FileNotFoundError` on PDB | Wrong path | Verify the file exists |
 | Empty output file from Step 3 | Structure has no detectable NCLEs, or `g_threshold` too high | Lower `g_threshold` to 0.4 and rerun |
 | Step 6 raises `KeyError` on gene or chain | `gene`, `chain`, or `pdbid` arguments do not match the structure | Check the PDB header for the correct chain ID |
 | `ClusterNativeEntanglements` returns only 1 cluster | Normal for small proteins or proteins with a single entanglement topology | Proceed; the representative is the single detected NCLE |
