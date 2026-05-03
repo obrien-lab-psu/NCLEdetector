@@ -1,8 +1,10 @@
+import logging
 import pandas as pd
 import numpy as np
 from Bio.PDB import PDBParser, PDBIO
 import pathlib
 import os
+from EntDetect._logging import setup_logger
 
 class PDBcleaner:
     """
@@ -11,21 +13,23 @@ class PDBcleaner:
     """
 
     #############################################################
-    def __init__(self, pdb:str, outdir:str='./') -> None:
+    def __init__(self, pdb:str, outdir:str='./', log_level:int=logging.INFO, logdir:str=None) -> None:
         """
         Load the PDB file and initate the PDBcleaner class
         """
+        self.outdir = outdir
+        self.logger = setup_logger('PDBcleaner', outdir=logdir if logdir is not None else outdir, log_level=log_level)
+
         parser = PDBParser()
         structure = parser.get_structure('protein', pdb)
-        print(f'structure: {structure}')
+        self.logger.debug(f'structure: {structure}')
         self.structure = structure
         self.pdb_filename = pathlib.Path(pdb).stem
-        print(f'self.pdb_filename: {self.pdb_filename}')
+        self.logger.debug(f'pdb_filename: {self.pdb_filename}')
 
         ## make a tmp directory to populate with cleaned PDBs if it doesnt already exists
         if not os.path.exists(outdir):
             os.mkdir(outdir)
-        self.outdir = outdir
     #############################################################
 
     #############################################################
@@ -35,41 +39,41 @@ class PDBcleaner:
         """
         ## load the PDB file if provided
         if pdb != 'None':
-            print(f'Reading PDB file: {pdb}')
+            self.logger.debug(f'Reading PDB file: {pdb}')
             parser = PDBParser()
             structure = parser.get_structure('protein', pdb)
-            print(f'structure: {structure}')
+            self.logger.debug(f'structure: {structure}')
             self.structure = structure
             self.pdb_filename = pathlib.Path(pdb).stem
-            print(f'self.pdb_filename: {self.pdb_filename}')
+            self.logger.debug(f'pdb_filename: {self.pdb_filename}')
 
         ## define the output pdb and directories
         clean_outdir = os.path.join(self.outdir, 'cleanPDB_tmp/')
         if not os.path.exists(clean_outdir):
             os.mkdir(clean_outdir)
-            print(f'MADE: {clean_outdir}')
+            self.logger.debug(f'Made directory: {clean_outdir}')
 
         output_pdb = os.path.join(clean_outdir, f'{self.pdb_filename}_removed_duplicates.pdb')
 
         # Iterate over residues and identify disulfide bonds
         for model in self.structure:
-            print(f'Model: {model}')
+            self.logger.debug(f'Model: {model}')
 
             for chain in model:
-                print(f'    Chain: {chain}')
+                self.logger.debug(f'    Chain: {chain}')
                 residues_to_keep = []
 
                 for residue in chain:
                     resname = residue.get_resname()
-                    print(f'        Residue: {residue} {residue.get_id()} {resname} {residue.__repr__}')
+                    self.logger.debug(f'        Residue: {residue} {residue.get_id()} {resname} {residue.__repr__}')
 
                     ## check if there are any residues with alternate locs
                     residue_alts = False
                     for atom in residue:
-                        print(f'            Atom: {atom} {atom.get_altloc()}')
+                        self.logger.debug(f'            Atom: {atom} {atom.get_altloc()}')
                         if atom.get_altloc() != ' ':
                             residue_alts = True
-                    print(f'            residue_alts: {residue_alts}')
+                    self.logger.debug(f'            residue_alts: {residue_alts}')
 
                     ## if there are no alternate locs and this residues is not an insertion then keep it
                     hetflag, resseq, icode = residue.id
@@ -87,7 +91,7 @@ class PDBcleaner:
         io = PDBIO()
         io.set_structure(self.structure)
         io.save(output_pdb)
-        print(f'SAVED: {output_pdb}')
+        self.logger.info(f'SAVED: {output_pdb}')
 
         return output_pdb
         #############################################################
@@ -122,55 +126,55 @@ class PDBcleaner:
 
         ## load the PDB file if provided
         if pdb != 'None':
-            print(f'Reading PDB file: {pdb}')
+            self.logger.debug(f'Reading PDB file: {pdb}')
             parser = PDBParser()
             structure = parser.get_structure('protein', pdb)
-            print(f'structure: {structure}')
+            self.logger.debug(f'structure: {structure}')
             self.structure = structure
             self.pdb_filename = pathlib.Path(pdb).stem
-            print(f'self.pdb_filename: {self.pdb_filename}')
+            self.logger.debug(f'pdb_filename: {self.pdb_filename}')
 
         ## define the output pdb and directories
         clean_outdir = os.path.join(self.outdir, 'cleanPDB_tmp/')
         if not os.path.exists(clean_outdir):
             os.mkdir(clean_outdir)
-            print(f'MADE: {clean_outdir}')
+            self.logger.debug(f'Made directory: {clean_outdir}')
 
         output_pdb = os.path.join(clean_outdir, f'{self.pdb_filename}_removed_incomplete.pdb')
 
         # Iterate over residues and identify disulfide bonds
         for model in self.structure:
-            print(f'Model: {model}')
+            self.logger.debug(f'Model: {model}')
 
             for chain in model:
-                print(f'    Chain: {chain}')
+                self.logger.debug(f'    Chain: {chain}')
                 residues_to_keep = []
 
                 for residue in chain:
                     resname = residue.get_resname()
-                    print(f'        Residue: {residue} {residue.get_id()} {resname} {residue.__repr__}')
+                    self.logger.debug(f'        Residue: {residue} {residue.get_id()} {resname} {residue.__repr__}')
 
                     ## check if the residue is complete
                     residue_complete = False
                     if resname in expected_heavy_atoms:
                         num_heavy_atoms = sum(1 for atom in residue if atom.element != 'H')
-                        print(f'            Number of heavy atoms: {num_heavy_atoms}')
+                        self.logger.debug(f'            Number of heavy atoms: {num_heavy_atoms}')
                         if num_heavy_atoms == expected_heavy_atoms[resname]:
                             residue_complete = True
-                            print(f'            Complete residue: {residue} with {num_heavy_atoms} heavy atoms, expected {expected_heavy_atoms[resname]}')
+                            self.logger.debug(f'            Complete residue: {residue} with {num_heavy_atoms} heavy atoms, expected {expected_heavy_atoms[resname]}')
                         else:
-                            print(f'            Incomplete residue: {residue} with {num_heavy_atoms} heavy atoms, expected {expected_heavy_atoms[resname]}')
+                            self.logger.debug(f'            Incomplete residue: {residue} with {num_heavy_atoms} heavy atoms, expected {expected_heavy_atoms[resname]}')
                     else:
-                        print(f'            Unknown residue type: {resname}, keeping it by default')
+                        self.logger.debug(f'            Unknown residue type: {resname}, keeping it by default')
                         residue_complete = False
 
                     ## check if there are any residues with alternate locs
                     residue_alts = False
                     for atom in residue:
-                        print(f'            Atom: {atom} {atom.get_altloc()}')
+                        self.logger.debug(f'            Atom: {atom} {atom.get_altloc()}')
                         if atom.get_altloc() != ' ':
                             residue_alts = True
-                    print(f'            residue_alts: {residue_alts}')
+                    self.logger.debug(f'            residue_alts: {residue_alts}')
 
                     ## if there are no alternate locs and this residues is not an insertion then keep it
                     hetflag, resseq, icode = residue.id
@@ -188,7 +192,7 @@ class PDBcleaner:
         io = PDBIO()
         io.set_structure(self.structure)
         io.save(output_pdb)
-        print(f'SAVED: {output_pdb}')
+        self.logger.info(f'SAVED: {output_pdb}')
 
         return output_pdb
         #############################################################

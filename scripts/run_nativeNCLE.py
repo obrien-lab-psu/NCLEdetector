@@ -2,6 +2,7 @@
 from EntDetect.gaussian_entanglement import GaussianEntanglement
 from EntDetect.clustering import ClusterNativeEntanglements
 from EntDetect.entanglement_features import FeatureGen
+from EntDetect._logging import setup_logger
 
 """
 Script to calculate native Gaussian entanglements in a given structure (PDB or COR file),
@@ -82,13 +83,24 @@ def main(argv=None):
                         default=None)
     parser.add_argument("--model", type=str, required=False, help="Model type for high-quality selection: {EXP, AF}", default='EXP')
     parser.add_argument("--ent_detection_method", type=int, required=False, help="ENT detection method: 1=any GLN, 2=any TLN (default), 3=both GLN and TLN same termini", default=3)
+    parser.add_argument("--log_level", type=str, default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+                        help="Logging verbosity level (default: INFO)")
+    parser.add_argument("--logdir", type=str, default=None,
+                        help="Directory for log file. Defaults to --outdir if not specified.")
     args = parser.parse_args(argv)
-    print(args)
+    import logging
+    log_level = getattr(logging, args.log_level.upper(), logging.INFO)
     
     struct = args.struct
     outdir = args.outdir
     os.makedirs(outdir, exist_ok=True)
     ID = args.ID if args.ID is not None else os.path.splitext(os.path.basename(struct))[0]
+    logdir = args.logdir if args.logdir is not None else outdir
+    # Pre-configure all EntDetect loggers for this run so they share one log file
+    logger = setup_logger('run_nativeNCLE', outdir=logdir, ID=ID, log_level=log_level)
+    for _cls in ['GaussianEntanglement', 'ClusterNativeEntanglements', 'FeatureGen']:
+        setup_logger(_cls, outdir=logdir, ID=ID, log_level=log_level)
+    logger.info(f'args: {args}')
     chain = args.chain
     organism = args.organism
     cluster_cutoff = args.cluster_cutoff
@@ -109,8 +121,8 @@ def main(argv=None):
         Calpha = args.contacts == "calpha"
 
     # Set up Gaussian Entanglement and Clustering objects
-    ge = GaussianEntanglement(g_threshold=0.6, density=0.0, Calpha=Calpha, CG=CG, ent_detection_method=args.ent_detection_method)
-    clustering = ClusterNativeEntanglements(organism=organism, cut_off=cluster_cutoff)
+    ge = GaussianEntanglement(g_threshold=0.6, density=0.0, Calpha=Calpha, CG=CG, ent_detection_method=args.ent_detection_method, log_level=log_level, logdir=logdir)
+    clustering = ClusterNativeEntanglements(organism=organism, cut_off=cluster_cutoff, log_level=log_level, logdir=logdir)
 
     # Determine which chains to process
     if chain is not None:
@@ -125,13 +137,11 @@ def main(argv=None):
             import mdtraj as md
             traj = md.load(struct)
             chains_to_process = sorted(set([c.chain_id for c in traj.topology.chains]))
-        print(f"Processing chains: {chains_to_process}")
+        logger.info(f'Processing chains: {chains_to_process}')
 
     # Process each chain separately for all steps
     for chain_id in chains_to_process:
-        print(f"\n{'='*80}")
-        print(f"Processing chain {chain_id}")
-        print(f"{'='*80}\n")
+        logger.info(f"{'='*80}\nProcessing chain {chain_id}\n{'='*80}")
         
         # Use chain suffix for file naming when processing multiple chains
         if len(chains_to_process) > 1:
@@ -145,23 +155,23 @@ def main(argv=None):
         
         # Calculate native entanglements for this chain
         NativeEnt = ge.calculate_native_entanglements(struct, outdir=ge_outdir, ID=hq_id, chain=chain_id)
-        print(f'Native entanglements saved to {NativeEnt["outfile"]}')
+        logger.info(f'Native entanglements saved to {NativeEnt["outfile"]}')
         
         # Optional steps: select high-quality entanglements 
         HQNativeEnt = ge.select_high_quality_entanglements(NativeEnt['outfile'], struct, outdir=os.path.join(outdir, "Native_HQ_GE"), ID=hq_id, model=model, chain=chain_id)
-        print(f'High-quality native entanglements saved to {HQNativeEnt["outfile"]}')
+        logger.info(f'High-quality native entanglements saved to {HQNativeEnt["outfile"]}')
 
         # Cluster the native entanglements to remove degeneracies
         nativeClusteredEnt = clustering.Cluster_NativeEntanglements(HQNativeEnt['outfile'], outdir=os.path.join(outdir, "Native_clustered_HQ_GE"), outfile=f"{hq_id}.csv", chain=chain_id)
-        print(f'Clustered native entanglements saved to {nativeClusteredEnt["outfile"]}')
+        logger.info(f'Clustered native entanglements saved to {nativeClusteredEnt["outfile"]}')
 
         # Generate entanglement features for clustered native entanglements
-        FGen = FeatureGen(struct, outdir=os.path.join(outdir, "Native_clustered_HQ_GE_features"), cluster_file=nativeClusteredEnt['outfile'])
+        FGen = FeatureGen(struct, outdir=os.path.join(outdir, "Native_clustered_HQ_GE_features"), cluster_file=nativeClusteredEnt['outfile'], log_level=log_level, logdir=logdir)
         EntFeatures = FGen.get_uent_features(gene=args.Accession, chain=chain_id, pdbid=ID)
-        print(f'Entanglement features saved to {EntFeatures["outfile"]}')
+        logger.info(f'Entanglement features saved to {EntFeatures["outfile"]}')
 
 
-    print(f'NORMAL TERMINATION - {time.time() - start_time} seconds')
+    logger.info(f'NORMAL TERMINATION - {time.time() - start_time:.1f} seconds')
     return 0
 
 

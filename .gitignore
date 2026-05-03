@@ -67,3 +67,6 @@ Testing/
 
 # Structure files (if these are user-specific or large test files)
 structure_files/
+
+# SLURM log files (can be hundreds of GB)
+assets/slurm/logs/

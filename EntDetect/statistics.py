@@ -4,6 +4,7 @@ import multiprocessing as mp
 from scipy.stats import bootstrap, kstest
 import math, random
 import logging
+from EntDetect._logging import setup_logger
 import argparse
 import glob
 import numpy as np
@@ -46,7 +47,7 @@ class ProteomeLogisticRegression:
     """
 
     ################################################################################################
-    def __init__(self, dataframe_files:str, outdir:str, gene_list:str, ID:str, reg_formula:str):
+    def __init__(self, dataframe_files:str, outdir:str, gene_list:str, ID:str, reg_formula:str, log_level:int=logging.INFO, logdir:str=None):
         """
         Initializes the DataAnalysis class with necessary paths and parameters.
 
@@ -61,19 +62,20 @@ class ProteomeLogisticRegression:
         - ID (str): ID for output filenames.
         - reg_formula (str): Regression formula.
         """
-        print(f'Initalizing ProteomeLogisticRegression')
         self.dataframe_files = dataframe_files
         self.outdir = outdir
         self.gene_list = np.loadtxt(gene_list, dtype=str)
-        print(f'gene_list: {self.gene_list} {len(self.gene_list)}')
         self.ID = ID
+        self.logger = setup_logger('ProteomeLogisticRegression', outdir=logdir if logdir is not None else outdir, ID=ID, log_level=log_level)
+        self.logger.info('Initializing ProteomeLogisticRegression')
+        self.logger.debug(f'gene_list: {self.gene_list} {len(self.gene_list)}')
         self.reg_formula = reg_formula
         #self.logger = self.setup_logging()
         #self.gene_list_files = glob.glob(self.gene_list)
 
         if not os.path.exists(f'{self.outdir}'):
             os.makedirs(f'{self.outdir}')
-            print(f'Made output directories {self.outdir}')
+            self.logger.info(f'Made output directories {self.outdir}')
     ################################################################################################
 
     ################################################################################################
@@ -94,7 +96,7 @@ class ProteomeLogisticRegression:
             if column in df.columns:
                 df[column] = label_encoder.fit_transform(df[column])
             else:
-                print(f"Column '{column}' does not exist in the DataFrame.")
+                self.logger.info(f"Column '{column}' does not exist in the DataFrame.")
         
         return df
     ################################################################################################
@@ -117,21 +119,21 @@ class ProteomeLogisticRegression:
 
         # Get the cov_params
         cov_matrix = result.cov_params()
-        print(f'cov_matrix:\n{cov_matrix}')
+        self.logger.info(f'cov_matrix:\n{cov_matrix}')
     
         # Get the coefficients
-        print("Coefficients:")
+        self.logger.info("Coefficients:")
         coefficients = {'A': 0}
         for k,v in result.params.items():
             if 'AA' in k:
                 k = k.replace('AA[T.', '').replace(']', '')
             coefficients[k] = v
         for k,v in coefficients.items():
-            print(k,v)
+            self.logger.info(k,v)
         self.coefficients = coefficients
 
         ## recalculate the pvalue to add more digits as statsmodels truncates it to 0 if it is below 0.0001 for some reason. 
-        print(result.summary())
+        self.logger.debug(result.summary())
         table = result.summary().tables[1]
         table_df = pd.DataFrame(table.data[1:], columns=table.data[0])
         pvalues = []
@@ -163,17 +165,17 @@ class ProteomeLogisticRegression:
 
         files = glob.glob(os.path.join(self.dataframe_files, '*'))
         #files = [f for f in files if any(s in f for s in self.gene_list)] # get only those files in the gene list
-        print(f'Number of files: {len(files)}')
+        self.logger.info(f'Number of files: {len(files)}')
 
         self.data = pd.DataFrame()
         self.n = 0
         for i, gene in enumerate(self.gene_list):
             gene_resFeat = [f for f in files if gene in f]
             if len(gene_resFeat) == 0:
-                print(f"WARNING: No residue feature file found for gene {gene}")
+                self.logger.warning(f"WARNING: No residue feature file found for gene {gene}")
                 continue
             elif len(gene_resFeat) > 1:
-                print(f"WARNING: More than 1 residue feature file found for gene {gene}")
+                self.logger.warning(f"WARNING: More than 1 residue feature file found for gene {gene}")
                 continue
             gene_resFeat_file = gene_resFeat[0]
             #print(f'gene_resFeat_file: {gene_resFeat_file} {i}')
@@ -189,10 +191,10 @@ class ProteomeLogisticRegression:
         self.data = self.data[self.data[mask_column].notna()]
         self.data = self.data[self.data['AA'].notna()]
         self.data = self.data.reset_index()
-        print(f'Loaded Regression DataFrame:\n{self.data}')
+        self.logger.info(f'Loaded Regression DataFrame:\n{self.data}')
         self.data = self.encode_boolean_columns(self.data, boolean_columns=var2binarize)
         self.data = self.data[[response_var]+reg_var]
-        print(f'Loaded Regression DataFrame:\n{self.data}')
+        self.logger.info(f'Loaded Regression DataFrame:\n{self.data}')
         #print(f"Data loaded and filtered. Number of unique genes: {len(self.data['gene'].unique())}")
     ################################################################################################
 
@@ -213,7 +215,7 @@ class ProteomeLogisticRegression:
         reg['0.975]'] = np.exp(reg['0.975]'].astype(float))
         reg['ID'] = self.ID
         reg['n'] = self.n 
-        print(f'Regression Results:\n{reg.to_string()}')
+        self.logger.info(f'Regression Results:\n{reg.to_string()}')
 
         return reg
     ################################################################################################
@@ -282,7 +284,7 @@ class MonteCarlo:
     A class to handle the data analysis process including encoding, regression, and statistical tests.
     """
 
-    def __init__(self, dataframe_files:str, outdir:str, gene_list:str, ID:str, reg_formula:str, response_var:str, test_var:str, random:bool, n_groups:int, steps:int, C1:float, C2:float, beta:float, linearT:bool):
+    def __init__(self, dataframe_files:str, outdir:str, gene_list:str, ID:str, reg_formula:str, response_var:str, test_var:str, random:bool, n_groups:int, steps:int, C1:float, C2:float, beta:float, linearT:bool, log_level:int=logging.INFO, logdir:str=None):
         """
         Initializes the DataAnalysis class with necessary paths and parameters.
 
@@ -306,7 +308,8 @@ class MonteCarlo:
         self.outdir = outdir
         self.gene_list = np.loadtxt(gene_list, dtype=str)
         self.num_genes = len(self.gene_list)
-        print(f'gene_list: {self.gene_list} {self.num_genes}')
+        self.logger = setup_logger('MonteCarlo', outdir=logdir if logdir is not None else outdir, ID=ID, log_level=log_level)
+        self.logger.debug(f'gene_list: {self.gene_list} {self.num_genes}')
         
         self.ID = ID
         self.reg_formula = reg_formula
@@ -323,27 +326,23 @@ class MonteCarlo:
 
         if not os.path.exists(f'{self.outdir}'):
             os.makedirs(f'{self.outdir}')
-            print(f'Made output directories {self.outdir}')
+            self.logger.info(f'Made output directories {self.outdir}')
 
-        # Setup logging configuration
-        logfile = os.path.join(self.outdir, f'{self.ID}.log')
-        print(f'Opening logfile: {logfile}')
-        logging.basicConfig(filename=logfile, level=logging.INFO, format='%(asctime)s %(message)s')
-        logging.info(f'{"#"*100}\nNEW RUN')
+        self.logger.info(f'{"#"*100}\nNEW RUN')
 
         # store the parameters in the log file
-        logging.info(f'dataframe_files: {self.dataframe_files}')
-        logging.info(f'outdir: {self.outdir}')
-        logging.info(f'gene_list: {self.gene_list} {self.num_genes}')
-        logging.info(f'ID: {self.ID}')
-        logging.info(f'response_var: {self.response_var}')
-        logging.info(f'test_var: {self.test_var}')
-        logging.info(f'steps: {self.steps}')
-        logging.info(f'C1: {self.C1}')
-        logging.info(f'C2: {self.C2}')
-        logging.info(f'linearT: {self.linearT}')
-        logging.info(f'beta: {self.beta}')
-        logging.info(f'n_groups: {self.n_groups}')
+        self.logger.info(f'dataframe_files: {self.dataframe_files}')
+        self.logger.info(f'outdir: {self.outdir}')
+        self.logger.info(f'gene_list: {self.gene_list} {self.num_genes}')
+        self.logger.info(f'ID: {self.ID}')
+        self.logger.info(f'response_var: {self.response_var}')
+        self.logger.info(f'test_var: {self.test_var}')
+        self.logger.info(f'steps: {self.steps}')
+        self.logger.info(f'C1: {self.C1}')
+        self.logger.info(f'C2: {self.C2}')
+        self.logger.info(f'linearT: {self.linearT}')
+        self.logger.info(f'beta: {self.beta}')
+        self.logger.info(f'n_groups: {self.n_groups}')
         
     ################################################################################################
 
@@ -378,7 +377,7 @@ class MonteCarlo:
             if column in df.columns:
                 df[column] = label_encoder.fit_transform(df[column])
             else:
-                print(f"Column '{column}' does not exist in the DataFrame.")
+                self.logger.info(f"Column '{column}' does not exist in the DataFrame.")
 
         return df
     ################################################################################################
@@ -450,7 +449,7 @@ class MonteCarlo:
 
         files = glob.glob(os.path.join(self.dataframe_files, '*'))
         #files = [f for f in files if any(s in f for s in self.gene_list)] # get only those files in the gene list
-        print(f'Number of files: {len(files)}')
+        self.logger.info(f'Number of files: {len(files)}')
 
         self.data = pd.DataFrame()
         self.n = 0
@@ -458,10 +457,10 @@ class MonteCarlo:
         for i, gene in enumerate(self.gene_list):
             gene_resFeat = [f for f in files if gene in f]
             if len(gene_resFeat) == 0:
-                print(f"WARNING: No residue feature file found for gene {gene}")
+                self.logger.warning(f"WARNING: No residue feature file found for gene {gene}")
                 continue
             elif len(gene_resFeat) > 1:
-                print(f"WARNING: More than 1 residue feature file found for gene {gene}")
+                self.logger.warning(f"WARNING: More than 1 residue feature file found for gene {gene}")
                 continue
             gene_resFeat_file = gene_resFeat[0]
             #print(f'gene_resFeat_file: {gene_resFeat_file} {i}')
@@ -482,21 +481,21 @@ class MonteCarlo:
         self.data = self.data[self.data[mask_column].notna()]
         self.data = self.data[self.data['AA'].notna()]
         self.data = self.data.reset_index()
-        print(f'Loaded Regression DataFrame:\n{self.data}')
-        print(f'number of genes: {len(self.data[ID_column].unique())}')
+        self.logger.info(f'Loaded Regression DataFrame:\n{self.data}')
+        self.logger.info(f'number of genes: {len(self.data[ID_column].unique())}')
 
         self.data = self.encode_boolean_columns(self.data, boolean_columns=var2binarize)
         self.data = self.data[[ID_column]+[response_var]+reg_var]
-        print(f'Loaded Regression DataFrame:\n{self.data}')
+        self.logger.info(f'Loaded Regression DataFrame:\n{self.data}')
 
         self.prot_size = pd.DataFrame(self.prot_size)
-        print(f'self.prot_size: {self.prot_size}')
+        self.logger.info(f'self.prot_size: {self.prot_size}')
         #print(f"Data loaded and filtered. Number of unique genes: {len(self.data['gene'].unique())}")
 
         if self.random:
-            print(f'Randomizing {response_var} column')
+            self.logger.info(f'Randomizing {response_var} column')
             self.data[response_var] = self.data[response_var].sample(frac=1).values
-            print(f'Randomized Regression DataFrame:\n{self.data}')
+            self.logger.info(f'Randomized Regression DataFrame:\n{self.data}')
 
     ################################################################################################
 
@@ -508,7 +507,7 @@ class MonteCarlo:
 
         ## load reference size dist
         self.ref_sizes = self.prot_size['prot_size'].values
-        print(f'ref_sizes:\n{self.ref_sizes}')
+        self.logger.info(f'ref_sizes:\n{self.ref_sizes}')
 
         #####################################################################################################
         ## do it randomly untill the groups ceof are in an assending order
@@ -527,7 +526,7 @@ class MonteCarlo:
             #_, coef, std, cuts, reg_row, size_dist = self.regression(encoded_df[encoded_df['gene'].isin(groups_temp[n]['genes'])][reg_vars], self.reg_formula, groups_temp[n]['genes'])
             #response_var:str, test_var:str, genes:list
             OR, pvalue, size_dist = self.metrics(encoded_df[encoded_df[ID_column].isin(groups[n]['genes'])], groups[n]['genes'])
-            print(f'OR: {OR} pvalue: {pvalue} size_dist: {size_dist}')
+            self.logger.debug(f'OR: {OR} pvalue: {pvalue} size_dist: {size_dist}')
 
             state_size_dist_bootres = bootstrap((size_dist,) , np.mean)
             state_size_mean, state_size_lb, state_size_ub = np.mean(size_dist), state_size_dist_bootres.confidence_interval.low, state_size_dist_bootres.confidence_interval.high
@@ -557,8 +556,8 @@ class MonteCarlo:
             ks_stat_size = state_data['ks_stat_size'][-1]
             state_beta = state_data['beta'][-1]
 
-            logging.info(f'STEP: {state_step} | State: {state} | OR: {state_OR} | pvalue: {state_pvalue} | num_genes: {num_genes} | E: {state_E} | ks_stat_size: {ks_stat_size} | beta: {state_beta}')
-            print(f'STEP: {state_step} | State: {state} | OR: {state_OR} | pvalue: {state_pvalue} | num_genes: {num_genes} | E: {state_E} | ks_stat_size: {ks_stat_size} | beta: {state_beta}')
+            self.logger.info(f'STEP: {state_step} | State: {state} | OR: {state_OR} | pvalue: {state_pvalue} | num_genes: {num_genes} | E: {state_E} | ks_stat_size: {ks_stat_size} | beta: {state_beta}')
+            self.logger.debug(f'STEP: {state_step} | State: {state} | OR: {state_OR} | pvalue: {state_pvalue} | num_genes: {num_genes} | E: {state_E} | ks_stat_size: {ks_stat_size} | beta: {state_beta}')
 
 
         #####################################################################################################
@@ -603,9 +602,9 @@ class MonteCarlo:
             return list1, list2
 
         ## create swapping scheme for each monte carlo step
-        print(f'Making paris for MC swaps of {self.n_groups} groups in {self.steps} steps')
+        self.logger.info(f'Making paris for MC swaps of {self.n_groups} groups in {self.steps} steps')
         pairs = [(i, i+1) for i in range(0, self.n_groups - 1 )]
-        print(f'pairs: {pairs}')
+        self.logger.debug(f'pairs: {pairs}')
       
         reps = self.steps
         beta = self.beta
@@ -615,9 +614,9 @@ class MonteCarlo:
         elif self.linearT == True:
             T = 1/beta
             Ts = np.linspace(T, 0.001, 75)
-            print(f'Ts: {Ts}')
+            self.logger.debug(f'Ts: {Ts}')
             betas = 1/Ts
-        print(f'betas: {betas} wiht start beta: {betas[beta_i]}')
+        self.logger.debug(f'betas: {betas} wiht start beta: {betas[beta_i]}')
         logging.info(f'Starting simulations with {reps} steps and beta = {self.beta}')
         
         for step in tqdm(range(last_step + 1, reps + last_step + 1)):
@@ -739,7 +738,7 @@ class MonteCarlo:
             state_E = state_data['E'][-1]
             state_beta = state_data['beta'][-1]
             logging.info(f'State: {state} | OR: {state_OR} | pvalue: {state_pvalue} | state_size_mean: {state_size_mean:.0f} ({state_size_lb:.0f}, {state_size_ub:.0f}) | state_ks_stat_size: {state_ks_stat_size} | E: {state_E} | beta: {state_beta}')
-            print(f'State: {state} | OR: {state_OR} | pvalue: {state_pvalue} | state_size_mean: {state_size_mean:.0f} ({state_size_lb:.0f}, {state_size_ub:.0f}) | state_ks_stat_size: {state_ks_stat_size} | E: {state_E} | beta: {state_beta}')
+            self.logger.debug(f'State: {state} | OR: {state_OR} | pvalue: {state_pvalue} | state_size_mean: {state_size_mean:.0f} ({state_size_lb:.0f}, {state_size_ub:.0f}) | state_ks_stat_size: {state_ks_stat_size} | E: {state_E} | beta: {state_beta}')
         #####################################################################################################
 
         #####################################################################################################
@@ -798,12 +797,12 @@ class MonteCarlo:
             logging.info(f'SAVED: {state_final_traj_outfile}')
 
         outdf = pd.concat(dfs)
-        print(outdf)
+        self.logger.debug(outdf)
 
         ## Save the final step regression data
         final_step_outfile = f'{self.outdir}Final_step_reg_{self.ID}.csv'
         outdf.to_csv(final_step_outfile, index=False)
-        print(f'SAVED: {final_step_outfile}')
+        self.logger.debug(f'SAVED: {final_step_outfile}')
         logging.info(f'SAVED: {final_step_outfile}')
 
         #####################################################################################################
@@ -851,7 +850,7 @@ class MonteCarlo:
             per_res_cuts_df['gene'] += [gene]
             per_res_cuts_df['per_res_cuts'] += [np.sum(gene_df[cutkey])/len(gene_df)]
         per_res_cuts_df = pd.DataFrame(per_res_cuts_df)
-        print(per_res_cuts_df)
+        self.logger.debug(per_res_cuts_df)
         return per_res_cuts_df
     ################################################################################################
     
@@ -872,7 +871,7 @@ class FoldingPathwayStats:
                  msm_data:pd.DataFrame()=None, 
                  meta_set_file:str='',
                  state_type:str='metastablestate',
-                 rm_traj_list:list=[]): 
+                 rm_traj_list:list=[], log_level:int=logging.INFO, logdir:str=None): 
         """
         Initializes the DataAnalysis class with necessary paths and parameters.
 
@@ -891,9 +890,10 @@ class FoldingPathwayStats:
         if self.state_type not in ['microstate', 'metastablestate']:
             raise ValueError(f'state_type must be [microstate | metastablestate]')
 
+        self.logger = setup_logger('FoldingPathwayStats', outdir=logdir if logdir is not None else self.outdir, log_level=log_level)
         if not os.path.exists(f'{self.outdir}'):
             os.makedirs(f'{self.outdir}')
-            print(f'Made output directories {self.outdir}')
+            self.logger.debug(f'Made output directories {self.outdir}')
 
         ## set delta time between frames in experimental seconds
         dt = 0.015/1000 # time step 
@@ -921,14 +921,14 @@ class FoldingPathwayStats:
         # msm_data = pd.read_csv(self.msm_data)
         # print(f'msm_data:\n{msm_data}')
         msm_data = self.msm_data[~self.msm_data['traj'].isin(self.rm_traj_list)]
-        print(f'msm_data:\n{msm_data}')
+        self.logger.info(f'msm_data:\n{msm_data}')
 
         folding_pathways = {}
         folding_pathways_df = {self.tarj_type_col:[], 'pathway':[], 'probability':[]}
         for traj_type in self.traj_type_list:
-            print(f'Processing {traj_type} trajectories')
+            self.logger.info(f'Processing {traj_type} trajectories')
             traj_type_msm_data = msm_data[msm_data[self.tarj_type_col] == traj_type]
-            print(f'traj_type_msm_data:\n{traj_type_msm_data}')
+            self.logger.info(f'traj_type_msm_data:\n{traj_type_msm_data}')
                 
             # Quality check that there is data
             if traj_type_msm_data.empty:
@@ -984,7 +984,7 @@ class FoldingPathwayStats:
                     pathways[path] += 1
             
             for k, v in pathways.items():
-                print(k,v)
+                self.logger.info(k,v)
 
             tot_num = 0
             for path in pathways.keys():
@@ -1004,10 +1004,10 @@ class FoldingPathwayStats:
 
         # print(folding_pathways)
         folding_pathways_df = pd.DataFrame(folding_pathways_df)
-        print(folding_pathways_df)
+        self.logger.debug(folding_pathways_df)
         outfile = os.path.join(self.outdir, f'FoldingPathways_{self.state_type}_{"-".join(self.traj_type_list)}.csv')
         folding_pathways_df.to_csv(outfile, index=False)
-        print(f'Saved folding pathways to {outfile}')
+        self.logger.info(f'Saved folding pathways to {outfile}')
 
         return folding_pathways_df
     ####################################################################
@@ -1021,24 +1021,24 @@ class FoldingPathwayStats:
         # print(f'msm_data:\n{msm_data}')
         # msm_data = msm_data[~msm_data['traj'].isin(self.rm_traj_list)]
         msm_data = self.msm_data[~self.msm_data['traj'].isin(self.rm_traj_list)]
-        print(f'msm_data:\n{msm_data}')
+        self.logger.info(f'msm_data:\n{msm_data}')
 
         dtrajs = np.asarray([msm_data[msm_data['traj'] == t][self.state_type].values for t in msm_data['traj'].unique()])
-        print(f'dtrajs shape: {dtrajs.shape}\n{dtrajs}')
+        self.logger.info(f'dtrajs shape: {dtrajs.shape}\n{dtrajs}')
 
         # Load the meta set
         meta_set_df = pd.read_csv(self.meta_set_file)
-        print(f'meta_set_df:\n{meta_set_df}')
+        self.logger.info(f'meta_set_df:\n{meta_set_df}')
         meta_set = [s['microstates'].values for i, s in meta_set_df.groupby('metastable_state')]
-        print(f'meta_set: {meta_set}')
+        self.logger.debug(f'meta_set: {meta_set}')
 
         # Get the number of states present for the state type
         n_states = len(np.unique(dtrajs))
-        print('Number of %sstates: %d'%(self.state_type, n_states))
+        self.logger.info('Number of %sstates: %d'%(self.state_type, n_states))
 
         # Get the max number of frames
         max_T_len = dtrajs.shape[1]
-        print(f'max_T_len: {max_T_len}')
+        self.logger.debug(f'max_T_len: {max_T_len}')
             
         # make list of traj_idx for each mutant type
         mtype2trajid = {traj_type: [] for traj_type in self.traj_type_list}
@@ -1046,13 +1046,13 @@ class FoldingPathwayStats:
             traj_type = traj_df[self.tarj_type_col].values[0]
             if traj_type in mtype2trajid:
                 mtype2trajid[traj_type].append(i_ax)
-        print(f'mtype2trajid: {mtype2trajid}')
+        self.logger.debug(f'mtype2trajid: {mtype2trajid}')
 
         # analysis MSM for each mutant
         P_list = []
         for i_ax, traj_type in enumerate(self.traj_type_list):
             dtrajs_0 = dtrajs[mtype2trajid[traj_type]]
-            print(f'Processing {traj_type} trajectories with {len(dtrajs_0)} trajectories')
+            self.logger.info(f'Processing {traj_type} trajectories with {len(dtrajs_0)} trajectories')
             P_list_0 = np.zeros((max_T_len, n_states))
             for i in range(len(dtrajs_0)):
                 # print(f'Processing trajectory {dtrajs_0[i][-self.n_window:]}')
@@ -1067,7 +1067,7 @@ class FoldingPathwayStats:
                         state_0 = dtrajs_0[i][j]
                     P_list_0[j,state_0] += 1
             P_list.append(P_list_0)
-            print(P_list_0)
+            self.logger.debug(P_list_0)
 
         # Jensen-Shannon divergence
         JS_list = []
@@ -1089,18 +1089,18 @@ class FoldingPathwayStats:
         for i in range(len(P)):
             if np.sum(P[i,:]) != 0:
                 P[i,:] = P[i,:] / np.sum(P[i,:])
-        print(f'P: {P} {P.shape}')
+        self.logger.debug(f'P: {P} {P.shape}')
 
         Q = P_list[1]
         for i in range(len(Q)):
             if np.sum(Q[i,:]) != 0:
                 Q[i,:] = Q[i,:] / np.sum(Q[i,:])
-        print(f'Q: {Q} {Q.shape}')
+        self.logger.debug(f'Q: {Q} {Q.shape}')
 
         M = 0.5 * (P + Q)
-        print(M)
+        self.logger.debug(M)
         entropy_arr = 0.5 * (entropy(P, M, axis=1) + entropy(Q, M, axis=1))
-        print(entropy_arr, len(entropy_arr))
+        self.logger.info(entropy_arr, len(entropy_arr))
         # entropy_arr = 0.5 * (entropy(P_list[0], M, axis=1) + entropy(P_list[1], M, axis=1))
 
         JS_list.append(entropy_arr)
@@ -1119,7 +1119,7 @@ class FoldingPathwayStats:
                 fo.write('%10.4f '%(JS_list[i,j]))
             fo.write('\n')
         fo.close()
-        print(f'SAVED: {outfile}')
+        self.logger.debug(f'SAVED: {outfile}')
     ####################################################################
 
 #########################################################################################################################
@@ -1139,7 +1139,7 @@ class MSMStats:
                  msm_data_file:str='', 
                  meta_set_file:str='',
                  state_type:str='metastablestate',
-                 rm_traj_list:list=[]): 
+                 rm_traj_list:list=[], log_level:int=logging.INFO, logdir:str=None): 
         """
         Initializes the DataAnalysis class with necessary paths and parameters.
 
@@ -1158,9 +1158,10 @@ class MSMStats:
         if self.state_type not in ['microstate', 'metastablestate']:
             raise ValueError(f'state_type must be [microstate | metastablestate]')
 
+        self.logger = setup_logger('MSMStats', outdir=logdir if logdir is not None else self.outdir, log_level=log_level)
         if not os.path.exists(f'{self.outdir}'):
             os.makedirs(f'{self.outdir}')
-            print(f'Made output directories {self.outdir}')
+            self.logger.debug(f'Made output directories {self.outdir}')
 
         ## set delta time between frames in experimental seconds
         self.dt = 0.015/1000 # time step 
@@ -1182,32 +1183,32 @@ class MSMStats:
         """        
         outfile = os.path.join(self.outdir, f'MSTS.csv')
         if os.path.exists(outfile):
-            print(f'File {outfile} already exists. Skipping calculation.')
+            self.logger.info(f'File {outfile} already exists. Skipping calculation.')
             df = pd.read_csv(outfile)
-            print(f'Loaded existing data from {outfile}')
-            print(f'df:\n{df}')
+            self.logger.info(f'Loaded existing data from {outfile}')
+            self.logger.info(f'df:\n{df}')
             return df
         
         else:
             # Load MSM data
-            print(f'Loading MSM data from {self.msm_data_file}')
+            self.logger.info(f'Loading MSM data from {self.msm_data_file}')
             msm_data = pd.read_csv(self.msm_data_file)
-            print(f'msm_data:\n{msm_data}')
+            self.logger.info(f'msm_data:\n{msm_data}')
             msm_data = msm_data[~msm_data['traj'].isin(self.rm_traj_list)]
-            print(f'msm_data:\n{msm_data}')
+            self.logger.info(f'msm_data:\n{msm_data}')
             dtrajs = np.asarray([msm_data[msm_data['traj'] == t][self.state_type].values for t in msm_data['traj'].unique()])
-            print(f'dtrajs shape: {dtrajs.shape}\n{dtrajs}')
+            self.logger.info(f'dtrajs shape: {dtrajs.shape}\n{dtrajs}')
 
             # npzfile = np.load(msm_data_file, allow_pickle=True)
 
             max_T_len = int(np.ceil(self.end_t/self.dt))
-            print(f'max_T_len: {max_T_len}')
+            self.logger.debug(f'max_T_len: {max_T_len}')
             interval = int(max_T_len / self.num_points_plot)
-            print(f'interval: {interval}')
+            self.logger.debug(f'interval: {interval}')
             sample_idx = [max_T_len-1-i*interval for i in range(int(max_T_len/interval), -1, -1)]
             if sample_idx[0] != 0:
                 sample_idx = [0] + sample_idx
-            print(f'sample_idx: {sample_idx}')
+            self.logger.debug(f'sample_idx: {sample_idx}')
 
             # dtrajs = npzfile['meta_dtrajs']
             n_states = 0
@@ -1219,36 +1220,36 @@ class MSMStats:
                     #print(f"WARNING: Traj #{i+1} stopped early")
                     tag_error = True
             n_states += 1
-            print(f'n_states: {n_states}')
+            self.logger.debug(f'n_states: {n_states}')
 
             MSTS_list = []
             boot_stat_list = []
             df = {self.tarj_type_col:[], 'Time(s)':[], 'State':[], 'Probability':[], 'Lower CI':[], 'Upper CI':[]}
             for i_ax, traj_type in enumerate(self.traj_type_list):
-                print(f'Processing {traj_type} trajectories')
+                self.logger.info(f'Processing {traj_type} trajectories')
 
                 ## Get the dtrajs for this trajectory type
                 meta_dtrajs = msm_data[msm_data[self.tarj_type_col] == traj_type]
-                print(f'meta_dtrajs:\n{meta_dtrajs}')
+                self.logger.info(f'meta_dtrajs:\n{meta_dtrajs}')
                 meta_dtrajs = np.asarray([meta_dtrajs[meta_dtrajs['traj'] == t][self.state_type].values for t in meta_dtrajs['traj'].unique()])
-                print(f'meta_dtrajs:\n{meta_dtrajs} shape: {meta_dtrajs.shape}')
+                self.logger.info(f'meta_dtrajs:\n{meta_dtrajs} shape: {meta_dtrajs.shape}')
 
                 
                 # MSTS
                 PPT = np.zeros((meta_dtrajs.shape[1], n_states))
-                print(f'PPT shape: {PPT.shape}')
+                self.logger.info(f'PPT shape: {PPT.shape}')
                 t_span = (np.arange(meta_dtrajs.shape[1])+1)*self.dt
-                print(f't_span: {t_span} shape: {t_span.shape}')
+                self.logger.debug(f't_span: {t_span} shape: {t_span.shape}')
 
                 for md in meta_dtrajs:
                     for i in range(len(t_span)):
                         PPT[i,md[i]]+=1
                 PPT /= len(meta_dtrajs)
-                print(f'PPT:\n{PPT} {PPT.shape}')
+                self.logger.info(f'PPT:\n{PPT} {PPT.shape}')
 
 
                 ## Bootstrapping
-                print(f'Bootstrapping 95% ci...')
+                self.logger.info(f'Bootstrapping 95% ci...')
                 boot_arrs = []
                 if self.if_boot:
                     for booti in range(self.n_boot):
@@ -1265,11 +1266,11 @@ class MSMStats:
                         boot_arrs.append(boot_PPT)
 
                 boot_arrs = np.array(boot_arrs)
-                print(f'boot_arrs shape: {boot_arrs.shape}')
+                self.logger.info(f'boot_arrs shape: {boot_arrs.shape}')
                 lower = np.percentile(boot_arrs, 2.5, axis=0)
                 upper = np.percentile(boot_arrs, 97.5, axis=0)
-                print(f'lower:\n{lower} shape: {lower.shape}')
-                print(f'upper:\n{upper} shape: {upper.shape}')
+                self.logger.info(f'lower:\n{lower} shape: {lower.shape}')
+                self.logger.info(f'upper:\n{upper} shape: {upper.shape}')
 
                 ## make the output dataframe 
                 for i in range(PPT.shape[0]):
@@ -1282,11 +1283,11 @@ class MSMStats:
                         df['Upper CI'].append(upper[i,j])
             df = pd.DataFrame(df)
             df = df.sort_values(by=[self.tarj_type_col, 'State', 'Time(s)'])
-            print(df)
+            self.logger.debug(df)
 
             ## save the dataframe to a csv file
             df.to_csv(outfile, index=False)
-            print(f'SAVED: {outfile}')
+            self.logger.debug(f'SAVED: {outfile}')
             return df
     ####################################################################
 
@@ -1302,7 +1303,7 @@ class MSMStats:
         
         for traj_type in self.traj_type_list:
             outfile = os.path.join(self.outdir, f'{traj_type}_MSTS_plot.png')
-            print(f'Plotting state probabilities to {outfile}')
+            self.logger.info(f'Plotting state probabilities to {outfile}')
             plt.figure(figsize=(10, 6))
             
             traj_df = df[df[self.tarj_type_col] == traj_type]
@@ -1318,7 +1319,7 @@ class MSMStats:
             plt.grid()
             plt.savefig(outfile)
             plt.close()
-            print(f'SAVED: {outfile}')
+            self.logger.debug(f'SAVED: {outfile}')
     ####################################################################
 #########################################################################################################################
 #########################################################################################################################

@@ -17,6 +17,8 @@ import xml.dom.minidom as MD
 import numpy
 import pathlib
 import subprocess
+import logging
+from EntDetect._logging import setup_logger
 
 sys.setrecursionlimit(int(1e6))
 
@@ -26,12 +28,13 @@ class CoarseGrain:
     """
     #############################################################################################################
     def __init__(self, pdbfile:str, ID:str='ID', nscal:int = 1.5, outdir:str = './', fnn:int = 1,
-                 potential_name:str = 'bt', casm:int = 0, domain_file:str = 'None', ca_prefix:str = 'A', sc_prefix:str = 'B'):
+                 potential_name:str = 'bt', casm:int = 0, domain_file:str = 'None', ca_prefix:str = 'A', sc_prefix:str = 'B', log_level:int = logging.INFO, logdir:str = None):
         
         self.pdbfile = pdbfile
         self.ID = ID
         self.nscal = nscal
         self.outdir = outdir
+        self.logger = setup_logger('CoarseGrain', outdir=logdir if logdir is not None else outdir, ID=ID, log_level=log_level)
         self.fnn = fnn
         self.potential_name = potential_name
         self.casm = casm
@@ -42,13 +45,13 @@ class CoarseGrain:
 
         if not os.path.exists(self.outdir):
             os.makedirs(self.outdir)
-            print(f'Made directory: {self.outdir}')
+            self.logger.info(f'Made directory: {self.outdir}')
 
         ######################## Data #########################
         ## Loop-up table for uniquely indentifying residues #
         self.aa = ["GLY","ALA","VAL","LEU","ILE","MET","PHE","PRO","SER","THR","CYS","ASN","GLN","TYR","TRP","ASP","GLU","HIS","LYS","ARG"]
         if len(self.aa) != 20:
-            print('ERROR')
+            self.logger.error('ERROR')
             sys.exit()
         res2n = {}
         n2res = {}
@@ -269,14 +272,14 @@ class CoarseGrain:
         ## Check dependency installation ##
         # find stride resource
         self.stride_path = files('EntDetect.resources').joinpath('stride')
-        print(f'stride_path: {self.stride_path}')
+        self.logger.debug(f'stride_path: {self.stride_path}')
 
         #if os.popen('stride 2>&1').readlines()[0].strip().endswith('command not found'):
         if os.popen(f'{self.stride_path} 2>&1').readlines()[0].strip().endswith('command not found'):
-            print('Error: Essential software "stride" is not installed.\nPlease install stride before coarse-graining.')
+            self.logger.error('Error: Essential software "stride" is not installed.\nPlease install stride before coarse-graining.')
             sys.exit()
         else:
-            print(f'STRIDE found')
+            self.logger.info(f'STRIDE found')
 
         Header = f"""
 
@@ -295,28 +298,28 @@ class CoarseGrain:
         sc_prefix = {self.sc_prefix}
         ca_prefix = {self.ca_prefix}    
         """
-        print(Header)
+        self.logger.debug(Header)
 
         if self.domain_file != "None":
             self.nscal_0 = '1'
             self.nscal = 1
-            print('domain_file is defined, nscal will be ignored.\n')
+            self.logger.info('domain_file is defined, nscal will be ignored.\n')
 
         if self.casm != 0 and self.casm != 1:
-            print('ERROR: casm can only be either 0 (ca model) or 1 (ca-sidechain model).')
+            self.logger.error('ERROR: casm can only be either 0 (ca model) or 1 (ca-sidechain model).')
 
         if self.potential_name.upper().startswith('GENERIC'):
             words = self.potential_name.split('-')
             if len(words) == 1:
-                print("ERROR: Generic potential keyword must be invoked as 'generic-bt'")
+                self.logger.error("ERROR: Generic potential keyword must be invoked as 'generic-bt'")
                 sys.exit()
             else:
                 if words[-1].upper() != 'BT' and words[-1].upper() != 'MJ' and words[-1].upper() != 'KGS':
-                    print("ERROR: You can only invoke Generic potential keyword as 'generic-bt' or 'generic-mj' or 'generic-kgs'")
+                    self.logger.error("ERROR: You can only invoke Generic potential keyword as 'generic-bt' or 'generic-mj' or 'generic-kgs'")
                     sys.exit()
                 else:
                     self.potential_name = self.potential_name.upper()
-                    print("ERROR: The generic potential is not supported in this version.\nCoarse-graining terminated.")
+                    self.logger.error("ERROR: The generic potential is not supported in this version.\nCoarse-graining terminated.")
                     sys.exit()
         else:
             self.potential_name = self.potential_name.upper()
@@ -347,7 +350,7 @@ class CoarseGrain:
         dom = []
         if self.domain_file != "None":
             if not os.path.exists(self.domain_file):
-                print("ERROR: File %s does not exist"%self.domain_file)
+                self.logger.error("ERROR: File %s does not exist"%self.domain_file)
                 sys.exit()
             f = open(self.domain_file)
             lines = f.readlines()
@@ -363,18 +366,18 @@ class CoarseGrain:
                     words = [int(w) for w in words]
                     dom.append(words)
                     if words[0] > words[1]:
-                        print("ERROR: When defining the domains in the interface file, index %d is Greater than %d!"%(words[0], words[1]))
+                        self.logger.error("ERROR: When defining the domains in the interface file, index %d is Greater than %d!"%(words[0], words[1]))
                         sys.exit()
-            print('%d domain(s) defined in the Domain file %s'%(ndomain, self.domain_file))
+            self.logger.info('%d domain(s) defined in the Domain file %s'%(ndomain, self.domain_file))
             if ndomain == 0:
-                print("ERROR: No domain definitions were read. Check the domain definition file!")
+                self.logger.error("ERROR: No domain definitions were read. Check the domain definition file!")
                 sys.exit()
-            print("Domain information:")
+            self.logger.info("Domain information:")
             for i, d in enumerate(dom):
-                print("Domain %d: %d to %d"%(i+1, d[0], d[1]))
-            print("")
+                self.logger.info("Domain %d: %d to %d"%(i+1, d[0], d[1]))
+            self.logger.info("")
             if len(dom_nscal) != (1+ndomain)*ndomain/2:
-                print("ERROR: Incorrect number of interfaces assigned. (%d, should be %d)"%(len(dom_nscal)-ndomain, (ndomain-1)*ndomain/2))
+                self.logger.error("ERROR: Incorrect number of interfaces assigned. (%d, should be %d)"%(len(dom_nscal)-ndomain, (ndomain-1)*ndomain/2))
                 sys.exit()
         self.dom_nscal = dom_nscal
         self.ndomain = ndomain
@@ -390,9 +393,9 @@ class CoarseGrain:
         elif self.potential_name.startswith('BT'):
             miya = files('EntDetect.resources.shared_files').joinpath('bt_contact_potential.dat')
         else:
-            print("ERROR: Unrecognized force-field %s"%self.potential_name)
+            self.logger.error("ERROR: Unrecognized force-field %s"%self.potential_name)
             sys.exit()
-        print(miya)
+        self.logger.debug(miya)
 
         eps = np.zeros((20,20))
 
@@ -412,7 +415,7 @@ class CoarseGrain:
                 for w in words[1:]:
                     vec.append(self.res2n[w.upper()])
                 if len(vec) != 20:
-                    print("ERROR: missing residues in file %s"%miya)
+                    self.logger.error("ERROR: missing residues in file %s"%miya)
                     sys.exit()
             else:
                 words = line.split()
@@ -433,15 +436,15 @@ class CoarseGrain:
                     nmj += 1
                 nrows += 1
                 if nrows > 20:
-                    print("ERROR 2: missing residues in file %s: %d"%(miya, nrows))
+                    self.logger.error("ERROR 2: missing residues in file %s: %d"%(miya, nrows))
                     sys.exit()
                 if len(words) != nrows:
-                    print("ERROR 3: missing residues in file %s, %d != %d"%(miya, len(words), nrows))
+                    self.logger.error("ERROR 3: missing residues in file %s, %d != %d"%(miya, len(words), nrows))
                     sys.exit()
         self.eps = eps
         avg_mj = avg_mj/nmj
         self.avg_mj = avg_mj
-        print("The average %s interaction energy is %.4f\n"%(self.potential_name, self.avg_mj))
+        self.logger.info("The average %s interaction energy is %.4f\n"%(self.potential_name, self.avg_mj))
         # END initialize nonbonding potential
 
         # Read in the generic backbone dihedral potential of CL Brooks if NON-GO dihedrals
@@ -467,8 +470,8 @@ class CoarseGrain:
                 r1_old = r1
                 r2_old = r2
                 if nphi > 4:
-                    print("ERROR: nphi = %d upon reading in generic dihedral file"%nphi)
-                    print(line)
+                    self.logger.error("ERROR: nphi = %d upon reading in generic dihedral file"%nphi)
+                    self.logger.debug(line)
                     sys.exit()
             self.dihedb_nongo = dihedb_nongo
         # END Read in the generic backbone dihedral potential
@@ -509,7 +512,7 @@ class CoarseGrain:
                 b_bead = ca_list[i].residue.atoms[1]
                 struct.impropers.append(pmd.topologyobjects.Improper(ca_list[i], ca_list[i-1], ca_list[i+1], b_bead))
         psffile = os.path.join(self.outdir, name+'.psf')
-        print(f'Writing {psffile}')
+        self.logger.info(f'Writing {psffile}')
         struct.save(psffile, overwrite=True, vmd=False)
         return psffile
     # END generate charmm .psf
@@ -520,7 +523,7 @@ class CoarseGrain:
     def Create_rtf(self, struct, out_name):
         #global self.pdbfile, self.casm
         topfile = os.path.join(self.outdir, out_name+'.top')
-        print(f'Writing {topfile}')
+        self.logger.info(f'Writing {topfile}')
         fo = open(topfile, 'w')
         if self.casm == 1:
             fo.write('* This CHARMM .top file describes a Ca-Cb Go model of %s\n*\n20 1\n'%self.pdbfile)
@@ -623,11 +626,11 @@ class CoarseGrain:
         simulation.context.setVelocitiesToTemperature(temp)
         energy = simulation.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(kilocalorie/mole)
         getEnergyDecomposition(stdout, simulation.context, system)
-        print('   Potential energy before minimization: %.4f kcal/mol'%energy)
+        self.logger.info('   Potential energy before minimization: %.4f kcal/mol'%energy)
         simulation.minimizeEnergy(tolerance=0.1*kilocalories_per_mole)
         energy = simulation.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(kilocalorie/mole)
         getEnergyDecomposition(stdout, simulation.context, system)
-        print('   Potential energy after minimization: %.4f kcal/mol'%energy)
+        self.logger.info('   Potential energy after minimization: %.4f kcal/mol'%energy)
         current_cor = simulation.context.getState(getPositions=True).getPositions()
         return current_cor
     ###################################################################################################
@@ -682,7 +685,7 @@ class CoarseGrain:
             try:
                 states = context.getState(getEnergy=True, groups={i})
             except ValueError as e:
-                print(str(e))
+                self.logger.debug(str(e))
                 energies[i] = Quantity(np.nan, kilocalories/mole)
             else:
                 energies[i] = states.getPotentialEnergy()
@@ -705,7 +708,7 @@ class CoarseGrain:
         for tf in top_file_list:
             command += '"'+tf + '", '
         command += 'prmfile)'
-        print(command)
+        self.logger.debug(command)
   
         param=eval(command)
 
@@ -714,7 +717,7 @@ class CoarseGrain:
 
         openmm_param=pmd.openmm.parameters.OpenMMParameterSet.from_parameterset(param)
         openmm_param.write(file_name+'_tmp.xml', skip_duplicates=False)
-        print(f'Writing {file_name}_tmp.xml')
+        self.logger.info(f'Writing {file_name}_tmp.xml')
 
         dom = MD.parse(file_name+'_tmp.xml')
         root = dom.documentElement
@@ -1247,7 +1250,7 @@ class CoarseGrain:
                 
         # Read PDB file
         cg_structure = pmd.Structure()
-        print("Reading in PDB file %s"%self.pdbfile)
+        self.logger.info("Reading in PDB file %s"%self.pdbfile)
 
         struct = pmd.load_file(self.pdbfile)
         sel_idx = np.zeros(len(struct.atoms))
@@ -1268,10 +1271,10 @@ class CoarseGrain:
                 elif atm.name != 'OXT':
                     num_sidechain += 1
             if num_backbone != 4:
-                print("ERROR: In pdb the number of backbone atoms in residue %d is incorrect: %d != 4"%(idx+1, num_backbone))
+                self.logger.error("ERROR: In pdb the number of backbone atoms in residue %d is incorrect: %d != 4"%(idx+1, num_backbone))
                 sys.exit()
             if num_sidechain != self.refNscat[res.name]:
-                print("ERROR: In pdb the number of sidechain atoms in residue %d is incorrect: %d != %d"%(idx+1, num_sidechain, self.refNscat[res.name]))
+                self.logger.error("ERROR: In pdb the number of sidechain atoms in residue %d is incorrect: %d != %d"%(idx+1, num_sidechain, self.refNscat[res.name]))
                 sys.exit()
 
         idx_atm = 0
@@ -1281,7 +1284,7 @@ class CoarseGrain:
             if not res.chain in chain_id_list:
                 chain_id_list.append(res.chain)
         if len(chain_id_list) > len(self.alphabet):
-            print('ERROR: The number of chains in pdb file (%d) exceeds the maximum (%d)'%(len(chain_id_list), len(self.alphabet)))
+            self.logger.error('ERROR: The number of chains in pdb file (%d) exceeds the maximum (%d)'%(len(chain_id_list), len(self.alphabet)))
             sys.exit()
         resid = 0
         chainid = chain_id_list[0]
@@ -1350,7 +1353,7 @@ class CoarseGrain:
 
         # Assign domain id to atom
         if self.ndomain != 0:
-            print('Assign domain id to each atom')
+            self.logger.debug('Assign domain id to each atom')
             id_domain = []
             for atm in cg_structure.atoms:
                 res_id = atm.residue.idx+1
@@ -1361,9 +1364,9 @@ class CoarseGrain:
                         found = True
                         break
                 if not found:
-                    print('ERROR: %s is not located in any domain.'%atm)
+                    self.logger.error('ERROR: %s is not located in any domain.'%atm)
                     sys.exit()
-            print('')
+            self.logger.debug('')
 
         # Write psf, cor and top
         output_prefix = self.pdbfile.strip().split('/')[-1].split('.pdb')[0]
@@ -1371,27 +1374,27 @@ class CoarseGrain:
             output_prefix += '_ca-cb'
         else:
             output_prefix += '_ca'
-        print('Create psf')
+        self.logger.info('Create psf')
         psffile = self.create_psf(cg_structure, ca_list, output_prefix)
 
-        print('Create cor')
+        self.logger.debug('Create cor')
         corfile = os.path.join(self.outdir, output_prefix+'.cor')
-        print(f'Writing {corfile}')
+        self.logger.info(f'Writing {corfile}')
         cg_structure.save(corfile, overwrite=True, format='charmmcrd')
 
-        print('Create top')
+        self.logger.debug('Create top')
         topfile = self.Create_rtf(cg_structure, output_prefix)
             
         # Prepare FF parameters
-        print("Determining native contacts")
+        self.logger.info("Determining native contacts")
         dist_map = np.zeros((len(cg_structure.atoms), len(cg_structure.atoms)))
         for idx_1, atm_1 in enumerate(cg_structure.atoms):
             for idx_2, atm_2 in enumerate(cg_structure.atoms):
                 dist_map[idx_1, idx_2] = self.calc_distance(atm_1, atm_2)
-        print("Finished calculating distance matrix")
+        self.logger.info("Finished calculating distance matrix")
 
         ## Compute native contacts between side-chains
-        print("Determining side-chains - side-chains contacts")
+        self.logger.info("Determining side-chains - side-chains contacts")
         native_ss_map = np.zeros((len(cg_structure.residues), len(cg_structure.residues)))
         for i in range(len(cg_structure.residues)-3):
             res_1 = heavy_protein.residues[i]
@@ -1410,7 +1413,7 @@ class CoarseGrain:
                     if found:
                         break
         ## Compute native contacts between backbone and side-chains
-        print("Determining backbone - side-chains contacts")
+        self.logger.info("Determining backbone - side-chains contacts")
         native_bsc_map = np.zeros((len(cg_structure.residues), len(cg_structure.residues)))
         for i in range(len(cg_structure.residues)):
             res_1 = heavy_protein.residues[i]
@@ -1428,13 +1431,13 @@ class CoarseGrain:
                                     break
                         if found:
                             break
-        print('# nat sc-sc contacts %d, # nat bb-sc contacts %d, and  # non-nat sc-sc %d'%(np.sum(native_ss_map)/2, 
+        self.logger.info('# nat sc-sc contacts %d, # nat bb-sc contacts %d, and  # non-nat sc-sc %d' % (np.sum(native_ss_map)/2,
             np.sum(native_bsc_map), (len(cg_structure.residues)-3)*(len(cg_structure.residues)-2)/2 - np.sum(native_ss_map)/2))
             
         ## Determine hydrogen bonds that are present using STRIDE,
         ## and assign to Calpha-Calpha pairs. Also secondary structural elements
         ## within the native structure.
-        print("Determining the presence of hydrogen bonds using STRIDE")
+        self.logger.info("Determining the presence of hydrogen bonds using STRIDE")
         native_hb_map = np.zeros((len(cg_structure.residues), len(cg_structure.residues)))
         helical_list = np.zeros(len(cg_structure.residues))
         hb_ene_map = np.zeros((len(cg_structure.residues), len(cg_structure.residues)))
@@ -1474,7 +1477,7 @@ class CoarseGrain:
                     if sum(found) == 2:
                         break
                 if sum(found) != 2:
-                    print("ERROR: Cannot find residue in parmed structure according to the Hbond info.\n  %s"%line)
+                    self.logger.error("ERROR: Cannot find residue in parmed structure according to the Hbond info.\n  %s"%line)
                     sys.exit()
                 if chainid_1 == chainid_2:
                     if idx_1 < idx_2:
@@ -1505,7 +1508,7 @@ class CoarseGrain:
                 if native_hb_map[i,j] == 1:
                     num_hb += 1
                     #print('%d %.4f, %d %d'%(num_hb, hb_ene_map[i,j], i+1, j+1))
-        print('# of unique Hbonds %d'%num_hb)
+        self.logger.info('# of unique Hbonds %d'%num_hb)
         native_contact_map = np.zeros((len(cg_structure.residues), len(cg_structure.residues)))
         for i in range(len(cg_structure.residues)):
             for j in range(len(cg_structure.residues)):
@@ -1513,10 +1516,10 @@ class CoarseGrain:
                     native_contact_map[i,j] == 1
 
         ## Write prm file ##
-        print('Create prm')
+        self.logger.debug('Create prm')
         prmfile = self.pdbfile.strip().split('/')[-1].split('.pdb')[0] + '_nscal' + str(self.nscal) + '_fnn' + str(self.fnn) + '_go_' + self.potential_name.lower() + '.prm'
         prmfile = os.path.join(self.outdir, prmfile)
-        print(f'Writing {prmfile}')
+        self.logger.info(f'Writing {prmfile}')
 
         f = open(prmfile, 'w')
         f.write('* This CHARMM .param file describes a Go model of %s\n'%(self.pdbfile.split('/')[-1]))
@@ -1708,7 +1711,7 @@ class CoarseGrain:
                             atm_i = cg_structure.residues[i].atoms[1]
                             atm_j = cg_structure.residues[j].atoms[1]
                             if self.eps[self.res2n[resname_1]][self.res2n[resname_2]] == 0:
-                                print('ERROR 1: Well depth equal to zero!!! %s - %s'%(resname_1, resname_2))
+                                self.logger.error('ERROR 1: Well depth equal to zero!!! %s - %s'%(resname_1, resname_2))
                                 sys.exit()
                             comment = ''
                             if self.ndomain == 0: # No domain defined
@@ -1781,7 +1784,7 @@ class CoarseGrain:
                         # sc-sc interactions
                         if native_ss_map[i,j] == 1:
                             if self.eps[self.res2n[resname_1]][self.res2n[resname_2]] == 0:
-                                print('ERROR 1: Well depth equal to zero!!! %s - %s'%(resname_1, resname_2))
+                                self.logger.error('ERROR 1: Well depth equal to zero!!! %s - %s'%(resname_1, resname_2))
                                 sys.exit()
                             if self.ndomain == 0: # No domain defined
                                 ene += self.eps[self.res2n[resname_1]][self.res2n[resname_2]]
@@ -1847,7 +1850,7 @@ class CoarseGrain:
         f.write('\nEND\n')
         f.close()
 
-        print('All done.')
+        self.logger.debug('All done.')
         return {'cor': corfile, 'prm': prmfile, 'psf': psffile, 'top': topfile,}
     ##########################################################################################
 
@@ -1863,7 +1866,7 @@ class BackMapping:
         self.outdir = outdir
         if not os.path.exists(self.outdir):
             os.makedirs(self.outdir)
-            print(f'Made directory: {self.outdir}')
+            self.logger.info(f'Made directory: {self.outdir}')
 
     #######################################################################################################
 
@@ -1874,24 +1877,24 @@ class BackMapping:
         """
 
         ##########################################################################
-        print(f"-> Cleaning PDB file {aa_pdb}")
+        self.logger.info(f"-> Cleaning PDB file {aa_pdb}")
         name = pathlib.Path(cg_pdb).stem + f'_{ID}'
         work_dir = os.path.join(self.outdir, 'rebuild_'+name)
-        print(name, work_dir)
+        self.logger.info(name, work_dir)
         
         if not os.path.exists(work_dir):
             os.makedirs(work_dir)
 
         aa_clean_pdb, aa_clean_pdb_outfile = self.clean_pdb(aa_pdb, work_dir, name)
         os.chdir(work_dir)
-        print('   Done')
+        self.logger.debug('   Done')
         ##########################################################################
 
         ##########################################################################
         # buld ca-cb model
-        print(f"-> Building ca-cb model for {aa_clean_pdb_outfile}")
+        self.logger.info(f"-> Building ca-cb model for {aa_clean_pdb_outfile}")
         (prefix, prm_file) = self.create_cg_model(aa_clean_pdb_outfile, ID)
-        print('   Done')
+        self.logger.debug('   Done')
 
         cacb_struct = pmd.load_file(prefix+'.psf')
         cacb_cor = pmd.load_file(prefix+'.cor')
@@ -1901,15 +1904,15 @@ class BackMapping:
     
         ##########################################################################
         # add SC beads to cg pdb
-        print("-> Adding side chain beads")
+        self.logger.info("-> Adding side chain beads")
         target_name = name
         cg_sc_struct = self.add_sc_beads(cg_pdb, cacb_struct)
-        print('   Done')
+        self.logger.debug('   Done')
         ##########################################################################
 
         ##########################################################################
         # run energy minimization for cacb model
-        print("-> Running energy minimization for ca-cb model")
+        self.logger.info("-> Running energy minimization for ca-cb model")
         cg_sc_min_cor = self.cacb_energy_minimization(cg_sc_struct.positions, prefix, prm_file)
         aa_pdb_struct = pmd.load_file(aa_clean_pdb)
         for index in range(len(aa_pdb_struct.residues)):
@@ -1935,14 +1938,14 @@ class BackMapping:
 
         #cg_sc_struct.positions = cg_sc_min_cor
         cg_sc_struct.positions = centered_coordinates
-        print(f'cg_sc_struct.positions: {cg_sc_struct.positions[:10]}')
+        self.logger.info(f'cg_sc_struct.positions: {cg_sc_struct.positions[:10]}')
         target_name_mini_pdb = target_name+'_mini.pdb'
         cg_sc_struct.save(target_name_mini_pdb, overwrite=True)
-        print(f'SAVED: {target_name_mini_pdb}')
-        print('   Done')
+        self.logger.debug(f'SAVED: {target_name_mini_pdb}')
+        self.logger.debug('   Done')
 
         #output_from_PD2 = target_name+'_mini.pdb'
-        print(f"-> Running Pulchra for {target_name_mini_pdb}")
+        self.logger.info(f"-> Running Pulchra for {target_name_mini_pdb}")
         output_from_Pultra = self.Call_Pulchra(target_name_mini_pdb)
  
 
@@ -1954,13 +1957,13 @@ class BackMapping:
             rec_pdb = self.OpenMM_vacuum_minimization(output_from_Pultra_cleaned, 500000)
             os.system('cp '+rec_pdb+' ../'+rec_pdb)
         except Exception as e:
-            print(traceback.print_exc(), e)
-            print('Failed to run OpenMM minimization. Use Pulchra result instead.')
+            self.logger.info(traceback.print_exc(), e)
+            self.logger.debug('Failed to run OpenMM minimization. Use Pulchra result instead.')
             rec_pdb = target_name+'_rebuilt.pdb'
             os.system('cp '+output_from_Pultra_cleaned+' ../'+rec_pdb)
 
         os.chdir('../')
-        print(f'Backmapping from {cg_pdb} -> {rec_pdb}')
+        self.logger.info(f'Backmapping from {cg_pdb} -> {rec_pdb}')
     #######################################################################################################
 
     #######################################################################################################
@@ -1978,7 +1981,7 @@ class BackMapping:
                     sel_idx[atm.idx] = 1
 
         clean_pdb_outfile = os.path.join(out_dir, f'{name}_clean.pdb')
-        print(f'Writing {clean_pdb_outfile}')
+        self.logger.info(f'Writing {clean_pdb_outfile}')
         struct[sel_idx].save(clean_pdb_outfile, overwrite=True)
         return f'{name}_clean.pdb', clean_pdb_outfile
     #######################################################################################################
@@ -2023,11 +2026,11 @@ class BackMapping:
 
     #######################################################################################################
     def create_cg_model(self, pdb, ID):
-        print(f'Creating CASM CG model from {pdb}')
+        self.logger.info(f'Creating CASM CG model from {pdb}')
         if not os.path.exists('./create_model'):
             os.makedirs('./create_model')
         os.chdir("./create_model")
-        print(os.getcwd())
+        self.logger.debug(os.getcwd())
 
         CoarseGrainer = CoarseGrain(outdir='./',
                                         ID=ID,
@@ -2035,18 +2038,18 @@ class BackMapping:
                                         nscal=10.0,
                                         potential_name='mj',
                                         casm=1)
-        print(CoarseGrainer)
+        self.logger.debug(CoarseGrainer)
     
         CGfiles = CoarseGrainer.run()
-        print(os.getcwd())
+        self.logger.debug(os.getcwd())
  
         
         name = pathlib.Path(pdb).stem
         prefix = name+'_ca-cb'
         prm_name = name + '_nscal10.0_fnn1_go_mj.prm'
-        print(f'name: {name}')
-        print(f'prefix: {prefix}')
-        print(f'prm_name: {prm_name}')
+        self.logger.debug(f'name: {name}')
+        self.logger.debug(f'prefix: {prefix}')
+        self.logger.debug(f'prm_name: {prm_name}')
         
         if os.path.exists(prefix+'.psf'):
             os.system('cp *.psf ../')
@@ -2055,18 +2058,18 @@ class BackMapping:
             os.system('cp *.prm ../')
             os.chdir('../')
         else:
-            print("Error: failed to create CG model from %s\n\n"%pdb)
+            self.logger.error("Error: failed to create CG model from %s\n\n"%pdb)
             sys.exit()
         return (prefix, prm_name)
     #######################################################################################################
 
     #######################################################################################################
     def add_sc_beads(self, cg_pdb, cacb_struct):
-        print(f'Adding SC beads to {cg_pdb}')
+        self.logger.info(f'Adding SC beads to {cg_pdb}')
         cor = pmd.load_file(cg_pdb)
         cor = cor.coordinates
         cor = cor[0]
-        print(cor, cor.shape)
+        self.logger.info(cor, cor.shape)
         new_cacb_struct = cacb_struct.copy(pmd.Structure)
         idx = 0
         for res in new_cacb_struct.residues:
@@ -2098,19 +2101,19 @@ class BackMapping:
 
         # parse the cg cacb prm file
         topfile = f'{prefix}.top'
-        print(os.getcwd())
-        print(f'prm_file: {prm_file}')
-        print(f'topfile: {topfile}')
+        self.logger.debug(os.getcwd())
+        self.logger.debug(f'prm_file: {prm_file}')
+        self.logger.debug(f'topfile: {topfile}')
         CoarseGrain.parse_cg_cacb_prm(self, prmfile=prm_file, topfile=topfile)
         xml_file = prm_file.split('.prm')[0]+'.xml'
-        print(f'xml_file: {xml_file}')
+        self.logger.debug(f'xml_file: {xml_file}')
         if not os.path.exists(xml_file):
             raise ValueError(f"Error: {xml_file} not found. Please check the file path.")
         
         #os.system('parse_cg_cacb_prm.py -p '+prm_file+' -t '+prefix+'.top')
         #name = prm_file.split('.prm')[0]
         forcefield = ForceField(xml_file)
-        print(f'forcefield: {forcefield}')
+        self.logger.debug(f'forcefield: {forcefield}')
         
         # re-name residues that are changed by openmm
         for resid, res in enumerate(top.residues()):
@@ -2161,11 +2164,11 @@ class BackMapping:
         simulation.context.setVelocitiesToTemperature(temp)
         energy = simulation.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(kilocalorie/mole)
         self.getEnergyDecomposition(stdout, simulation.context, system)
-        print('   Potential energy before minimization: %.4f kcal/mol'%energy)
+        self.logger.info('   Potential energy before minimization: %.4f kcal/mol'%energy)
         simulation.minimizeEnergy(tolerance=0.1*kilocalories_per_mole)
         energy = simulation.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(kilocalorie/mole)
         self.getEnergyDecomposition(stdout, simulation.context, system)
-        print('   Potential energy after minimization: %.4f kcal/mol'%energy)
+        self.logger.info('   Potential energy after minimization: %.4f kcal/mol'%energy)
         current_cor = simulation.context.getState(getPositions=True).getPositions()
         #print(f'current_cor:\n{current_cor[:10]}')
         return current_cor
@@ -2195,7 +2198,7 @@ class BackMapping:
             try:
                 states = context.getState(getEnergy=True, groups={i})
             except ValueError as e:
-                print(str(e))
+                self.logger.debug(str(e))
                 energies[i] = Quantity(np.nan, kilocalories/mole)
             else:
                 energies[i] = states.getPotentialEnergy()
@@ -2208,18 +2211,18 @@ class BackMapping:
 
     #######################################################################################################
     def Call_Pulchra(self, rebult_pdb):
-        print("-> Calling pulchra to reconstruct all-atom PDB")
+        self.logger.info("-> Calling pulchra to reconstruct all-atom PDB")
         self.pulchra = files('EntDetect.resources').joinpath('pulchra')
-        print(f'pulchra: {self.pulchra}')
+        self.logger.debug(f'pulchra: {self.pulchra}')
         pulchra_cmd = f'{self.pulchra} -v -g -q {rebult_pdb} > pulchra.log'
-        print(f'CALL: {pulchra_cmd}')
+        self.logger.debug(f'CALL: {pulchra_cmd}')
         os.system(pulchra_cmd)
 
         pdb_code = rebult_pdb.split('.pdb')[0]
         old_name = pdb_code + ".rebuilt.pdb"
         new_name = pdb_code + "_pulchra.pdb"
         os.system("mv "+old_name+" "+new_name)
-        print("   Reconstructed all-atom PDB "+new_name)
+        self.logger.info("   Reconstructed all-atom PDB "+new_name)
 
         return new_name
     #######################################################################################################
@@ -2229,7 +2232,7 @@ class BackMapping:
         global nproc
         pdb_code = input_pdb.split('.pdb')[0]
 
-        print("-> Running all-atom energy minimization for %d steps in vacuum via OpenMM"%maxcyc)
+        self.logger.info("-> Running all-atom energy minimization for %d steps in vacuum via OpenMM"%maxcyc)
 
         #platform = Platform.getPlatformByName('CUDA')
         #properties = {'CudaPrecision': 'mixed'}
@@ -2237,9 +2240,9 @@ class BackMapping:
         properties = {'Threads': self.nproc}
 
         forcefield = ForceField('amber14-all.xml')
-        print(f'input_pdb: {input_pdb}')
+        self.logger.debug(f'input_pdb: {input_pdb}')
         pdb = pdbfile.PDBFile(input_pdb)
-        print('FF made and PDB file loaded')
+        self.logger.debug('FF made and PDB file loaded')
 
         # Check if the end residue has missing OXT atom and add if needed
         for chain in pdb.topology.chains():
@@ -2263,13 +2266,13 @@ class BackMapping:
                 new_position = np.dot(self.rotation_matrix(C_position-CA_position, np.pi), O_position-C_position) + C_position
                 new_position = Quantity(value=Vec3(x=new_position[0], y=new_position[1], z=new_position[2]), unit=nanometer)
                 pdb.positions.insert(O_atom.index+1, new_position)
-        print('QC for OXT complete')
+        self.logger.debug('QC for OXT complete')
 
         model = modeller.Modeller(pdb.topology, pdb.positions)
-        print(f'model: {model}')
+        self.logger.debug(f'model: {model}')
         model.addHydrogens(forcefield=forcefield, pH=7.0)
         #model.addHydrogens(forcefield=forcefield, pH=7.0, variants=None, platform=platform)
-        print('Hydrogens added')
+        self.logger.debug('Hydrogens added')
 
         top = model.topology
         structure = pmd.openmm.load_topology(top)
@@ -2278,7 +2281,7 @@ class BackMapping:
         #structure.save('111.pdb', overwrite=True)
         
         system = forcefield.createSystem(top, nonbondedMethod=NoCutoff, constraints=None)
-        print('System created')
+        self.logger.debug('System created')
 
         # add position restraints
         force = CustomExternalForce("k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
@@ -2287,7 +2290,7 @@ class BackMapping:
         force.addPerParticleParameter("y0")
         force.addPerParticleParameter("z0")
         system.addForce(force)
-        print('Position restraints added')
+        self.logger.debug('Position restraints added')
         # END add position restraints
         
         # add position restraints for CA
@@ -2299,24 +2302,24 @@ class BackMapping:
         
         integrator = LangevinIntegrator(300*kelvin, 1/picosecond, 0.002*picoseconds)
         integrator.setConstraintTolerance(0.00001)
-        print('Integrator set')
+        self.logger.debug('Integrator set')
 
         simulation = Simulation(top, system, integrator, platform, properties)
         simulation.context.setPositions(cor)
         energy = simulation.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(kilocalorie/mole)
         self.getEnergyDecomposition(stdout, simulation.context, system)
-        print('   Potential energy before minimization: %.4f kcal/mol'%energy)
+        self.logger.info('   Potential energy before minimization: %.4f kcal/mol'%energy)
 
         simulation.minimizeEnergy(maxIterations=maxcyc)
         energy = simulation.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(kilocalorie/mole)
         self.getEnergyDecomposition(stdout, simulation.context, system)
-        print('   Potential energy after minimization: %.4f kcal/mol'%energy)
+        self.logger.info('   Potential energy after minimization: %.4f kcal/mol'%energy)
         current_cor = simulation.context.getState(getPositions=True).getPositions()
         
         structure.positions = current_cor
         outfile = pdb_code+'_OpenMM_min.pdb'
         structure['!@/H'].save(outfile, overwrite=True)
-        print(f'SAVED: {outfile}')
+        self.logger.debug(f'SAVED: {outfile}')
         return outfile
     #######################################################################################################
 
@@ -2337,7 +2340,7 @@ class BackMapping:
                         continue  # Skip this line if the atom name is 'SC'
                 outfile.write(line)  # Write all other lines
 
-        print(f"Cleaned PDB file saved to {output_pdb}")
+        self.logger.info(f"Cleaned PDB file saved to {output_pdb}")
     #######################################################################################################
 
     #######################################################################################################

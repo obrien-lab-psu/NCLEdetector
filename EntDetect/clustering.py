@@ -9,7 +9,9 @@ import re
 import random
 import pandas as pd
 import pickle
+import logging
 import sys, getopt, math, os, time, traceback, glob, copy
+from EntDetect._logging import setup_logger
 from scipy.cluster.hierarchy import fcluster, linkage, cophenet
 try:
     import parmed as pmd
@@ -43,7 +45,7 @@ class ClusterNativeEntanglements:
     """
 
     ##########################################################################################################################################################
-    def __init__(self, organism: str = 'Ecoli', cut_off: int = None) -> None:
+    def __init__(self, organism: str = 'Ecoli', cut_off: int = None, outdir: str = None, log_level: int = logging.INFO, logdir: str = None) -> None:
         """
         Constructor for GaussianEntanglement class.
 
@@ -61,6 +63,7 @@ class ClusterNativeEntanglements:
         if cut_off is not None:
             self.cut_off = cut_off
         self.organism = organism
+        self.logger = setup_logger('ClusterNativeEntanglements', outdir=logdir if logdir is not None else outdir, log_level=log_level)
     ##########################################################################################################################################################
 
     ##########################################################################################################################################################
@@ -145,9 +148,9 @@ class ClusterNativeEntanglements:
         4. Spatially cluster those outputs that have (i) the same number of crossings and (ii) the same chiralities
 
         """
-        print(f'Clustering {self.organism} Native Entanglements with dist_cutoff: {self.cut_off}')
+        self.logger.info(f'Clustering {self.organism} Native Entanglements with dist_cutoff: {self.cut_off}')
         GE_file = GE_filepath.split('/')[-1]
-        print(GE_file, self.cut_off, outdir)
+        self.logger.debug(f'{GE_file} cut_off={self.cut_off} outdir={outdir}')
 
         full_entanglement_data = defaultdict(list)
 
@@ -166,11 +169,11 @@ class ClusterNativeEntanglements:
         ## Check if the clustering file is already made and if so use it
         outfilepath = os.path.join(f'{outdir}', f'{outfile}')
         if os.path.exists(outfilepath):
-            print(f'{outfilepath} ALREADY EXISTS AND WILL BE LOADED')
+            self.logger.info(f'{outfilepath} ALREADY EXISTS AND WILL BE LOADED')
             outdf = pd.read_csv(outfilepath, sep='|')
             return {'outfile':outfilepath, 'ent_result':outdf}
 
-        print(f'Loading {GE_filepath}')
+        self.logger.info(f'Loading {GE_filepath}')
         GE_data = pd.read_csv(GE_filepath, sep='|', dtype={'crossingsN': str, 'crossingsC': str})
         GE_data = GE_data[GE_data['ENT'] == True].reset_index(drop=True)
         # if Quality is a column name then only get the High Quality raw entanglements
@@ -178,13 +181,13 @@ class ClusterNativeEntanglements:
             GE_data = GE_data[GE_data['Quality'] == 'High'].reset_index(drop=True)
         
         GE_data = GE_data.replace(np.nan, '', regex=True)
-        print(GE_data)
+        self.logger.debug(GE_data)
       
         ### STEP 1 INITAL LOADING AND MERGING ################################################################################################################
         ############################################################################################
         ## parse the entanglement file and
         ## get those native contacts that are disulfide bonds
-        print(f'# Step 1')
+        self.logger.info(f'# Step 1')
         CCBonds = []
         num_raw_ents = {}
         chain_info = {}  # Track chain for each ID
@@ -202,7 +205,7 @@ class ClusterNativeEntanglements:
             
             crossing_res = [cr for cr in [crossingsN, crossingsC] if cr != '']
             crossing_res = ','.join(crossing_res)
-            print(native_contact_i, native_contact_j, crossing_res)
+            self.logger.debug(f'{native_contact_i} {native_contact_j} {crossing_res}')
 
             gn, gc = row['gn'], row['gc']
             GLNn, GLNc = row['GLNn'], row['GLNc']
@@ -247,23 +250,22 @@ class ClusterNativeEntanglements:
             Step1_QC_counter += len(v)
         
         # STEP 1 SUMMARY
-        print(f'\n{"="*100}')
-        print(f'STEP 1 SUMMARY: Data Loading and Grouping by Unique Crossing Sets')
-        print(f'{"="*100}')
-        print(f'Total raw entanglements loaded: {Step1_QC_counter}')
-        print(f'Number of protein IDs: {len(num_raw_ents)}')
+        self.logger.info(f'\n{"="*100}')
+        self.logger.info(f'STEP 1 SUMMARY: Data Loading and Grouping by Unique Crossing Sets')
+        self.logger.info(f'{"="*100}')
+        self.logger.info(f'Total raw entanglements loaded: {Step1_QC_counter}')
+        self.logger.info(f'Number of protein IDs: {len(num_raw_ents)}')
         for prot_id, count in sorted(num_raw_ents.items()):
-            print(f'  - {prot_id}: {count} raw entanglements')
-        print(f'Unique crossing patterns identified: {len(grouped_entanglement_data)}')
-        print(f'Disulfide bonds found: {len(CCBonds)}')
+            self.logger.info(f'  - {prot_id}: {count} raw entanglements')
+        self.logger.info(f'Unique crossing patterns identified: {len(grouped_entanglement_data)}')
+        self.logger.info(f'Disulfide bonds found: {len(CCBonds)}')
         if CCBonds:
-            print(f'  - Disulfide bond pairs: {CCBonds}')
-        print()
+            self.logger.info(f'  - Disulfide bond pairs: {CCBonds}')
 
         ### STEP 2 ################################################################################################################
         ############################################################################################
         # Step 2 Get the minimal loop encompassing each set of unique crossings
-        print(f'\n# Step 2a')
+        self.logger.info(f'\n# Step 2a')
         for ID_cr, loops in grouped_entanglement_data.items():
 
             ID = ID_cr[0]
@@ -281,21 +283,21 @@ class ClusterNativeEntanglements:
             ent_data[ID].append((len(loops), minimum_loop_nc_i, minimum_loop_nc_j, *crossings, ';'.join(['-'.join([str(loop[0]), str(loop[1])]) for loop in loops])))
 
         # STEP 2a SUMMARY
-        print(f'{"="*100}')
-        print(f'STEP 2A SUMMARY: Minimal Loop Identification for Unique Crossing Sets')
-        print(f'{"="*100}')
+        self.logger.info(f'{"="*100}')
+        self.logger.info(f'STEP 2A SUMMARY: Minimal Loop Identification for Unique Crossing Sets')
+        self.logger.info(f'{"="*100}')
         for ID, ents in ent_data.items():
             Step2a_QC_counter = 0
             for ent_i, ent in enumerate(ents):
                 #print(ID, ent_i, ent)
                 Step2a_QC_counter += ent[0]
             
-            print(f'{ID}: {Step2a_QC_counter} raw entanglements grouped into {len(ents)} representative loops')
+            self.logger.info(f'{ID}: {Step2a_QC_counter} raw entanglements grouped into {len(ents)} representative loops')
             for ent_i, ent in enumerate(ents):
                 num_loops = ent[0]
                 loop_i, loop_j = ent[1], ent[2]
                 crossings = [str(c) for c in ent[3:-1]]
-                print(f'  Representative {ent_i+1}: Loop ({loop_i}, {loop_j}), ' +
+                self.logger.info(f'  Representative {ent_i+1}: Loop ({loop_i}, {loop_j}), ' +
                       f'Crossings={crossings if crossings else "none"}, ' +
                       f'Represents {num_loops} raw entanglement(s)')
 
@@ -306,9 +308,9 @@ class ClusterNativeEntanglements:
 
         ############################################################################################
         # Step 2b: 
-        print(f'{"="*100}')
-        print(f'STEP 2B: Merging of Entanglements Based on Crossing Proximity')
-        print(f'{"="*100}')
+        self.logger.info(f'{"="*100}')
+        self.logger.info(f'STEP 2B: Merging of Entanglements Based on Crossing Proximity')
+        self.logger.info(f'{"="*100}')
         merged_ents = []
         for ID, ents in ent_data.items():
             orig_ents = ents.copy()
@@ -318,7 +320,7 @@ class ClusterNativeEntanglements:
             for each_ent_pair in comb_ents:
                 #print(f'\nAnalyzing pair: {each_ent_pair}')
                 if each_ent_pair[0] == each_ent_pair[1]:
-                    print(f'Ents are the same: {each_ent_pair}')
+                    self.logger.info(f'Ents are the same: {each_ent_pair}')
                     continue
 
                 distance_thresholds = []
@@ -420,7 +422,7 @@ class ClusterNativeEntanglements:
                             min_ent = min(ent1, ent2, key = len)
                             max_ent = max(ent1, ent2, key = len)
                             if min_ent == max_ent:
-                                print(f'WARNING: Ents are the same. Setting min_ent = ent1 and max_ent = ent2')
+                                self.logger.warning(f'WARNING: Ents are the same. Setting min_ent = ent1 and max_ent = ent2')
                                 min_ent = ent1
                                 max_ent = ent2
                             #print(f'ent1: {ent1} | ent2: {ent2}')
@@ -449,8 +451,8 @@ class ClusterNativeEntanglements:
             #    print(ent_idx, ent)
 
             ### Update entanglement list with those that got merged
-            print(f'\n  Processing {ID}: Analyzing {len(ents)} representative entanglements for merging...')
-            print(f'  Before merge: {len(ents)} representatives')
+            self.logger.info(f'\n  Processing {ID}: Analyzing {len(ents)} representative entanglements for merging...')
+            self.logger.info(f'  Before merge: {len(ents)} representatives')
             merge_count = 0
             while len(merged_ents) != 0:
                 pre_num_merged = len(merged_ents)
@@ -471,8 +473,8 @@ class ClusterNativeEntanglements:
                 if len(merged_ents) == pre_num_merged:
                     raise ValueError('Failed to find a match this cycle and entering infi loop')
                     
-            print(f'  After merge: {merge_count} merges completed')
-            print(f'  Reformatting entanglement data...')
+            self.logger.info(f'  After merge: {merge_count} merges completed')
+            self.logger.info(f'  Reformatting entanglement data...')
             updated_ents = []
             for ent_idx, ent in ent_dict.items():
                 #print(ent_idx, ent)
@@ -491,22 +493,21 @@ class ClusterNativeEntanglements:
                 #print(uent)
                 Step2b_QC_counter += uent[0]
 
-            print(f'  Result: {len(updated_ents)} representative entanglements after merging (tracking {Step2b_QC_counter} total raw)')
-            print(updated_ents)
+            self.logger.info(f'  Result: {len(updated_ents)} representative entanglements after merging (tracking {Step2b_QC_counter} total raw)')
+            self.logger.debug(updated_ents)
             ## QC that the number of tracked entanglements after step 2a is still valid
             if Step2b_QC_counter != num_raw_ents[ID]:
                 raise ValueError(f'The number of tracked entaglements after Step 2b {Step2b_QC_counter} != {num_raw_ents[ID]}')        
 
             ent_data[ID] = updated_ents
-        print()
 
         ### STEP 3 ################################################################################################################
         # Step 3
-        print(f'{"="*100}')
-        print(f'STEP 3: Removing Duplicate Entanglements (Same Crossings, Different Loop Sizes)')
-        print(f'{"="*100}')
+        self.logger.info(f'{"="*100}')
+        self.logger.info(f'STEP 3: Removing Duplicate Entanglements (Same Crossings, Different Loop Sizes)')
+        self.logger.info(f'{"="*100}')
         for ID, processed_ents in ent_data.items():
-            print(f'  {ID}: Checking {len(processed_ents)} entanglements for duplicates...')
+            self.logger.info(f'  {ID}: Checking {len(processed_ents)} entanglements for duplicates...')
 
             comb_processed_ents = itertools.combinations(processed_ents, 2)
 
@@ -580,24 +581,23 @@ class ClusterNativeEntanglements:
                             keep_track_of_shorter_proc_ent.append(shorter_loop_ent_ijr)
         
         # STEP 3 FINAL SUMMARY
-        print(f'\nSTEP 3 RESULTS:')
+        self.logger.info(f'\nSTEP 3 RESULTS:')
         for ID, ents in ent_data.items():
             Step3_QC_counter = 0
             for ent in ents:
                 #print(ent)
                 Step3_QC_counter += ent[0]
             
-            print(f'  {ID}: {len(ents)} representative entanglements remaining (tracking {Step3_QC_counter} raw)')
+            self.logger.info(f'  {ID}: {len(ents)} representative entanglements remaining (tracking {Step3_QC_counter} raw)')
             # QC to ensure number of raw ents was preserved after step 3
             if Step3_QC_counter != num_raw_ents[ID]:
-                raise ValueError(f'The number of tracked entaglements after Step 3 {Step3_QC_counter} != {num_raw_ents[ID]}')    
-        print()
+                raise ValueError(f'The number of tracked entaglements after Step 3 {Step3_QC_counter} != {num_raw_ents[ID]}')
 
         ### STEP 4 SPATIAL CLUSTERING ################################################################################################################
         # Step 4 prep
-        print(f'{"="*100}')
-        print(f'STEP 4 PREP: Grouping Entanglements by Number and Chirality of Crossings')
-        print(f'{"="*100}')
+        self.logger.info(f'{"="*100}')
+        self.logger.info(f'STEP 4 PREP: Grouping Entanglements by Number and Chirality of Crossings')
+        self.logger.info(f'{"="*100}')
         for ID, new_ents in ent_data.items():
 
             for ent in new_ents:
@@ -610,18 +610,17 @@ class ClusterNativeEntanglements:
 
                 full_entanglement_data[ID_num_chirality_key].append(ent)
         
-        print(f'\nGrouping Summary:')
+        self.logger.info(f'\nGrouping Summary:')
         for group_key in sorted(full_entanglement_data.keys()):
             ents = full_entanglement_data[group_key]
-            print(f'  {group_key}: {len(ents)} entanglements')
-        print()
+            self.logger.info(f'  {group_key}: {len(ents)} entanglements')
 
         reset_counter = []
 
         # Step 4
-        print(f'{"="*100}')
-        print(f'STEP 4: Primary Structure Clustering Within Each Group')
-        print(f'{"="*100}')
+        self.logger.info(f'{"="*100}')
+        self.logger.info(f'STEP 4: Primary Structure Clustering Within Each Group')
+        self.logger.info(f'{"="*100}')
         for ID_num_chiral in full_entanglement_data.keys():
             #print(ID_num_chiral)
             #ID = ID_num_chiral.split("_")[0]
@@ -640,9 +639,9 @@ class ClusterNativeEntanglements:
 
             pairwise_entanglements = list(itertools.combinations(full_entanglement_data[ID_num_chiral], 2))
             
-            print(f'\n  Group: {ID_num_chiral}')
-            print(f'    Total entanglements: {len(full_entanglement_data[ID_num_chiral])}')
-            print(f'    Pairwise comparisons: {len(pairwise_entanglements)}')
+            self.logger.info(f'\n  Group: {ID_num_chiral}')
+            self.logger.info(f'    Total entanglements: {len(full_entanglement_data[ID_num_chiral])}')
+            self.logger.info(f'    Pairwise comparisons: {len(pairwise_entanglements)}')
 
             if pairwise_entanglements:
 
@@ -713,7 +712,7 @@ class ClusterNativeEntanglements:
                 next_cluster_count += 1
 
             # pick representative entanglement per cluster
-            print(f'    Primary structure clusters formed: {len(clusters)}')
+            self.logger.info(f'    Primary structure clusters formed: {len(clusters)}')
             for counter, ijr_values in clusters.items():
                 #print(f'\nCluster {counter} {ijr_values}')
 
@@ -761,14 +760,14 @@ class ClusterNativeEntanglements:
                     rep_ID_ent[(ID, split_cluster_counter)].append(ijr_values[0])
                     if counter == list(clusters.keys())[-1]:  # Print only for last cluster to avoid clutter
                         num_single = sum(1 for c_vals in clusters.values() if len(c_vals) == 1)
-                        print(f'    Single-entanglement clusters: {num_single}')
+                        self.logger.info(f'    Single-entanglement clusters: {num_single}')
                 
                 split_cluster_counter += 1
         
         ## QC Step 4 results
-        print(f'\n{"="*100}')
-        print(f'STEP 4 FINAL RESULTS: Primary Structure Clustering Summary')
-        print(f'{"="*100}')
+        self.logger.info(f'\n{"="*100}')
+        self.logger.info(f'STEP 4 FINAL RESULTS: Primary Structure Clustering Summary')
+        self.logger.info(f'{"="*100}')
         num_raw_ents_FINAL = {}
         for ID_counter, ijrs in rep_ID_ent.items():
             #print(ID_counter, ijrs)
@@ -786,22 +785,21 @@ class ClusterNativeEntanglements:
         for ID, count in num_raw_ents.items():
             final_count = num_raw_ents_FINAL[ID]
             num_clusters = len([ijrs for (c_id, _), ijrs in rep_ID_ent.items() if c_id == ID])
-            print(f'{ID}: {count} raw → {final_count} raw in {num_clusters} final clusters')
+            self.logger.info(f'{ID}: {count} raw → {final_count} raw in {num_clusters} final clusters')
             if count != final_count:
                 raise ValueError(f'The FINAL # of raw ents {final_count} != the starting {count} for ID {ID}')
-        print()
-            
+
         ### STEP 5 OUTPUT FILE ################################################################################################################
         # Step 5
-        print(f'{"="*100}')
-        print(f'STEP 5: Writing Output File')
-        print(f'{"="*100}')
+        self.logger.info(f'{"="*100}')
+        self.logger.info(f'STEP 5: Writing Output File')
+        self.logger.info(f'{"="*100}')
 
         ## set up the outdir for this calculation
         #outdir = f"{os.getcwd()}/{outdir}"
         if not os.path.isdir(outdir):
             os.mkdir(f"{outdir}") 
-            print(f"Creating directory: {outdir}")
+            self.logger.info(f"Creating directory: {outdir}")
 
         outfilepath = os.path.join(f'{outdir}', f'{outfile}')
 
@@ -854,20 +852,20 @@ class ClusterNativeEntanglements:
                     line = f"{ID}|{chain}|{int(ijr[1])}|{int(ijr[2])}|{crossingsN_str}|{crossingsC_str}|{gn:.5f}|{gc:.5f}|{GLNn}|{GLNc}|{TLNn}|{TLNc}|{num_nc}|{ijr[-1]}|{CCBond_flag}"
                     #print(line)
                     f.write(f"{line}\n")
-        print(f'SAVED: {outfilepath}')
+        self.logger.info(f'SAVED: {outfilepath}')
         outdf = pd.read_csv(outfilepath, sep='|')
         
         # FINAL CLUSTERING SUMMARY
-        print(f'\n{"="*100}')
-        print(f'CLUSTERING COMPLETE: Final Summary')
-        print(f'{"="*100}')
-        print(f'Total raw entanglements processed: {sum(num_raw_ents.values())}')
-        print(f'Total final representative entanglements: {len(outdf)}')
+        self.logger.info(f'\n{"="*100}')
+        self.logger.info(f'CLUSTERING COMPLETE: Final Summary')
+        self.logger.info(f'{"="*100}')
+        self.logger.info(f'Total raw entanglements processed: {sum(num_raw_ents.values())}')
+        self.logger.info(f'Total final representative entanglements: {len(outdf)}')
         # print(f'Compression ratio: {sum(num_raw_ents.values())/len(outdf):.2f}x (raw → final)')
-        print(f'Clustering by organism: {self.organism}')
-        print(f'Spatial distance cutoff: {self.cut_off}')
-        print(f'Output file: {outfilepath}')
-        print(f'{"="*100}\n')
+        self.logger.info(f'Clustering by organism: {self.organism}')
+        self.logger.info(f'Spatial distance cutoff: {self.cut_off}')
+        self.logger.info(f'Output file: {outfilepath}')
+        self.logger.info(f'{"="*100}\n')
         
         return {'outfile':outfilepath, 'ent_result':outdf}
     ##########################################################################################################################################################
@@ -883,7 +881,7 @@ class ClusterNonNativeEntanglements:
     """
 
     ##########################################################################################################################################################
-    def __init__(self, pkl_file_path:str, trajnum2pklfile_path:str, traj_dir_prefix:str='./', outdir:str='./ClusterNonNativeEntanglements/') -> None:
+    def __init__(self, pkl_file_path:str, trajnum2pklfile_path:str, traj_dir_prefix:str='./', outdir:str='./ClusterNonNativeEntanglements/', log_level:int=logging.INFO, logdir:str=None) -> None:
         """
         Constructor for GaussianEntanglement class.
 
@@ -909,6 +907,8 @@ class ClusterNonNativeEntanglements:
         matplotlib.rcParams['legend.fontsize'] = 'x-small'
         matplotlib.rcParams['figure.dpi'] = 600
 
+        self.logger = setup_logger('ClusterNonNativeEntanglements', outdir=logdir if logdir is not None else outdir, log_level=log_level)
+
         ## Check there are actually .pkl files to cluster with
         self.pkl_file_path = pkl_file_path
         self.traj_dir_prefix = traj_dir_prefix
@@ -917,15 +917,15 @@ class ClusterNonNativeEntanglements:
             ent_data_file_list = [f for f in ent_data_file_list if f.endswith('.pkl')]
             self.ent_data_file_list = [os.path.join(self.pkl_file_path, f) for f in ent_data_file_list]
             if len(self.ent_data_file_list) == 0:
-                print('Error: No files found in the path "%s"'%self.pkl_file_path)
+                self.logger.error('Error: No files found in the path "%s"'%self.pkl_file_path)
                 sys.exit()
-            print(f'FOUND {len(self.ent_data_file_list)} .pkl files to cluster')
+            self.logger.info(f'FOUND {len(self.ent_data_file_list)} .pkl files to cluster')
 
         ## Set up the outdir for this calculation
         self.outdir = outdir
         if not os.path.isdir(self.outdir):
             os.mkdir(f"{self.outdir}") 
-            print(f"Creating directory: {self.outdir}")
+            self.logger.info(f"Creating directory: {self.outdir}")
 
         ## load in the dataframe that matches a traj .pkl file to a traj number
         self.trajnum2pklfile_path = trajnum2pklfile_path
@@ -957,7 +957,7 @@ class ClusterNonNativeEntanglements:
     def extract_traj_number(self, f):
         f_match = self.trajnum2pklfile[self.trajnum2pklfile['pklfile'] == f]
         if f_match.empty:
-            print(f'Error: {f} not found in {self.trajnum2pklfile_path}')
+            self.logger.error(f'Error: {f} not found in {self.trajnum2pklfile_path}')
             quit()
         match = f_match['trajnum'].values[0]
         return match
@@ -1097,7 +1097,7 @@ class ClusterNonNativeEntanglements:
                             mc.append(c[cii])
                 data.append(nc + mc)
             else:
-                print('Error: Unknown key specified for do_clustering(), %s'%(key))
+                self.logger.error('Error: Unknown key specified for do_clustering(), %s'%(key))
                 sys.exit()
         data = np.array(data)
         # Reduce data size (saving memory usage) by combining duplicated data points
@@ -1229,7 +1229,7 @@ class ClusterNonNativeEntanglements:
             cluster_tree[key] = [[np.where(backtrace_idx_list[:,i]==j)[0].tolist() for j in range(backtrace_idx_list[:,i].max()+1)] for i in range(backtrace_idx_list.shape[1])]
 
             n_cluster = len(cluster_data[key])
-            print('Found %d cluster(s) for %s'%(n_cluster, key))
+            self.logger.info('Found %d cluster(s) for %s'%(n_cluster, key))
         
         return (cluster_data, cluster_tree)
     ##########################################################################################################################################################
@@ -1266,12 +1266,12 @@ class ClusterNonNativeEntanglements:
         ## Define the .npz file name 
         npz_data_file = f'cluster_data_{"_".join(self.classify_key)}.npz'
         npz_data_file = os.path.join(self.outdir, npz_data_file)
-        print(f'Checking for {npz_data_file}')
+        self.logger.info(f'Checking for {npz_data_file}')
 
         if not os.path.exists(npz_data_file):
             # Classify changes of entanglement based on the keyword 
             # "[change_code, classify_key_1_N, classify_key_1_C, classify_key_2_N, classify_key_2_C, ...]"
-            print('Reading pkl data and classify changes of entanglement...')
+            self.logger.debug('Reading pkl data and classify changes of entanglement...')
             chg_ent_fingerprint_list = []
             Q_list = []
             chg_ent_keyword_dict = {}
@@ -1285,7 +1285,7 @@ class ClusterNonNativeEntanglements:
                 traj = self.extract_traj_number(ent_data_file)
                 proc_str = f'Processing {ent_data_file} {traj} ({traj_idx+1} / {len(self.ent_data_file_list)})...'
                 #print(proc_str, end='\r')
-                print(proc_str)
+                self.logger.debug(proc_str)
 
                 chg_ent_fingerprint_list.append({})
                 Q_list.append({})
@@ -1293,7 +1293,7 @@ class ClusterNonNativeEntanglements:
                 frame_list = list(ent_data.keys())
                 # sort frames, for old python version that doesn't support ordered dictionary
                 frame_list = sorted([frame for frame in frame_list if (frame != 'ref') and (frame >= start_frame) and (frame <= end_frame)])
-                print(f'frame_list: {frame_list} {len(frame_list)}')
+                self.logger.debug(f'frame_list: {frame_list} {len(frame_list)}')
                 dtrajs.append([[] for frame in frame_list])
                 idx2frame.append(frame_list)
 
@@ -1346,10 +1346,10 @@ class ClusterNonNativeEntanglements:
                 # if traj_idx == 0:
                 #    break
                 # print(' '*len(proc_str), end='\r')
-            print('%d data files have been read.'%len(self.ent_data_file_list))
+            self.logger.info('%d data files have been read.'%len(self.ent_data_file_list))
             
             # cluster changes of entanglements found in the trajectories
-            print('Clustering changes of entanglement for %d keywords...'%(len(chg_ent_keyword_list)))
+            self.logger.info('Clustering changes of entanglement for %d keywords...'%(len(chg_ent_keyword_list)))
             ent_cluster_data, ent_cluster_tree = self.cluster_chg_ent(chg_ent_keyword_dict, chg_ent_fingerprint_list, cluster_method=self.cluster_method, cluster_dist_cutoff=self.cluster_dist_cutoff)
             chg_ent_keyword_list = sorted(chg_ent_keyword_list)
             # Save calculted data in case job is unexpectedly terminated
@@ -1362,10 +1362,10 @@ class ClusterNonNativeEntanglements:
                     idx2frame=idx2frame,
                     ent_cluster_data=ent_cluster_data,
                     ent_cluster_tree=ent_cluster_tree)
-            print(f'SAVED: {npz_data_file}')
+            self.logger.info(f'SAVED: {npz_data_file}')
             
         else:
-            print(f'Reading clustering data from {npz_data_file}...')
+            self.logger.info(f'Reading clustering data from {npz_data_file}...')
             npz_data = np.load(npz_data_file, allow_pickle=True)
             chg_ent_fingerprint_list = npz_data['chg_ent_fingerprint_list'].tolist()
             Q_list = npz_data['Q_list'].tolist()        
@@ -1387,7 +1387,7 @@ class ClusterNonNativeEntanglements:
         cluster_headers = ['After clustering on N crossing', 'After clustering on C crossing', 'After clustering on loop']
         cluster_tree_file = f'cluster_tree_{"_".join(self.classify_key)}.dat'
         cluster_tree_file = os.path.join(self.outdir, cluster_tree_file)
-        print(f'Making {cluster_tree_file}')
+        self.logger.info(f'Making {cluster_tree_file}')
         with open(cluster_tree_file, 'w') as f:
             for ent_keyword in chg_ent_keyword_list:
                 f.write(ent_keyword+'\n')
@@ -1404,7 +1404,7 @@ class ClusterNonNativeEntanglements:
                                 f.write(', %d'%cluster_id)
                         f.write(']\n')
                 f.write('\n')
-        print(f'SAVED: {cluster_tree_file}')
+        self.logger.info(f'SAVED: {cluster_tree_file}')
 
         # Find representative changes of entanglement in each cluster
         rep_chg_ent_list_file = f'rep_chg_ent_list_{"_".join(self.classify_key)}.pkl'
@@ -1412,17 +1412,17 @@ class ClusterNonNativeEntanglements:
         rep_chg_ent_data_file = f'rep_chg_ent_{"_".join(self.classify_key)}.csv'
         rep_chg_ent_data_file = os.path.join(self.outdir, rep_chg_ent_data_file)
         if os.path.exists(rep_chg_ent_list_file) and os.path.exists(rep_chg_ent_data_file):
-            print('Reading representative changes of entanglement...')
+            self.logger.debug('Reading representative changes of entanglement...')
             with open(rep_chg_ent_list_file, 'rb') as f:
                 rep_chg_ent_list = pickle.load(f)
-            print(f'Loaded: {rep_chg_ent_data_file} into rep_chg_ent_list')
+            self.logger.debug(f'Loaded: {rep_chg_ent_data_file} into rep_chg_ent_list')
 
         else:
-            print('Finding representative changes of entanglement...')
+            self.logger.debug('Finding representative changes of entanglement...')
             rep_chg_ent_list = self.find_representative_entanglement(ent_cluster_data, ent_cluster_idx_map)
             with open(rep_chg_ent_list_file, 'wb') as f: # save the list as a pickle file
                 pickle.dump(rep_chg_ent_list, f)
-            print(f'SAVED: {rep_chg_ent_list_file}')
+            self.logger.info(f'SAVED: {rep_chg_ent_list_file}')
 
             # Create dataframe and save data
             data = []
@@ -1462,7 +1462,7 @@ class ClusterNonNativeEntanglements:
             rep_chg_ent_data_file = f'rep_chg_ent_{"_".join(self.classify_key)}.csv'
             rep_chg_ent_data_file = os.path.join(self.outdir, rep_chg_ent_data_file)
             df.to_csv(rep_chg_ent_data_file, index_label='State ID')
-            print(f'SAVED: {rep_chg_ent_data_file}')
+            self.logger.info(f'SAVED: {rep_chg_ent_data_file}')
 
         # plot entanglement distribution
         n_cluster = len(ent_cluster_idx_map)
@@ -1504,10 +1504,10 @@ class ClusterNonNativeEntanglements:
         chg_dist_data_file = f'chg_ent_{"_".join(self.classify_key)}_distribution.pdf'
         chg_dist_data_file = os.path.join(self.outdir, chg_dist_data_file)
         fig.savefig(chg_dist_data_file, bbox_inches='tight')
-        print(f'SAVED: {chg_dist_data_file}')
+        self.logger.info(f'SAVED: {chg_dist_data_file}')
         del fig
 
-        print('Clustering structures with unique combinations of changes of entanglements...')
+        self.logger.debug('Clustering structures with unique combinations of changes of entanglements...')
         # Assign entanglement clusters (list of ent_cluster_idx) in discrete trajectories
         for key, ent_clusters in ent_cluster_data.items():
             for i, ent_cluster in enumerate(ent_clusters):
@@ -1515,7 +1515,7 @@ class ClusterNonNativeEntanglements:
                 for chg_ent_keyword in ent_cluster:
                     traj_idx, frame = chg_ent_keyword[:2]
                     dtrajs[traj_idx][idx2frame[traj_idx].index(frame)].append(cluster_id)
-        print(f'Assigned entanglement clusters in discrete trajectories')
+        self.logger.info(f'Assigned entanglement clusters in discrete trajectories')
 
         # Strip same cluster ids in each frame
         chg_ent_structure_keyword_list = []
@@ -1525,7 +1525,7 @@ class ClusterNonNativeEntanglements:
                 if str(dtraj[i]) not in chg_ent_structure_keyword_list:
                     chg_ent_structure_keyword_list.append(str(dtraj[i]))
         chg_ent_structure_keyword_list = sorted(chg_ent_structure_keyword_list)
-        print(f'Stripped same cluster ids in each frame')
+        self.logger.info(f'Stripped same cluster ids in each frame')
 
         # cluster trajectory frames with different combinations of changes in entanglement
         chg_ent_structure_cluster_data = {chg_ent_structure_keyword: [] for chg_ent_structure_keyword in chg_ent_structure_keyword_list}
@@ -1536,9 +1536,9 @@ class ClusterNonNativeEntanglements:
         sort_idx = np.argsort(-np.array(Num_struct_list, dtype=int))
         sorted_chg_ent_structure_keyword_list = [chg_ent_structure_keyword_list[idx] for idx in sort_idx]
         sorted_Num_struct_list = [Num_struct_list[idx] for idx in sort_idx]
-        print(f'Cluster trajectory frames with different combinations of changes in entanglement')
+        self.logger.info(f'Cluster trajectory frames with different combinations of changes in entanglement')
 
-        print('Find representative combinations of changes of entanglements in structures...')
+        self.logger.debug('Find representative combinations of changes of entanglements in structures...')
         # Find representative changes of entanglement (minimal loop) in each frame
         rep_chg_ent_dtrajs = []
         for traj_idx, dtraj in enumerate(dtrajs):
@@ -1561,7 +1561,7 @@ class ClusterNonNativeEntanglements:
                     rep_chg_ent_dtrajs[-1][-1][cluster_id] = chg_ent_fingerprint_list[traj_idx][frame_idx_0][rep_nc]
             
         # Find representative structures (max Q) for each combination
-        print(f'Find representative structures (max Q) for each combination')
+        self.logger.info(f'Find representative structures (max Q) for each combination')
         rep_struct_data = {}
         for keyword in sorted_chg_ent_structure_keyword_list:
             Q_0 = 0
@@ -1571,7 +1571,7 @@ class ClusterNonNativeEntanglements:
                 if Q > Q_0:
                     Q_0 = Q
                     rep_struct_data[keyword] = [traj_idx, frame_idx]
-        print('Found representative structures (max Q) for each combination')
+        self.logger.debug('Found representative structures (max Q) for each combination')
 
         # Create dataframe and save data
         #chg_ent_data_file = f'chg_ent_struct_{"_".join(self.classify_key)}.csv'
@@ -1600,7 +1600,7 @@ class ClusterNonNativeEntanglements:
         chg_ent_data_file = f'chg_ent_struct_{"_".join(self.classify_key)}.csv'
         chg_ent_data_file = os.path.join(self.outdir, chg_ent_data_file)
         df.to_csv(chg_ent_data_file, index_label='State ID')
-        print(f'SAVED: {chg_ent_data_file}')
+        self.logger.info(f'SAVED: {chg_ent_data_file}')
 
         ## determine if there is any issue with the item shapes before saving
         save_items = {
@@ -1621,11 +1621,11 @@ class ClusterNonNativeEntanglements:
         "rep_struct_data": rep_struct_data}
 
         for key, value in save_items.items():
-            print(f"{key}: type={type(value)}", end="")
+            self.logger.info(f"{key}: type={type(value)}", end="")
             try:
-                print(f", shape={np.shape(value)}")
+                self.logger.info(f", shape={np.shape(value)}")
             except Exception as e:
-                print(f", shape=unavailable ({e})")
+                self.logger.info(f", shape=unavailable ({e})")
 
 
         # Save data
@@ -1645,8 +1645,8 @@ class ClusterNonNativeEntanglements:
                 sorted_chg_ent_structure_keyword_list=sorted_chg_ent_structure_keyword_list,
                 chg_ent_structure_cluster_data=chg_ent_structure_cluster_data,
                 rep_struct_data=rep_struct_data)
-        print(f'SAVED: {npz_data_file}')
-        print(f'Clustering Complete')
+        self.logger.info(f'SAVED: {npz_data_file}')
+        self.logger.info(f'Clustering Complete')
     ##########################################################################################################################################################
     
     ##########################################################################################################################################################
@@ -1660,7 +1660,7 @@ class ClusterNonNativeEntanglements:
 
         if if_viz:
             ## Generate visualiztion for representative changes of entanglement in each cluster
-            print('Generate visualization for representative changes of entanglement...')
+            self.logger.debug('Generate visualization for representative changes of entanglement...')
             os.system('mkdir viz_rep_chg_ent_%s'%('_'.join(self.classify_key)))
             for state_id, rep_chg_ent in enumerate(rep_chg_ent_list):
                 state_cor = mdt.load(idx2trajfile[rep_chg_ent[0]], top=psf_file)[rep_chg_ent[1]].center_coordinates().xyz*10
@@ -1672,7 +1672,7 @@ class ClusterNonNativeEntanglements:
                 os.chdir('../')
             
             # Generate visualiztion for representative changes of entanglements in each structural cluster
-            print('Generate visualization for unique entangled structures...')
+            self.logger.debug('Generate visualization for unique entangled structures...')
             if top_struct >= 1:
                 viz_dir = 'viz_chg_ent_struct_%s_%d'%('_'.join(self.classify_key), top_struct)
             else:
@@ -1731,7 +1731,7 @@ class ClusterNonNativeEntanglements:
         thread_cutoff=3
         terminal_cutoff=3
         
-        print('Generate visualization of state %d'%(state_id))
+        self.logger.info('Generate visualization of state %d'%(state_id))
 
         struct = pmd.load_file(psf)
         struct.coordinates = state_cor
@@ -1947,7 +1947,7 @@ class MSMNonNativeEntanglementClustering:
     #######################################################################################
     def __init__(self, OPpath:str = './', outdir:str = './', ID:str = '', 
         start:int= 0 , end:int = 99999999999, stride:int = 1, ITS:str = 'False', lagtime:int = 1,
-        n_cluster:int = 400, kmean_stride:int = 2, n_small_states:int = 1, n_large_states:int = 10, dt:float = 0.015/1000, rm_traj_list:list = []):
+        n_cluster:int = 400, kmean_stride:int = 2, n_small_states:int = 1, n_large_states:int = 10, dt:float = 0.015/1000, rm_traj_list:list = [], log_level:int = logging.INFO, logdir:str = None):
         
         """
         Initializes the DataAnalysis class with necessary paths and parameters.
@@ -1971,19 +1971,19 @@ class MSMNonNativeEntanglementClustering:
 
         # parse the parameters 
         self.OPpath = OPpath
-        print(f'OPpath: {self.OPpath}')
+        self.logger.debug(f'OPpath: {self.OPpath}')
 
         self.outdir = outdir
-        print(f'outdir: {self.outdir}')
-
         self.ID = ID
-        print(f'ID: {self.ID}')
+        self.logger = setup_logger('MSMNonNativeEntanglementClustering', outdir=logdir if logdir is not None else outdir, ID=ID, log_level=log_level)
+        self.logger.debug(f'outdir: {self.outdir}')
+        self.logger.debug(f'ID: {self.ID}')
 
         self.ITS = ITS
-        print(f'ITS: {ITS}')
+        self.logger.debug(f'ITS: {ITS}')
 
         self.lagtime = lagtime
-        print(f'lagtime: {lagtime}')
+        self.logger.debug(f'lagtime: {lagtime}')
 
         #self.dcds = args.dcds 
         #print(f'dcds: {self.dcds}')
@@ -1991,7 +1991,7 @@ class MSMNonNativeEntanglementClustering:
         self.start = start
         self.end = end
         self.stride = stride
-        print(f'START: {self.start} | END: {self.end} | STRIDE: {self.stride}')
+        self.logger.debug(f'START: {self.start} | END: {self.end} | STRIDE: {self.stride}')
 
         self.n_cluster = n_cluster # Number of k-means clusters to group. Default is 400.
         self.kmean_stride = kmean_stride # Stride of reading trajectory frame when clustring by k-means. 
@@ -2000,7 +2000,7 @@ class MSMNonNativeEntanglementClustering:
         self.dt = dt # timestep used in MD simulations in ns
 
         self.rm_traj_list = rm_traj_list
-        print(f'Trajectories to ignore: {self.rm_traj_list}')
+        self.logger.info(f'Trajectories to ignore: {self.rm_traj_list}')
 
     #######################################################################################
 
@@ -2010,7 +2010,7 @@ class MSMNonNativeEntanglementClustering:
         Loads the GQ values of each trajectory into a 2D array and then appends it to a list
         The list should have Nt = number of trajectories and each array should be n x 2 where n is the number of frames
         """
-        print(f'Loading G and Q order parameters...')
+        self.logger.info(f'Loading G and Q order parameters...')
         cor_list = []
         cor_list_idx_2_traj = {}
         Qfiles = glob.glob(os.path.join(self.OPpath, 'Q/*.Q'))
@@ -2021,15 +2021,15 @@ class MSMNonNativeEntanglementClustering:
 
         shared_Trajs = set(QTrajs).intersection(GTrajs)
         #print(f'Shared Traj between Q and G: {shared_Trajs} {len(shared_Trajs)}')
-        print(f'Number of Q files found: {len(Qfiles)} | Number of G files found: {len(Gfiles)}')
-        print(f'Number of shared Traj between Q and G: {len(shared_Trajs)}')
+        self.logger.info(f'Number of Q files found: {len(Qfiles)} | Number of G files found: {len(Gfiles)}')
+        self.logger.info(f'Number of shared Traj between Q and G: {len(shared_Trajs)}')
 
 
         ## remove trajectories that are in the rm_traj_list
         if len(self.rm_traj_list) > 0:
-            print(f'Removing trajectories: {self.rm_traj_list}')
+            self.logger.info(f'Removing trajectories: {self.rm_traj_list}')
             shared_Trajs = [traj for traj in shared_Trajs if traj not in self.rm_traj_list]
-            print(f'Number of shared Traj after removing: {len(shared_Trajs)}')
+            self.logger.info(f'Number of shared Traj after removing: {len(shared_Trajs)}')
 
 
         # loop through the Qfiles and find matching Gfile
@@ -2043,8 +2043,8 @@ class MSMNonNativeEntanglementClustering:
             # get the cooresponding G and Q file
             Qf = [f for f in Qfiles if f.endswith(f'Traj{traj}.Q')]
             Gf = [f for f in Gfiles if f.endswith(f'Traj{traj}.G')]
-            print(f'Qf: {Qf}')
-            print(f'Gf: {Gf}')
+            self.logger.debug(f'Qf: {Qf}')
+            self.logger.debug(f'Gf: {Gf}')
 
             ## Quality check to assert that only a single G and Q file were found
             assert len(Qf) == 1, f"the number of Q files {len(Qf)} should equal 1 for Traj {traj}"
@@ -2078,7 +2078,7 @@ class MSMNonNativeEntanglementClustering:
 
             ## Quality check that the G and Q data has the same number of frames
             if Qdata.shape != Gdata.shape:
-                print(f"WARNING: The number of frames in Q {Qdata.shape} should equal the number of frames in G {Gdata.shape} in Traj {traj}")
+                self.logger.warning(f"WARNING: The number of frames in Q {Qdata.shape} should equal the number of frames in G {Gdata.shape} in Traj {traj}")
                 continue
             
             ## Check and ensure that Qdata or Gdata has no nan values
@@ -2095,7 +2095,7 @@ class MSMNonNativeEntanglementClustering:
             cor_list_idx_2_traj[idx] = int(traj)
             idx += 1
 
-        print(f'Number of trajecotry OP coordinate loaded: {len(cor_list)}')
+        self.logger.info(f'Number of trajecotry OP coordinate loaded: {len(cor_list)}')
         self.cor_list = cor_list
         self.QFrames = QFrames
         self.GFrames = GFrames
@@ -2103,7 +2103,7 @@ class MSMNonNativeEntanglementClustering:
         ## Quality check that the number of trajectories loaded is equal to the number of Q and G files
         assert len(cor_list) == len(shared_Trajs), f"The # of coordinates loaded {len(cor_list)} does not equal the number of Q and G files with shared traj after removal of mirror images {len(shared_Trajs)}"
 
-        print(f'Mapping of cor_list index to trajID in file names: {cor_list_idx_2_traj}')
+        self.logger.info(f'Mapping of cor_list index to trajID in file names: {cor_list_idx_2_traj}')
         self.cor_list_idx_2_traj = cor_list_idx_2_traj
     #######################################################################################  
 
@@ -2143,24 +2143,24 @@ class MSMNonNativeEntanglementClustering:
         
         # Get the microstate tagged trajectories and their state counts
         self.dtrajs = self.clusters.dtrajs
-        print(f'dtrajs: {len(self.dtrajs)} {self.dtrajs[0].shape}\n{self.dtrajs[0][:10]}')
+        self.logger.debug(f'dtrajs: {len(self.dtrajs)} {self.dtrajs[0].shape}\n{self.dtrajs[0][:10]}')
         clusterIDs, counts = np.unique(self.dtrajs, return_counts=True)
-        print(f'Number of unique microstate IDs: {len(clusterIDs)} {clusterIDs}')
+        self.logger.info(f'Number of unique microstate IDs: {len(clusterIDs)} {clusterIDs}')
         
         state_counts = {}
         for i,c in zip(clusterIDs, counts):
             state_counts[i] = c
-        print(f'state_counts: {state_counts}')
+        self.logger.debug(f'state_counts: {state_counts}')
         
         # Quality check that all microstate ids are assigned
         # If not renumber from 0
         if len(clusterIDs) != self.n_cluster:
-            print(f'The number of microstate IDs assigned does not match the number specified: {len(clusterIDs)} != {self.n_cluster}')
+            self.logger.info(f'The number of microstate IDs assigned does not match the number specified: {len(clusterIDs)} != {self.n_cluster}')
 
             mapping_dict = {}
             for new,old in enumerate(clusterIDs):
                 mapping_dict[old] = new
-            print(f'mapping_dict: {mapping_dict}')
+            self.logger.debug(f'mapping_dict: {mapping_dict}')
 
             # Convert the dictionary to a numpy array for efficient mapping
             max_key = max(mapping_dict.keys())
@@ -2172,49 +2172,49 @@ class MSMNonNativeEntanglementClustering:
             self.dtrajs = [mapping_array[arr] for arr in self.dtrajs]
             
             clusterIDs, counts = np.unique(self.dtrajs, return_counts=True)
-            print(f'Number of unique microstate IDs after mapping: {len(clusterIDs)} {clusterIDs}')
+            self.logger.info(f'Number of unique microstate IDs after mapping: {len(clusterIDs)} {clusterIDs}')
             state_counts = {}
             for i,c in zip(clusterIDs, counts):
                 state_counts[i] = c
-            print(f'state_counts: {state_counts}')
+            self.logger.debug(f'state_counts: {state_counts}')
 
             self.n_cluster = len(clusterIDs)
         
 
         standard_centers = self.clusters.clustercenters
         unstandard_centers = self.unstandardize(standard_centers)
-        print(f'unstandard_centers:\n{unstandard_centers} {unstandard_centers.shape}')
-        print(f'self.n_cluster: {self.n_cluster}')
+        self.logger.info(f'unstandard_centers:\n{unstandard_centers} {unstandard_centers.shape}')
+        self.logger.info(f'self.n_cluster: {self.n_cluster}')
         
     #######################################################################################
 
     #######################################################################################
     def build_msm(self, lagtime=1):
-        print(f'Building MSM model with a lag time of {lagtime}')
+        self.logger.info(f'Building MSM model with a lag time of {lagtime}')
 
         # Get count matrix and connective groups of microstates
         c_matrix = deeptime.markov.tools.estimation.count_matrix(self.dtrajs, lagtime).toarray()
-        print(f'c_matrix:\n{c_matrix} {c_matrix.shape}')
+        self.logger.info(f'c_matrix:\n{c_matrix} {c_matrix.shape}')
         
         sub_groups = deeptime.markov.tools.estimation.connected_sets(c_matrix)
-        print(f'Total number of sub_groups: {len(sub_groups)}\n{sub_groups}')
+        self.logger.info(f'Total number of sub_groups: {len(sub_groups)}\n{sub_groups}')
         
         # Build the MSM models for any connected sets that have more than 1 microstate
         msm_list = []        
         for sg in sub_groups:
             cm = deeptime.markov.tools.estimation.largest_connected_submatrix(c_matrix, lcc=sg)
-            print(f'For sub_group: {sg}')
+            self.logger.info(f'For sub_group: {sg}')
             if len(cm) == 1:
                 msm = None
             else:
-                print(f'Building Transition matrix and MSM model')
+                self.logger.info(f'Building Transition matrix and MSM model')
                 T = deeptime.markov.tools.estimation.transition_matrix(cm, reversible=True)
                 msm = pem.msm.markov_model(T, dt_model=str(self.dt)+' ns')
             msm_list.append(msm)
-        print(f'Number of models: {len(msm_list)}')
+        self.logger.info(f'Number of models: {len(msm_list)}')
 
         # Coarse grain out the metastable macrostates in the models
-        print(f'Coarse grain out the metastable macrostates in the models')
+        self.logger.info(f'Coarse grain out the metastable macrostates in the models')
         meta_dist = []
         meta_set = []
         eigenvalues_list = []
@@ -2249,7 +2249,7 @@ class MSMNonNativeEntanglementClustering:
                         break
                     else:
                         n_states -= 1
-                        print('Reduced number of states to %d for active group %d'%(n_states, idx_msm+1))
+                        self.logger.info('Reduced number of states to %d for active group %d'%(n_states, idx_msm+1))
                 if n_states == 1:
                     # use observation prob distribution for non-active set
                     dist = np.zeros(self.n_cluster)
@@ -2272,10 +2272,10 @@ class MSMNonNativeEntanglementClustering:
                         meta_dist.append(dist)
                         meta_set.append(set_0)
         meta_dist = np.array(meta_dist)
-        print(f'meta_dist: {len(meta_dist)} {meta_dist.shape}')
+        self.logger.debug(f'meta_dist: {len(meta_dist)} {meta_dist.shape}')
         meta_dist_outfile = os.path.join(self.outdir, f'{self.ID}_meta_dist.npy')
         np.save(meta_dist_outfile, meta_dist, allow_pickle=True)
-        print(f'SAVED: {meta_dist_outfile}')
+        self.logger.info(f'SAVED: {meta_dist_outfile}')
 
         # print(f'meta_set: {meta_set}')
         meta_set_df = {'metastable_state':[], 'microstates':[]}
@@ -2286,14 +2286,14 @@ class MSMNonNativeEntanglementClustering:
                 meta_set_df['microstates'].append(m)
 
         meta_set_df = pd.DataFrame(meta_set_df)
-        print(f'Meta set DataFrame:\n{meta_set_df}')
+        self.logger.info(f'Meta set DataFrame:\n{meta_set_df}')
         meta_set_outfile = os.path.join(self.outdir, f'{self.ID}_meta_set.csv')
         meta_set_df.to_csv(meta_set_outfile, index=False)
-        print(f'SAVED: {meta_set_outfile}')
+        self.logger.info(f'SAVED: {meta_set_outfile}')
 
    
         ## make microstate to metastable state mapping object
-        print(f'\nMetastable state assignment')
+        self.logger.info(f'\nMetastable state assignment')
         meta_mapping = {}
         for metaID, microstates in enumerate(meta_set):
             #print(metaID, microstates)
@@ -2302,7 +2302,7 @@ class MSMNonNativeEntanglementClustering:
                     meta_mapping[m] = metaID
                 else:
                     raise ValueError(f'Microstate {m} already in a metastable state!')
-        print(f'meta_mapping: {meta_mapping} {len(meta_mapping)}')
+        self.logger.debug(f'meta_mapping: {meta_mapping} {len(meta_mapping)}')
 
         # map those microstate states to the metastable state
         metastable_dtraj = []
@@ -2314,23 +2314,23 @@ class MSMNonNativeEntanglementClustering:
             #rint(mapped_dtraj)
             metastable_dtraj += [np.asarray(mapped_dtraj)]
 
-        print(f'Metastable state mapping:')
+        self.logger.info(f'Metastable state mapping:')
         for dtraj_idx, dtraj in enumerate(metastable_dtraj):
-            print(dtraj_idx, self.dtrajs[dtraj_idx][:10] , dtraj[:10], dtraj.shape)
+            self.logger.debug(f'dtraj_idx={dtraj_idx} dtrajs[:10]={self.dtrajs[dtraj_idx][:10]} dtraj[:10]={dtraj[:10]} shape={dtraj.shape}')
       
 
         ## get samples of metastable states by most populated microstates
-        print(len(self.dtrajs), self.dtrajs[0].shape)
+        self.logger.debug(f'num_dtrajs={len(self.dtrajs)} dtrajs[0].shape={self.dtrajs[0].shape}')
         cluster_indexes = deeptime.markov.sample.compute_index_states(self.dtrajs)
-        print(f'cluster_indexes: {len(cluster_indexes)}')
+        self.logger.debug(f'cluster_indexes: {len(cluster_indexes)}')
 
 
         samples = deeptime.markov.sample.indices_by_distribution(cluster_indexes, meta_dist, 5)
-        print(f'samples: {samples} {len(samples)}')
+        self.logger.debug(f'samples: {samples} {len(samples)}')
         
         ## Make the output dataframe that has assignments for each frame of each traj
         df = {'traj':[], 'frame':[], 'microstate':[], 'metastablestate':[], 'Q':[], 'G':[], 'StateSample':[]}
-        print(f'Active & inactive metastable state mapping')
+        self.logger.info(f'Active & inactive metastable state mapping')
         for k,v in enumerate(metastable_dtraj):
             traj = self.cor_list_idx_2_traj[k]
             #print(k, traj, v[:10])
@@ -2354,18 +2354,18 @@ class MSMNonNativeEntanglementClustering:
 
         df = pd.DataFrame(df)
         #df['frame'] = self.start # correct the frame index to start from the start specified by the user as this frame index starts from 0
-        print(f'Final MSM mapping DF:\n{df}')
+        self.logger.info(f'Final MSM mapping DF:\n{df}')
         df_outfile = os.path.join(self.outdir, f'{self.ID}_MSMmapping.csv')
         df.to_csv(df_outfile, index=False)
-        print(f'SAVED: {df_outfile}')
+        self.logger.info(f'SAVED: {df_outfile}')
 
         # Plot the metastable state membership and free energy surface
         xall = np.hstack([dtraj[:, 0] for dtraj in self.cor_list])
         yall = np.hstack([dtraj[:, 1] for dtraj in self.cor_list])
         states = np.hstack(metastable_dtraj)
-        print(f'xall: {xall} {xall.shape}')
-        print(f'yall: {yall} {yall.shape}')
-        print(f'states: {states} {states.shape}')
+        self.logger.debug(f'xall: {xall} {xall.shape}')
+        self.logger.debug(f'yall: {yall} {yall.shape}')
+        self.logger.debug(f'states: {states} {states.shape}')
 
         stateplot_outfile = os.path.join(self.outdir, f'{self.ID}_StateAndFEplot.png')
         self.plot_state_map_and_FE(xall, yall, states, stateplot_outfile)
@@ -2404,11 +2404,11 @@ class MSMNonNativeEntanglementClustering:
             free_energy = -np.log10(probability)
             #free_energy[np.isinf(free_energy)] = np.nan  # Set infinities to NaN for better plotting
             free_energy[np.isinf(free_energy) | np.isnan(free_energy)] = np.nanmax(free_energy[np.isfinite(free_energy)]) #+ 1  # Replace NaN/Inf with a large value
-        print(f'free_energy: {free_energy} {free_energy.shape} {np.unique(free_energy)}')
+        self.logger.debug(f'free_energy: {free_energy} {free_energy.shape} {np.unique(free_energy)}')
 
         # Create the meshgrid for the contour plot
         X, Y = np.meshgrid(xedges[:-1], yedges[:-1])
-        print(f'X: {X.shape}\nY: {Y.shape}')
+        self.logger.debug(f'X: {X.shape}\nY: {Y.shape}')
 
         # Create a custom colormap
         #cmap = plt.cm.viridis
@@ -2433,7 +2433,7 @@ class MSMNonNativeEntanglementClustering:
         # Step 1: Identify unique states
         unique_states = np.unique(states)
         n_states = len(unique_states)
-        print(f'unique_states: {unique_states} {n_states}')
+        self.logger.debug(f'unique_states: {unique_states} {n_states}')
 
         # Step 2: Create a colormap with one color per unique state
         # You can use any colormap, or define specific colors if desired
@@ -2459,7 +2459,7 @@ class MSMNonNativeEntanglementClustering:
 
         #plt.tight_layout()
         plt.savefig(outfile)
-        print(f'SAVED: {outfile}')
+        self.logger.info(f'SAVED: {outfile}')
         plt.clf()
 
     #######################################################################################
@@ -2478,7 +2478,7 @@ class MSMNonNativeEntanglementClustering:
         pem.plots.plot_implied_timescales(its)
         ITS_outfile = os.path.join(self.outdir, f'{self.ID}_ITS.png')
         plt.savefig(ITS_outfile)
-        print(f'SAVED: {ITS_outfile}')
+        self.logger.info(f'SAVED: {ITS_outfile}')
     #######################################################################################
 
     #######################################################################################
@@ -2487,7 +2487,7 @@ class MSMNonNativeEntanglementClustering:
         ## make output folder
         if not os.path.exists(self.outdir):
             os.makedirs(self.outdir)
-            print(f'Made directory: {self.outdir}')
+            self.logger.info(f'Made directory: {self.outdir}')
  
         # load the G and Q data
         self.load_OP()
@@ -2502,7 +2502,7 @@ class MSMNonNativeEntanglementClustering:
         # Should be done first before building the model to choose a suitable lag time
         if self.ITS == 'True':
             anal.plot_implied_timescales()
-            print(f'Analysis terminated since ITS was selected. Check the figure and choose an approrate lagtime')
+            self.logger.info(f'Analysis terminated since ITS was selected. Check the figure and choose an approrate lagtime')
             quit()
         
         # Build the MSM model with the choosen lagtime

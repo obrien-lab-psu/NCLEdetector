@@ -7,6 +7,8 @@ from statsmodels.stats.multitest import multipletests
 import parmed as pmd
 import mdtraj as mdt
 import pathlib, re
+import logging
+from EntDetect._logging import setup_logger
 
 class MassSpec:
     """
@@ -18,7 +20,7 @@ class MassSpec:
     def __init__(self, msm_data_file:str, meta_dist_file:str, LiPMS_exp_file:str, sasa_data_file:str, XLMS_exp_file:str, dist_data_file:str,
                  cluster_data_file:str, OPpath:str, AAdcd_dir:str, native_AA_pdb:str, native_state_idx:int, state_idx_list:list, prot_len:int, last_num_frames:int,
                  rm_traj_list:list=[], outdir:str='./', ID:str='', resid2residueidx_map:dict={},
-                 start:int=0, end:int=999999999999, stride:int=1, verbose:bool=False, num_perm:int=10000, n_boot:int=10000, lag_frame:int=1, nproc:int=1):
+                 start:int=0, end:int=999999999999, stride:int=1, verbose:bool=False, num_perm:int=10000, n_boot:int=10000, lag_frame:int=1, nproc:int=1, log_level:int=logging.INFO, logdir:str=None):
 
 
         self.msm_data_file = msm_data_file
@@ -39,7 +41,7 @@ class MassSpec:
         self.resid2residueidx_map = resid2residueidx_map
         if len(self.resid2residueidx_map) == 0:
             self.resid2residueidx_map = {i + 1:i for i in range(prot_len)}
-            print(f'No resid2residueidx_map provided, using identity mapping for protein length {prot_len} with an offset of -1')
+            self.logger.info(f'No resid2residueidx_map provided, using identity mapping for protein length {prot_len} with an offset of -1')
         self.start = start
         self.end = end
         self.stride = stride
@@ -58,9 +60,10 @@ class MassSpec:
         #self.n_boot = 100
 
         # make the outdir if it doesnt existgs
+        self.logger = setup_logger('MassSpec', outdir=logdir if logdir is not None else self.outdir, ID=self.ID, log_level=log_level)
         if not os.path.exists(self.outdir):
             os.makedirs(self.outdir)
-            print(f'Creating directory: {self.outdir}')
+            self.logger.debug(f'Creating directory: {self.outdir}')
     ##############################################################################
 
     ##############################################################################
@@ -89,7 +92,7 @@ class MassSpec:
             if len(a) == 1:
                 v['qual_change'] = a[0]
             else:
-                print('Site %s has inconsistent changes in abundance: %s'%(k, str(v['qual_change'])))
+                self.logger.info('Site %s has inconsistent changes in abundance: %s'%(k, str(v['qual_change'])))
                 removed_key_list.append(k)
         for k in removed_key_list:
             LiPMS_sig_data.pop(k)
@@ -121,7 +124,7 @@ class MassSpec:
             if len(a) == 1:
                 v['qual_change'] = a[0]
             else:
-                print('Sites %s has inconsistent changes in abundance: %s'%(k, str(v['qual_change'])))
+                self.logger.info('Sites %s has inconsistent changes in abundance: %s'%(k, str(v['qual_change'])))
                 removed_key_list.append(k)
         for k in removed_key_list:
             XLMS_sig_data.pop(k)
@@ -170,7 +173,7 @@ class MassSpec:
     ##############################################################################        
     def permutation_test(self, perm_stat_fun, data_1, data_2, num_perm, side='!='):
         if side not in ['!=', '>', '<']:
-            print('side parameter is wrong for function "permutation_test". It must be "!=", ">", or "<".')
+            self.logger.info('side parameter is wrong for function "permutation_test". It must be "!=", ">", or "<".')
             sys.exit()
         combined_data = np.array(list(data_1) + list(data_2))
         perm_idx_list_0 = np.arange(len(combined_data))
@@ -179,7 +182,7 @@ class MassSpec:
         pool = multiprocessing.Pool(self.nproc)
         pool_list = []
         start_time = time.time()
-        print('start permutation test')
+        self.logger.debug('start permutation test')
         for i in range(num_perm):
             perm_idx_list = np.random.permutation(perm_idx_list_0)
             pool_list.append(pool.apply_async(self.perm_fun, (perm_idx_list, combined_data, len(data_1),)))
@@ -196,7 +199,7 @@ class MassSpec:
                 p += 1
         p = (p+1)/(num_perm+1)
         used_time = time.time() - start_time
-        print('%.2fs'%used_time)
+        self.logger.info('%.2fs'%used_time)
         return p
     ##############################################################################
 
@@ -216,7 +219,7 @@ class MassSpec:
         elif len(data.shape) == 2:
             boot_stat = np.zeros((n_time, data.shape[1]))
         else:
-            print('bootstrap: Can only handle 1 or 2 dimentional data')
+            self.logger.info('bootstrap: Can only handle 1 or 2 dimentional data')
             sys.exit()
         
         boot_stat = []
@@ -275,7 +278,7 @@ class MassSpec:
     ##############################################################################
     def bootstrap_test(self, data_1, data_2, statistic_fun, n_time, side='!='):
         if side not in ['!=', '>', '<']:
-            print('side parameter is wrong for function "bootstrap_test". It must be "!=", ">", or "<".')
+            self.logger.info('side parameter is wrong for function "bootstrap_test". It must be "!=", ">", or "<".')
             sys.exit()
         idx_list_1 = np.arange(len(data_1))
         idx_list_2 = np.arange(len(data_2))
@@ -307,15 +310,15 @@ class MassSpec:
 
     ##############################################################################
     def LiP_XL_MS_ConsistencyTest(self,):
-        print(f'Comparing simulation to experimental data...')
+        self.logger.info(f'Comparing simulation to experimental data...')
         xlsx_outfile = os.path.join(self.outdir, f'LiPMS_XLMS_consist_pvalues_metastates_v11_down_sample_lag{self.lag_frame}.xlsx')
         npz_outfile = os.path.join(self.outdir, 'LiPMS_XLMS_consist_data_v9.npz')
-        print(f'xlsx_outfile: {xlsx_outfile}')
-        print(f'npz_outfile: {npz_outfile}')
+        self.logger.debug(f'xlsx_outfile: {xlsx_outfile}')
+        self.logger.debug(f'npz_outfile: {npz_outfile}')
 
         if os.path.exists(npz_outfile) and os.path.exists(xlsx_outfile):
-            print(f'npz_outfile EXISTS: Loading...')
-            print(f'xlsx_outfile EXISTS: Loading...')
+            self.logger.info(f'npz_outfile EXISTS: Loading...')
+            self.logger.info(f'xlsx_outfile EXISTS: Loading...')
             M_data = np.load(npz_outfile, allow_pickle=True)
             XLSX_df = pd.read_excel(xlsx_outfile)
             #print(f'XLSX_df:\n{XLSX_df}')
@@ -325,19 +328,19 @@ class MassSpec:
             #################################################################
             # Load MSM data
             MSM_data = pd.read_csv(self.msm_data_file)
-            print(f'MSM_data\n{MSM_data}')
+            self.logger.info(f'MSM_data\n{MSM_data}')
             meta_states = MSM_data['metastablestate'].unique()
             meta_states = np.array(meta_states, dtype=int)
-            print(f'meta_states: {meta_states}')
+            self.logger.debug(f'meta_states: {meta_states}')
             num_meta_states = len(meta_states)
-            print(f'num_meta_states: {num_meta_states}')
+            self.logger.debug(f'num_meta_states: {num_meta_states}')
   
 
             meta_dtrajs_last = []
             traj_idx_to_trajnum = {} # mapping traj_idx to traj number
             for traj_idx, (traj, traj_df) in enumerate(MSM_data.groupby('traj')):
                 traj_len = len(traj_df)
-                print(f'traj: {traj}, traj_len: {traj_len}\n{traj_df.head()}')
+                self.logger.debug(f'traj: {traj}, traj_len: {traj_len}\n{traj_df.head()}')
 
                 last = traj_df.iloc[-self.last_num_frames:,:]
                 last = last.reset_index(drop=True)
@@ -345,13 +348,13 @@ class MassSpec:
                 #print(f'last: {last}')
                 meta_dtrajs_last.append(last)
 
-                print(f'traj_idx: {traj_idx}, traj: {traj}, traj_len: {traj_len}, last_num_frames: {self.last_num_frames}, last: {last} {len(last)}')
+                self.logger.debug(f'traj_idx: {traj_idx}, traj: {traj}, traj_len: {traj_len}, last_num_frames: {self.last_num_frames}, last: {last} {len(last)}')
                 traj_idx_to_trajnum[traj_idx] = traj
 
             meta_dtrajs_last = np.array(meta_dtrajs_last)
-            print(f'meta_dtrajs_last.shape: {meta_dtrajs_last.shape}')
-            print(f'meta_dtrajs_last\n{meta_dtrajs_last} {meta_dtrajs_last.shape}')
-            print(np.unique(meta_dtrajs_last))
+            self.logger.info(f'meta_dtrajs_last.shape: {meta_dtrajs_last.shape}')
+            self.logger.info(f'meta_dtrajs_last\n{meta_dtrajs_last} {meta_dtrajs_last.shape}')
+            self.logger.debug(np.unique(meta_dtrajs_last))
             #################################################################
 
 
@@ -359,37 +362,37 @@ class MassSpec:
             # Create frame_list for each state
             # The result is a list where each element is a 2D array with the first column being the trajectory index and the second column being the frame index
             sel_frame_idx = np.arange(0, self.last_num_frames, self.lag_frame)
-            print(f'sel_frame_idx:\n{sel_frame_idx}')
+            self.logger.info(f'sel_frame_idx:\n{sel_frame_idx}')
 
             frame_list = []
             empty_states = []
             for state_idx in self.state_idx_list:
-                print(f'\nGetting frames for state {state_idx}...')
+                self.logger.info(f'\nGetting frames for state {state_idx}...')
                 frame_list_0 = np.array(np.where(meta_dtrajs_last[:, sel_frame_idx] == state_idx)).T 
                 frame_list_0[:,1] = sel_frame_idx[frame_list_0[:,1]]
                 utrajs = np.unique(frame_list_0[:,0])
-                print(frame_list_0)
-                print(f'utrajs: {utrajs}')
+                self.logger.debug(frame_list_0)
+                self.logger.debug(f'utrajs: {utrajs}')
 
                 #frame_list_0 = self.remove_traj_from_frame_list(self.rm_traj_list, frame_list_0, 1)
                 if len(frame_list_0) == 0:
-                    print(f'No frames for state {state_idx} in the last {self.last_num_frames} frames. Exitting. The state maybe made entirely of mirror traj and in the self.rm_traj_list!')
+                    self.logger.info(f'No frames for state {state_idx} in the last {self.last_num_frames} frames. Exitting. The state maybe made entirely of mirror traj and in the self.rm_traj_list!')
                     empty_states.append(state_idx)
                     continue
 
                 frame_list.append(frame_list_0)
             
             ## adjust the frame_list and the state_idx_list depending on what states are populated
-            print(f'empty_states: {empty_states}')
+            self.logger.debug(f'empty_states: {empty_states}')
             self.state_idx_list = [idx for idx in self.state_idx_list if idx not in empty_states]
-            print(f'Updated state_idx_list: {self.state_idx_list}')
+            self.logger.info(f'Updated state_idx_list: {self.state_idx_list}')
             for idx, arr in enumerate(frame_list):
                 state = self.state_idx_list[idx]
-                print(idx, state, arr.shape)
+                self.logger.info(idx, state, arr.shape)
 
             native_sel = np.array(np.where(meta_dtrajs_last[:, sel_frame_idx] == self.native_state_idx)).T
             native_sel[:,1] = sel_frame_idx[native_sel[:,1]]
-            print(f'native_sel:\n{native_sel} {native_sel.shape}')
+            self.logger.info(f'native_sel:\n{native_sel} {native_sel.shape}')
 
             #native_sel = self.remove_traj_from_frame_list(self.rm_traj_list, native_sel, 1)
             #print(f'native_sel:\n{native_sel} {native_sel.shape}')
@@ -399,24 +402,24 @@ class MassSpec:
             #################################################################
             # Load SASA data
             sasa_traj_list = np.load(self.sasa_data_file, allow_pickle=True)[:,-self.last_num_frames:,:]
-            print(f'sasa_traj_list.shape: {sasa_traj_list.shape}')
+            self.logger.info(f'sasa_traj_list.shape: {sasa_traj_list.shape}')
 
             # remove trajectories that are in the rm_traj_list - 1
             sasa_traj_list = [v for i, v in enumerate(sasa_traj_list) if i not in np.asarray(self.rm_traj_list) - 1]
             sasa_traj_list = np.array(sasa_traj_list)
-            print(f'sasa_traj_list.shape after removal of mirror images: {sasa_traj_list.shape}')
+            self.logger.info(f'sasa_traj_list.shape after removal of mirror images: {sasa_traj_list.shape}')
             #################################################################
 
 
             #################################################################
             # Load distance data
             dist_traj_list = np.load(self.dist_data_file, allow_pickle=True)[:,-self.last_num_frames:]
-            print(f'dist_traj_list.shape: {dist_traj_list.shape}')
+            self.logger.info(f'dist_traj_list.shape: {dist_traj_list.shape}')
 
             # remove trajectories that are in the rm_traj_list - 1
             dist_traj_list = [v for i, v in enumerate(dist_traj_list) if i not in np.asarray(self.rm_traj_list) - 1]
             dist_traj_list = np.array(dist_traj_list)
-            print(f'dist_traj_list.shape after removal of mirror images: {dist_traj_list.shape}')
+            self.logger.info(f'dist_traj_list.shape after removal of mirror images: {dist_traj_list.shape}')
             #################################################################
 
 
@@ -425,32 +428,32 @@ class MassSpec:
             # NAN SASA indicates a bad backmapped structure and I want to skip them
             nan_frame_sel = np.where(np.isnan(sasa_traj_list))
             nan_frame_sel = np.array([nan_frame_sel[0], nan_frame_sel[1]], dtype=int).T
-            print(nan_frame_sel)
+            self.logger.debug(nan_frame_sel)
             frame_list = [np.array([sel for sel in frame if not sel.tolist() in nan_frame_sel.tolist()]) for frame in frame_list]
-            print(f'frame_list:')
+            self.logger.info(f'frame_list:')
             for idx, arr in enumerate(frame_list):
                 state = self.state_idx_list[idx]
-                print(idx, state, arr.shape)
+                self.logger.info(idx, state, arr.shape)
             native_sel = np.array([sel for sel in native_sel if not sel.tolist() in nan_frame_sel.tolist()])
-            print(f'native_sel:\n{native_sel} {native_sel.shape}')
+            self.logger.info(f'native_sel:\n{native_sel} {native_sel.shape}')
             #################################################################
 
 
             #################################################################
             # Load LiPMS experimental data
             LiPMS_sig_data = self.load_LiPMS_data(self.LiPMS_exp_file)
-            print(f'Loaded LiPMS experimental data: {len(LiPMS_sig_data)} peptides')
+            self.logger.info(f'Loaded LiPMS experimental data: {len(LiPMS_sig_data)} peptides')
 
             # load XLMS experimental data
             XLMS_sig_data = self.load_XLMS_data(self.XLMS_exp_file)
-            print(f'Loaded XLMS experimental data: {len(XLMS_sig_data)} pairs')
+            self.logger.info(f'Loaded XLMS experimental data: {len(XLMS_sig_data)} pairs')
             #################################################################
             
 
             #################################################################
             # Calculate or load metric matrix
             if self.if_calc_M == 1:
-                print('Calculating metric matrix...')
+                self.logger.debug('Calculating metric matrix...')
                 # calculate metric matrix
                 M_LiPMS = np.zeros((*meta_dtrajs_last.shape, len(LiPMS_sig_data)))
                 for idx, peptide in enumerate(LiPMS_sig_data.keys()):
@@ -472,10 +475,10 @@ class MassSpec:
                 np.savez(npz_outfile, 
                         M_LiPMS = M_LiPMS,
                         M_XLMS = M_XLMS)
-                print(f'Saved metric matrices to {npz_outfile}')
+                self.logger.info(f'Saved metric matrices to {npz_outfile}')
 
             else:
-                print('Loading metric matrix...')
+                self.logger.debug('Loading metric matrix...')
                 M_data = np.load(npz_outfile, allow_pickle=True)
                 M_LiPMS = M_data['M_LiPMS'][:,-self.last_num_frames:,:]
                 M_XLMS = M_data['M_XLMS'][:,-self.last_num_frames:,:]
@@ -491,12 +494,12 @@ class MassSpec:
             p_list = []
             p_all_state_list = []
             for idx, M in enumerate([M_LiPMS, M_XLMS]):
-                print(M_str_list[idx]+':')
+                self.logger.info(M_str_list[idx]+':')
                 exp_data = exp_data_list[idx]
                 
                 df_list_0 = []
                 for idx_0 in range(len(exp_data)):
-                    print('%s:'%(list(exp_data.keys())[idx_0]))
+                    self.logger.info('%s:'%(list(exp_data.keys())[idx_0]))
                     M_0 = M[:,:,idx_0]
                     index_str = list(exp_data.keys())[idx_0]
                     header = ['Near-native state', 'Sample size', '<M>']
@@ -517,24 +520,24 @@ class MassSpec:
                     df_data = []
                     df_all_state_data = []
                     # for near-native states
-                    print(f'len(self.state_idx_list): {self.state_idx_list} {len(self.state_idx_list)}')
+                    self.logger.info(f'len(self.state_idx_list): {self.state_idx_list} {len(self.state_idx_list)}')
                     for idx_1, state_id in enumerate(self.state_idx_list):
-                        print(idx_1, state_id)
+                        self.logger.info(idx_1, state_id)
                         near_native_sel = np.array(frame_list[idx_1], dtype=int)
-                        print(near_native_sel)
+                        self.logger.debug(near_native_sel)
                         M_0_near_native = M_0[near_native_sel[:,0], near_native_sel[:,1]]
                         # bootstrapping to get 95%CI
                         boot_stat_near_native = self.bootstrap(np.mean, M_0_near_native, self.n_boot)
                         lb_near_native = np.percentile(boot_stat_near_native, 2.5)
                         ub_near_native = np.percentile(boot_stat_near_native, 97.5)
-                        print('Near-native state %d vs. Native state %d:'%(state_id+1, num_meta_states))
-                        print('    Sample size: %d vs. %d'%(len(M_0_near_native), len(M_0_native)))
-                        print('    <M>: %.4f [%.4f, %.4f] vs. %.4f [%.4f, %.4f]'%(np.mean(M_0_near_native), lb_near_native, ub_near_native, np.mean(M_0_native), lb_native, ub_native))
+                        self.logger.info('Near-native state %d vs. Native state %d:'%(state_id+1, num_meta_states))
+                        self.logger.info('    Sample size: %d vs. %d'%(len(M_0_near_native), len(M_0_native)))
+                        self.logger.info('    <M>: %.4f [%.4f, %.4f] vs. %.4f [%.4f, %.4f]'%(np.mean(M_0_near_native), lb_near_native, ub_near_native, np.mean(M_0_native), lb_native, ub_native))
                         p_value_list_0 = []
                         for ts in ['!=', test_side]:
                             p = self.permutation_test(self.perm_fun, M_0_near_native, M_0_native, self.num_perm, side=ts)
                             # p, _ = bootstrap_test(M_0_near_native, M_0_native, statistic_fun, n_boot, side=ts)
-                            print('    p-value ("%s") = %.4f'%(ts, p))
+                            self.logger.info('    p-value ("%s") = %.4f'%(ts, p))
                             p_value_list_0.append(p)
                         p_list.append(p_value_list_0)
                         df_data.append([state_id+1, '%d vs. %d'%(len(M_0_near_native), len(M_0_native)), '%.4f [%.4f, %.4f] vs. %.4f [%.4f, %.4f]'%(np.mean(M_0_near_native), lb_near_native, ub_near_native, np.mean(M_0_native), lb_native, ub_native), p_value_list_0[0], 0, p_value_list_0[1], 0])
@@ -562,14 +565,14 @@ class MassSpec:
                     boot_stat_near_native = self.bootstrap(np.mean, M_0_near_native, self.n_boot)
                     lb_near_native = np.percentile(boot_stat_near_native, 2.5)
                     ub_near_native = np.percentile(boot_stat_near_native, 97.5)
-                    print('All states vs. Native state %d:'%(num_meta_states))
-                    print('    Sample size: %d vs. %d'%(len(M_0_near_native), len(M_0_native)))
-                    print('    <M>: %.4f [%.4f, %.4f] vs. %.4f [%.4f, %.4f]'%(np.mean(M_0_near_native), lb_near_native, ub_near_native, np.mean(M_0_native), lb_native, ub_native))
+                    self.logger.info('All states vs. Native state %d:'%(num_meta_states))
+                    self.logger.info('    Sample size: %d vs. %d'%(len(M_0_near_native), len(M_0_native)))
+                    self.logger.info('    <M>: %.4f [%.4f, %.4f] vs. %.4f [%.4f, %.4f]'%(np.mean(M_0_near_native), lb_near_native, ub_near_native, np.mean(M_0_native), lb_native, ub_native))
                     p_value_list_0 = []
                     for ts in ['!=', test_side]:
                         p = self.permutation_test(self.perm_fun, M_0_near_native, M_0_native, self.num_perm, side=ts)
                         # p, _ = bootstrap_test(M_0_near_native, M_0_native, statistic_fun, n_boot, side=ts)
-                        print('    p-value ("%s") = %.4f'%(ts, p))
+                        self.logger.info('    p-value ("%s") = %.4f'%(ts, p))
                         p_value_list_0.append(p)
                     p_all_state_list.append(p_value_list_0)
                     df_all_state_data.append(['All states', '%d vs. %d'%(len(M_0_near_native), len(M_0_native)), '%.4f [%.4f, %.4f] vs. %.4f [%.4f, %.4f]'%(np.mean(M_0_near_native), lb_near_native, ub_near_native, np.mean(M_0_native), lb_native, ub_native), p_value_list_0[0], 0, p_value_list_0[1], 0])
@@ -631,10 +634,10 @@ class MassSpec:
                     for idx_1, df in enumerate(df_list_0):
                         df.to_excel(writer, sheet_name=M_str_list[idx_0], index=True, float_format="%.4f", startrow=start_row , startcol=0)
                         start_row += len(df) + 2
-            print(f'SAVED: {xlsx_outfile}')
+            self.logger.debug(f'SAVED: {xlsx_outfile}')
             #################################################################
 
-        print(f'LiP_XL_MS_ConsistencyTest DONE!')
+        self.logger.info(f'LiP_XL_MS_ConsistencyTest DONE!')
         return npz_outfile, xlsx_outfile
     ##############################################################################
 
@@ -644,7 +647,7 @@ class MassSpec:
         Loads the GQ values of each trajectory into a 2D array and then appends it to a list
         The list should have Nt = number of trajectories and each array should be n x 2 where n is the number of frames
         """
-        print(f'Loading G and Q order parameters...')
+        self.logger.info(f'Loading G and Q order parameters...')
         Qfiles = glob.glob(os.path.join(self.OPpath, 'Q/*.Q'))
         QTrajs = [int(pathlib.Path(Qf).stem.split('Traj')[-1]) for Qf in Qfiles]
 
@@ -653,17 +656,17 @@ class MassSpec:
 
         shared_Trajs = set(QTrajs).intersection(GTrajs)
         shared_Trajs = sorted(shared_Trajs)
-        print(f'shared_Trajs: {shared_Trajs}')
+        self.logger.debug(f'shared_Trajs: {shared_Trajs}')
         #print(f'Shared Traj between Q and G: {shared_Trajs} {len(shared_Trajs)}')
-        print(f'Number of Q files found: {len(Qfiles)} | Number of G files found: {len(Gfiles)}')
+        self.logger.info(f'Number of Q files found: {len(Qfiles)} | Number of G files found: {len(Gfiles)}')
 
         assert len(Qfiles) == len(Gfiles), f"The # of Q and G files {len(Qfiles)} and {len(Gfiles)} is not equal"
 
         ## remove trajectories that are in the rm_traj_list
         if len(self.rm_traj_list) > 0:
-            print(f'Removing trajectories: {self.rm_traj_list}')
+            self.logger.info(f'Removing trajectories: {self.rm_traj_list}')
             shared_Trajs = [traj for traj in shared_Trajs if traj not in self.rm_traj_list]
-            print(f'Number of shared Traj after removing: {len(shared_Trajs)}')
+            self.logger.info(f'Number of shared Traj after removing: {len(shared_Trajs)}')
 
         # loop through the Qfiles and find matching Gfile
         # then load the Q and G time series into a 2D array
@@ -699,7 +702,7 @@ class MassSpec:
 
             ## Quality check that the G and Q data has the same number of frames
             if Qdata.shape != Gdata.shape:
-                print(f"WARNING: The number of frames in Q {Qdata.shape} should equal the number of frames in G {Gdata.shape} in Traj {traj}")
+                self.logger.warning(f"WARNING: The number of frames in Q {Qdata.shape} should equal the number of frames in G {Gdata.shape} in Traj {traj}")
                 continue
             
             ## Check and ensure that Qdata or Gdata has no nan values
@@ -714,8 +717,8 @@ class MassSpec:
         
         Q_data = np.asarray(Q_data)
         G_data = np.asarray(G_data)
-        print(f'Q_data: {Q_data.shape}')
-        print(f'G_data: {G_data.shape}')
+        self.logger.debug(f'Q_data: {Q_data.shape}')
+        self.logger.debug(f'G_data: {G_data.shape}')
         return Q_data, G_data
     ##############################################################################
 
@@ -724,7 +727,7 @@ class MassSpec:
         """
         After performing the consistency test select representative structures with high consistency
         """
-        print(f'Selecting representative structure')
+        self.logger.info(f'Selecting representative structure')
 
         ############### Functions ###############
         ##############################################################################
@@ -738,7 +741,7 @@ class MassSpec:
             elif test_type == 'one-tailed':
                 t_idx = -1
             else:
-                print('Error: Wrong test_type = %s; can be either "two-tailed" or "one-tailed"'%test_type)
+                self.logger.error('Error: Wrong test_type = %s; can be either "two-tailed" or "one-tailed"'%test_type)
                 sys.exit()
             sign = consist_data.columns[t_idx].split()[-1][1:-1]
             for i in range(num_row):
@@ -791,8 +794,8 @@ class MassSpec:
 
         ################### MAIN ###############
         ##############################################################################
-        print(f'Loading consistency test data from {consist_result_file}')
-        print(f'Loading consistency test data from {consist_data_file}')
+        self.logger.info(f'Loading consistency test data from {consist_result_file}')
+        self.logger.info(f'Loading consistency test data from {consist_data_file}')
 
         if_backmap = 0
         pulchra_only = True
@@ -802,12 +805,12 @@ class MassSpec:
         ##############################################################################
         # Load MSM data
         MSM_data = pd.read_csv(self.msm_data_file)
-        print(f'MSM_data\n{MSM_data}')
+        self.logger.info(f'MSM_data\n{MSM_data}')
         meta_states = MSM_data['metastablestate'].unique()
         meta_states = np.array(meta_states, dtype=int)
-        print(f'meta_states: {meta_states}')
+        self.logger.debug(f'meta_states: {meta_states}')
         num_meta_states = len(meta_states)
-        print(f'num_meta_states: {num_meta_states}')
+        self.logger.debug(f'num_meta_states: {num_meta_states}')
 
         meta_dtrajs_last = []
         micro_dtrajs_last = []
@@ -828,15 +831,15 @@ class MassSpec:
 
         meta_dtrajs_last = np.array(meta_dtrajs_last)
         micro_dtrajs_last = np.array(micro_dtrajs_last)
-        print(f'meta_dtrajs_last\n{meta_dtrajs_last} {meta_dtrajs_last.shape}')
-        print(np.unique(meta_dtrajs_last))
-        print(f'micro_dtrajs_last\n{micro_dtrajs_last} {micro_dtrajs_last.shape}')
-        print(np.unique(micro_dtrajs_last))
-        print(f'MSM_traj_idx_to_trajnum: {MSM_traj_idx_to_trajnum}')
+        self.logger.info(f'meta_dtrajs_last\n{meta_dtrajs_last} {meta_dtrajs_last.shape}')
+        self.logger.debug(np.unique(meta_dtrajs_last))
+        self.logger.info(f'micro_dtrajs_last\n{micro_dtrajs_last} {micro_dtrajs_last.shape}')
+        self.logger.debug(np.unique(micro_dtrajs_last))
+        self.logger.debug(f'MSM_traj_idx_to_trajnum: {MSM_traj_idx_to_trajnum}')
 
         ## load the meta_dist data
         meta_dist = np.load(self.meta_dist_file, allow_pickle=True)
-        print(f'meta_dist:\n{meta_dist} {meta_dist.shape}')
+        self.logger.info(f'meta_dist:\n{meta_dist} {meta_dist.shape}')
         ##############################################################################
 
  
@@ -845,16 +848,16 @@ class MassSpec:
         consist_data = np.load(consist_data_file, allow_pickle=True)
         M_LiPMS = consist_data['M_LiPMS'][:,-last_num_frames:,:]
         M_XLMS = consist_data['M_XLMS'][:,-last_num_frames:,:]
-        print(f'Loaded consistency metrics from {consist_data_file}')
-        print(f'M_LiPMS: {M_LiPMS.shape}')
-        print(f'M_XLMS: {M_XLMS.shape}')
+        self.logger.info(f'Loaded consistency metrics from {consist_data_file}')
+        self.logger.debug(f'M_LiPMS: {M_LiPMS.shape}')
+        self.logger.debug(f'M_XLMS: {M_XLMS.shape}')
         ##############################################################################
 
         ##############################################################################
         # Load consistency test results
         LIPMS_consist_data = parse_consistant_results(consist_result_file, sheet_name='LiPMS', test_type='two-tailed', significant_level=significant_level)
         XLMS_consist_data = parse_consistant_results(consist_result_file, sheet_name='XLMS', test_type='two-tailed', significant_level=significant_level)
-        print(f'Loaded consistency test results')
+        self.logger.info(f'Loaded consistency test results')
         ##############################################################################
      
 
@@ -888,12 +891,12 @@ class MassSpec:
         dtrajs = cluster_data['dtrajs']
         dtrajs = dtrajs[order]
         dtrajs = dtrajs[idx_2_keep]
-        print(f'dtrajs after removal of mirror images: {dtrajs.shape}')
+        self.logger.info(f'dtrajs after removal of mirror images: {dtrajs.shape}')
 
         # load the rep_chg_ent_dtrajs
         rep_chg_ent_dtrajs = cluster_data['rep_chg_ent_dtrajs']
         # Map resid to residue idx using resid2residueidx_map
-        print(f'Mapping of rep_chg_ent_dtrajs resid to residu idx using resid2residueidx_map: {self.resid2residueidx_map}')
+        self.logger.info(f'Mapping of rep_chg_ent_dtrajs resid to residu idx using resid2residueidx_map: {self.resid2residueidx_map}')
         for traj_idx, traj_data in enumerate(rep_chg_ent_dtrajs):
             for frame_idx, frame_data in enumerate(traj_data):
                 for fingerprint_id, fingerprint in frame_data.items():
@@ -916,25 +919,25 @@ class MassSpec:
             
         rep_chg_ent_dtrajs = rep_chg_ent_dtrajs[order]
         rep_chg_ent_dtrajs = rep_chg_ent_dtrajs[idx_2_keep]
-        print(f'rep_chg_ent_dtrajs after removal of mirror images: {rep_chg_ent_dtrajs.shape}')
+        self.logger.info(f'rep_chg_ent_dtrajs after removal of mirror images: {rep_chg_ent_dtrajs.shape}')
 
         sorted_chg_ent_structure_keyword_list = cluster_data['sorted_chg_ent_structure_keyword_list'].tolist()
-        print(f'sorted_chg_ent_structure_keyword_list: {len(sorted_chg_ent_structure_keyword_list)} {sorted_chg_ent_structure_keyword_list[:10]}')
+        self.logger.debug(f'sorted_chg_ent_structure_keyword_list: {len(sorted_chg_ent_structure_keyword_list)} {sorted_chg_ent_structure_keyword_list[:10]}')
 
         dtrajs_cluster_idx = np.array([[sorted_chg_ent_structure_keyword_list.index(str(dd)) for dd in d] for d in dtrajs])
-        print(f'dtrajs_cluster_idx: {dtrajs_cluster_idx.shape}')
-        print(f'Loaded cluster_data_file: {self.cluster_data_file}')
+        self.logger.debug(f'dtrajs_cluster_idx: {dtrajs_cluster_idx.shape}')
+        self.logger.info(f'Loaded cluster_data_file: {self.cluster_data_file}')
         ##############################################################################
 
         ##############################################################################
         # Load SASA data
         sasa_traj_list = np.load(self.sasa_data_file, allow_pickle=True)[:,-last_num_frames:,:]
-        print(f'Loaded SASA data: {self.sasa_data_file}')
+        self.logger.info(f'Loaded SASA data: {self.sasa_data_file}')
 
         # remove trajectories that are in the rm_traj_list - 1
         sasa_traj_list = [v for i, v in enumerate(sasa_traj_list) if i not in np.asarray(self.rm_traj_list) - 1]
         sasa_traj_list = np.array(sasa_traj_list)
-        print(f'sasa_traj_list.shape after removal of mirror images: {sasa_traj_list.shape}')
+        self.logger.info(f'sasa_traj_list.shape after removal of mirror images: {sasa_traj_list.shape}')
         ##############################################################################
 
 
@@ -948,7 +951,7 @@ class MassSpec:
         nan_frame_sel = np.where(np.isnan(sasa_traj_list))
         nan_frame_sel = np.array([nan_frame_sel[0], nan_frame_sel[1]], dtype=int).T
         native_sel = np.array([sel for sel in native_sel if not sel.tolist() in nan_frame_sel.tolist()])
-        print(f'native_sel: {native_sel} {native_sel.shape}')
+        self.logger.debug(f'native_sel: {native_sel} {native_sel.shape}')
 
         # (3) Get the native M_LiPMS and M_XLMS
         native_M_LiPMS = M_LiPMS[native_sel[:,0], native_sel[:,1], :]
@@ -963,7 +966,7 @@ class MassSpec:
         for key in XLMS_consist_data:
             XLMS_consist_data[key][3][0] = np.percentile(native_M_XLMS[:, XLMS_consist_data[key][4]], 2.5)
             XLMS_consist_data[key][3][1] = np.percentile(native_M_XLMS[:, XLMS_consist_data[key][4]], 97.5)
-        print(f'SAVED: {native_M_data_outfile}')
+        self.logger.debug(f'SAVED: {native_M_data_outfile}')
         ##############################################################################
 
         ##############################################################################
@@ -977,7 +980,7 @@ class MassSpec:
                 dtrajs_MS[i,j] = []
 
         # Go through each PK site in the LiPMS consistency data
-        print(f'\nProcessing LiPMS consistency data')
+        self.logger.info(f'\nProcessing LiPMS consistency data')
         for pk, data in LIPMS_consist_data.items():
             # print(pk, data)
 
@@ -1025,7 +1028,7 @@ class MassSpec:
         ##############################################################################
         # Go through XLMS data
         XLMS_struct_data = {}
-        print(f'\nProcessing XLMS consistency data')
+        self.logger.info(f'\nProcessing XLMS consistency data')
         for pair, data in XLMS_consist_data.items():
             # print(pair, data)
 
@@ -1068,12 +1071,12 @@ class MassSpec:
                     for idx in consist_idx_list:
                         dtrajs_MS[idx[0],idx[1]].append(pair)
         ##############################################################################
-        print(f'dtrajs_MS: {dtrajs_MS.shape}')
+        self.logger.debug(f'dtrajs_MS: {dtrajs_MS.shape}')
 
 
         ##############################################################################
         # Group consistency data
-        print(f'\nGrouping consistency data based on consistency signals')
+        self.logger.info(f'\nGrouping consistency data based on consistency signals')
         consist_signal_dict = {}
         for i, d in enumerate(dtrajs_MS): # list of lists of consistency signals in each frame
 
@@ -1109,7 +1112,7 @@ class MassSpec:
 
         ##############################################################################
         # Group based on metastable states, then consistensy
-        print(f'\nGrouping consistency data based on metastable states and consistency signals')
+        self.logger.info(f'\nGrouping consistency data based on metastable states and consistency signals')
         group_dict = {}
         for state_id in self.state_idx_list:
             # print(f'Processing state {state_id}...')
@@ -1151,14 +1154,14 @@ class MassSpec:
 
         ##############################################################################
         # Load Q list
-        print(f'Loading G and Q data from {self.OPpath}')
+        self.logger.info(f'Loading G and Q data from {self.OPpath}')
         Q_list, G_list = self.load_OP(start=-last_num_frames)
-        print(f'Loaded G and Q data from {self.OPpath}')
+        self.logger.info(f'Loaded G and Q data from {self.OPpath}')
         ##############################################################################
 
         ##############################################################################
         # Get representative structures
-        print(f'\nGetting representative structures for each group...')
+        self.logger.info(f'\nGetting representative structures for each group...')
         rep_group_dict = {}
         for state_id in self.state_idx_list:
             # print(f'Processing state {state_id}...')
@@ -1214,10 +1217,10 @@ class MassSpec:
                 sorted_consist_signal_dict=sorted_consist_signal_dict,
                 group_dict=group_dict,
                 rep_group_dict=rep_group_dict,)
-        print(f'SAVED: {consist_signal_struct_data_outfile}')
+        self.logger.debug(f'SAVED: {consist_signal_struct_data_outfile}')
 
         # Save info to excel
-        print(f'Saving info to excel...')
+        self.logger.info(f'Saving info to excel...')
         df_list = []
         sheet_name_list = []
         df_data = []
@@ -1278,47 +1281,47 @@ class MassSpec:
                 worksheet=workbook.create_sheet(sheet_name_list[idx_0])
                 writer.sheets[sheet_name_list[idx_0]] = worksheet
                 df.to_excel(writer, sheet_name=sheet_name_list[idx_0], index=False)
-        print(f'SAVED: {Consistent_structures_v8_outfile}')
+        self.logger.debug(f'SAVED: {Consistent_structures_v8_outfile}')
         ##############################################################################
         
 
         ##############################################################################
         # Create visualization
-        print(f'Create visualizations...')
-        print(f'Loading dist_traj_list: {self.dist_data_file}')
+        self.logger.info(f'Create visualizations...')
+        self.logger.info(f'Loading dist_traj_list: {self.dist_data_file}')
         dist_traj_list = np.load(self.dist_data_file, allow_pickle=True)[:,-last_num_frames:]
-        print(f'Loaded distance data: {dist_traj_list.shape}')
+        self.logger.info(f'Loaded distance data: {dist_traj_list.shape}')
         dist_traj_list = [v for i, v in enumerate(dist_traj_list) if i not in np.asarray(self.rm_traj_list) - 1]
         dist_traj_list = np.array(dist_traj_list)
-        print(f'dist_traj_list after removal of mirror images: {dist_traj_list.shape}')
+        self.logger.info(f'dist_traj_list after removal of mirror images: {dist_traj_list.shape}')
 
 
         # Check if the viz_rep_struct path exists. if so remove it and make a fresh one
         if os.path.exists('viz_rep_struct'):
-            print(f'viz_rep_struct exists and will be removed')
+            self.logger.info(f'viz_rep_struct exists and will be removed')
             os.system('rm -rf viz_rep_struct/')
         os.system('mkdir viz_rep_struct/')
         os.chdir('viz_rep_struct/')
 
         AAtraj_files = glob.glob(self.AAdcd_dir)
-        print(f'AAtraj_files:\n{AAtraj_files[:10]}')
+        self.logger.info(f'AAtraj_files:\n{AAtraj_files[:10]}')
         
         wd = os.getcwd()
         for state_id in self.state_idx_list:
             state_dir = os.path.join(wd, 'State_%d'%(state_id+1))
             os.makedirs(state_dir, exist_ok=True)
-            print(f'Made {state_dir}')
+            self.logger.info(f'Made {state_dir}')
             # os.chdir(state_dir)
-            print(f'Length of rep_group_dict[state_id]: {len(rep_group_dict[state_id])}')
+            self.logger.info(f'Length of rep_group_dict[state_id]: {len(rep_group_dict[state_id])}')
             args_list = [
                 (state_dir, state_id, k, rep_group_dict, sorted_chg_ent_structure_keyword_list, last_num_frames, total_traj_num_frames,
                 idx2traj, AAtraj_files, self.native_AA_pdb, rep_chg_ent_dtrajs, Q_list, G_list,
                 LIPMS_consist_data, M_LiPMS, XLMS_consist_data, M_XLMS, dist_traj_list, if_backmap, pulchra_only)
                 for k in rep_group_dict[state_id].keys()
             ]
-            print(f'Processing {len(args_list)} consistent signal groups for state {state_id}...')
+            self.logger.info(f'Processing {len(args_list)} consistent signal groups for state {state_id}...')
             if len(args_list) == 0:
-                print(f'No consistent signal groups for state {state_id}, skipping...')
+                self.logger.info(f'No consistent signal groups for state {state_id}, skipping...')
                 continue
             
             # process_k(args_list[0])
@@ -1327,7 +1330,7 @@ class MassSpec:
             # nproc = 10
             with multiprocessing.Pool(processes=self.nproc) as pool:
                 pool.map(process_k, args_list)
-        print('Completion of selecting rep structure')
+        self.logger.debug('Completion of selecting rep structure')
 
 
 ##################################################################################################
@@ -1341,7 +1344,7 @@ def process_k(args):
     k_str = '_'.join(k_list)
     k_str_dir = os.path.join(state_dir, k_str)
     os.makedirs(k_str_dir, exist_ok=True)
-    print(f'Made {k_str_dir}')
+    self.logger.info(f'Made {k_str_dir}')
     key_order = ['type', 'code', 'native_contact', 'native_contact_residx',  'linking_value', 'crossing_resid', 'crossing_residx', 'crossing_pattern', 'gauss_linking_number', 'topoly_linking_number', 
                  'ref_native_contact', 'ref_native_contact_residx', 'ref_linking_value', 'ref_crossing_resid', 'ref_crossing_residx', 'ref_crossing_pattern', 'ref_gauss_linking_number', 'ref_topoly_linking_number']
     # os.system('mkdir %s/' % k_str)
@@ -1355,7 +1358,7 @@ def process_k(args):
         kk_str = '_'.join([str(i+1) for i in kk_list])
         kk_str_dir = os.path.join(k_str_dir, kk_str)
         os.makedirs(kk_str_dir, exist_ok=True)
-        print(f'Made {kk_str_dir}')
+        self.logger.info(f'Made {kk_str_dir}')
         # os.system('mkdir %s/' % kk_str)
         # os.chdir(kk_str)
 
@@ -1405,7 +1408,7 @@ def process_k(args):
                 for kkkk in key_order:
                     f.write(' ' * 4 + '%s: %s\n' % (kkkk, v[kkkk]))
                     # f.write(' ' * 4 + 'ref_%s: %s\n' % (kkkk, v['ref_' + kkkk]))
-        print(f'SAVED: {info_file}')
+        self.logger.debug(f'SAVED: {info_file}')
 ##############################################################################
 
 ##############################################################################
@@ -1456,19 +1459,19 @@ def gen_state_visualizion(state_id, ent_id, kk_str_dir, psf, state_cor, native_A
     thread_cutoff=3
     terminal_cutoff=3
     
-    print('Generate visualization of state %d'%(state_id + 1))
-    print(f'ent_id: {ent_id}')
-    print(f'kk_str_dir: {kk_str_dir}')
-    print(f'psf: {psf}')
-    print(f'state_cor: {state_cor}')
-    print(f'native_AA_pdb: {native_AA_pdb}')
-    print(f'if_backmap: {if_backmap}')
-    print(f'pulchra_only: {pulchra_only}')
-    print(f'exp_signal_str: {exp_signal_str}')
-    print(f'rep_ent_dict:')
+    self.logger.info('Generate visualization of state %d'%(state_id + 1))
+    self.logger.debug(f'ent_id: {ent_id}')
+    self.logger.debug(f'kk_str_dir: {kk_str_dir}')
+    self.logger.debug(f'psf: {psf}')
+    self.logger.debug(f'state_cor: {state_cor}')
+    self.logger.debug(f'native_AA_pdb: {native_AA_pdb}')
+    self.logger.debug(f'if_backmap: {if_backmap}')
+    self.logger.debug(f'pulchra_only: {pulchra_only}')
+    self.logger.debug(f'exp_signal_str: {exp_signal_str}')
+    self.logger.info(f'rep_ent_dict:')
     for k, v in rep_ent_dict.items():
-        print(f'k:\n{k}')
-        print(f'v:\n{v} {len(v)}')
+        self.logger.info(f'k:\n{k}')
+        self.logger.info(f'v:\n{v} {len(v)}')
 
     struct = pmd.load_file(psf)
     struct.coordinates = state_cor
@@ -1521,7 +1524,7 @@ mol material AOChalky
 mol addrep top
 ''')
         f.close()
-        print(f'SAVED: {vmd_outfile}')
+        self.logger.debug(f'SAVED: {vmd_outfile}')
 
     ##############################################
     ## Create vmd script for each type of change
@@ -1736,6 +1739,6 @@ $move_sel move $trans_mat
             f = open(vmd_outfile, 'w')
             f.write(vmd_script)
             f.close()
-            print(f'SAVED: {vmd_outfile}')
+            self.logger.debug(f'SAVED: {vmd_outfile}')
            
 ##############################################################################

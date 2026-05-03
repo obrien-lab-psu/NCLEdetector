@@ -1,14 +1,14 @@
 ###################################################################################################
 ## Multiprocesing helper function(s)
 def process_frame(args):
-    frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, Calpha, CG, g_threshold, density = args
+    frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, Calpha, CG, g_threshold, density, ent_detection_method = args
     import MDAnalysis as mda
     from EntDetect.gaussian_entanglement import GaussianEntanglement
     univ = mda.Universe(PSF, dcd)
     chain_atoms = univ.select_atoms(f"segid {chain}")
     univ.trajectory[frame_idx]
     coor = chain_atoms.positions
-    ge = GaussianEntanglement(g_threshold=g_threshold, density=density, Calpha=Calpha, CG=CG)
+    ge = GaussianEntanglement(g_threshold=g_threshold, density=density, Calpha=Calpha, CG=CG, ent_detection_method=ent_detection_method)
     ent_result = ge.get_traj_entanglements(coor, chain_res, resids, atom_names, topoly=topoly)
     result_rows = []
     if not ent_result:
@@ -23,11 +23,13 @@ def process_frame(args):
             crossingsC = ','.join(crossingsC)
 
             result_rows.append((ID, chain, frame_idx, i, j, crossingsN, crossingsC, f'{ij_gN_gC[2]: .5f}', f'{ij_gN_gC[3]: .5f}', ij_gN_gC[4], ij_gN_gC[5], ij_gN_gC[6], ij_gN_gC[7]))
+    logging.getLogger('EntDetect.GaussianEntanglement').info(f'Frame idx: {frame_idx} processed with {len(result_rows)} contact(s) found.')
     return result_rows
 ###################################################################################################
 
 ###################################################################################################
 ## load in necessary packages
+import logging
 import itertools
 import math
 import sys
@@ -45,6 +47,7 @@ import pickle
 from collections import defaultdict
 import time
 import multiprocessing as mp
+from EntDetect._logging import setup_logger
 from typing import Optional
 filterwarnings("ignore")
 
@@ -52,7 +55,7 @@ class GaussianEntanglement:
     """
     Gaussian Entanglement Class for calculating entanglements in protein structures derived from both experiments and AlphaFold. 
     """
-    def __init__(self, g_threshold: float = 0.6, density: float = 0.0, Calpha: bool = False, CG: bool = False, nproc: int = 10, ent_detection_method: int = 2) -> None:
+    def __init__(self, g_threshold: float = 0.6, density: float = 0.0, Calpha: bool = False, CG: bool = False, nproc: int = 10, ent_detection_method: int = 2, log_level: int = logging.INFO, logdir: str = None) -> None:
         """
         Constructor for GaussianEntanglement class.
 
@@ -73,13 +76,14 @@ class GaussianEntanglement:
             3 = both GLN and TLN must have nonzero for same termini
         """
 
+        self.logger = setup_logger('GaussianEntanglement', outdir=logdir, log_level=log_level)
         self.g_threshold = g_threshold
         self.density = density
         self.Calpha = Calpha
         self.CG = CG
         self.nproc = nproc
         self.ent_detection_method = ent_detection_method
-        print(f'GaussianEntanglement initialized with g_threshold: {g_threshold}, density: {density}, Calpha: {Calpha}, CG: {CG}, nproc: {nproc}, ent_detection_method: {ent_detection_method}')
+        self.logger.info(f'GaussianEntanglement initialized with g_threshold: {g_threshold}, density: {density}, Calpha: {Calpha}, CG: {CG}, nproc: {nproc}, ent_detection_method: {ent_detection_method}')
 
         self.change_codes = {'L-C~': 'loss of linking number & switched linking chirality', 
                         'L-C#': 'loss of linking number & no change of linking chirality', 
@@ -87,6 +91,8 @@ class GaussianEntanglement:
                         'L+C#': 'gain of linking number & no change of linking chirality', 
                         'L#C~': 'no change of linking number & switched linking chirality', 
                         'L#C#': 'no change'}
+        # print class initialization parameters
+        print(f'GaussianEntanglement initialized with g_threshold: {g_threshold}, density: {density}, Calpha: {Calpha}, CG: {CG}, nproc: {nproc}, ent_detection_method: {ent_detection_method}')
     ##########################################################################################################################################################
 
     ##########################################################################################################################################################
@@ -162,7 +168,7 @@ class GaussianEntanglement:
     ##########################################################################################################################################################
     def get_entanglements(self, coor: np.ndarray, l: int, pdb_file: str, resids: np.ndarray, 
             resnames: np.ndarray,resid_index_to_ref_allatoms_idx: dict, ca_coor: np.ndarray, resid_index_to_resid: dict,
-            termini_threshold: list=[5,5], loop_thread_thresh: list=[4,4]) -> dict:
+            termini_threshold: list=[5,5], loop_thread_thresh: list=[4,4], topoly: bool = True) -> dict:
 
         """
         Find proteins containing non-covalent lasso entanglements.
@@ -174,8 +180,8 @@ class GaussianEntanglement:
         Cterm_thresh = termini_threshold[1]
         loop_Nthread_thresh = loop_thread_thresh[0]
         loop_Cthread_thresh = loop_thread_thresh[1]
-        print(f'Finding entanglements with Nterm_thresh: {Nterm_thresh}, Cterm_thresh: {Cterm_thresh}, loop_Nthread_thresh: {loop_Nthread_thresh}, loop_Cthread_thresh: {loop_Cthread_thresh}')
-        print(f'Coordinates shape: {coor.shape}\n{coor[:10]}\n...\n{coor[-10:]}')
+        # print(f'Finding entanglements with Nterm_thresh: {Nterm_thresh}, Cterm_thresh: {Cterm_thresh}, loop_Nthread_thresh: {loop_Nthread_thresh}, loop_Cthread_thresh: {loop_Cthread_thresh}')
+        # print(f'Coordinates shape: {coor.shape}\n{coor[:10]}\n...\n{coor[-10:]}')
 
         # make native contact contact map
         dist_matrix = squareform(pdist(coor))
@@ -295,11 +301,23 @@ class GaussianEntanglement:
         filtered_nc_gdict = self.loop_filter(nc_gdict, resids, missing_residues)
         #print(f'size filtered_nc_gdict after accounting for missing residues: {len(filtered_nc_gdict)}\n{filtered_nc_gdict}')
 
-        entangled_res = self.find_crossing(ca_coor.tolist(), filtered_nc_gdict, resids)
-        #print(f'entangled_res: {entangled_res}')
+        if topoly:
+            entangled_res = self.find_crossing(ca_coor.tolist(), filtered_nc_gdict, resids)
+            #print(f'entangled_res: {entangled_res}')
 
-        filtered_entangled_res = self.crossing_filter(entangled_res, missing_residues)
-        #print(f'filtered_entangled_res: {filtered_entangled_res}')
+            filtered_entangled_res = self.crossing_filter(entangled_res, missing_residues)
+            #print(f'filtered_entangled_res: {filtered_entangled_res}')
+        else:
+            filtered_entangled_res = {}
+            for ij, values in filtered_nc_gdict.items():
+                i, j = ij[0], ij[1]
+                gn = values[0]
+                gc = values[1]
+                GLNn = values[2]
+                GLNc = values[3]
+                TLNn = np.nan
+                TLNc = np.nan
+                filtered_entangled_res[(resids[i], resids[j], gn, gc, GLNn, GLNc, TLNn, TLNc)] = [np.array([]), np.array([])]
 
         return filtered_entangled_res, missing_residues
     ##########################################################################################################################################################
@@ -554,7 +572,7 @@ class GaussianEntanglement:
                                             continue
                                         distance = sg_atom - sg_atom2
                                         if distance < 2.2:
-                                            print(f"Disulfide bond between {residue} and {residue2} at distance {distance:.2f} Å")
+                                            self.logger.info(f"Disulfide bond between {residue} and {residue2} at distance {distance:.2f} Å")
                                             i,j = residue.get_id()[1], residue2.get_id()[1] 
                                             
                                             if (i,j) not in disulfide_bonds and (j,i) not in disulfide_bonds:
@@ -564,7 +582,7 @@ class GaussianEntanglement:
 
 
     ##########################################################################################################################################################
-    def calculate_native_entanglements(self, pdb_file: str, outdir: str, ID: str='', chain: str=None) -> dict:
+    def calculate_native_entanglements(self, pdb_file: str, outdir: str, ID: str='', chain: str=None, topoly: bool = True) -> dict:
 
         """
         Driver function that outputs native lasso-like self entanglements and missing residues for pdb and all of its chains if any
@@ -574,23 +592,23 @@ class GaussianEntanglement:
         #outdir = f"{os.getcwd()}/{outdir}"
         if not os.path.isdir(outdir):
             os.mkdir(f"{outdir}") 
-            print(f"Creating directory: {outdir}")
+            self.logger.info(f"Creating directory: {outdir}")
 
         if not os.path.isdir(f"{outdir}/unmapped_missing_residues"):
             os.mkdir(f"{outdir}/unmapped_missing_residues")
-            print(f"Creating directory: {outdir}/unmapped_missing_residues")
+            self.logger.info(f"Creating directory: {outdir}/unmapped_missing_residues")
 
 
         ## get the PDB file name
         pdb = pdb_file.split('/')[-1].split(".")[0]
         if ID == '':
             ID = pdb
-        print(f"\n{'#'*100}\nCOMPUTING ENTANGLEMENTS FOR \033[4m{pdb}\033[0m with ID {ID}")
+        self.logger.info(f"\n{'#'*100}\nCOMPUTING ENTANGLEMENTS FOR \033[4m{pdb}\033[0m with ID {ID}")
 
         ## Define the outfile and check if it exists. If so load it else create it
         outfile = os.path.join(f'{outdir}', f'{ID}_GE.csv')
         if os.path.exists(outfile):
-            print(f'{outfile} ALREADY EXISTS AND WILL BE LOADED')
+            self.logger.info(f'{outfile} ALREADY EXISTS AND WILL BE LOADED')
             outdf = pd.read_csv(outfile, sep='|', dtype={'c': str})
             return {'outfile':outfile, 'ent_result':outdf}
 
@@ -599,25 +617,25 @@ class GaussianEntanglement:
             ref_univ = mda.Universe(f'{pdb_file}', format='CRD')
         else:
             ref_univ = mda.Universe(f"{pdb_file}")  
-        print(f'ref_univ: {ref_univ}')
+        self.logger.debug(f'ref_univ: {ref_univ}')
 
 
         ### Find any disulfide bonds
-        print(f'Checking for disulfide bonds')
+        self.logger.info(f'Checking for disulfide bonds')
         disulfide_bonds = self.check_disulfideBonds(pdb_file)
         self.disulfide_bonds = disulfide_bonds
-        print(f'disulfide_bonds: {disulfide_bonds}')
+        self.logger.debug(f'disulfide_bonds: {disulfide_bonds}')
         
 
         ## Get only the heavy atoms or CA atoms depending on what type of contact we are looking for
         if self.Calpha == False and self.CG == False:
-            print('All-atom model and contacts: Selecting all heavy atoms (no hydrogens) for entanglement calculations')
+            self.logger.info('All-atom model and contacts: Selecting all heavy atoms (no hydrogens) for entanglement calculations')
             ref_allatoms_dups = ref_univ.select_atoms("not name H* and protein")
         elif self.Calpha == True and self.CG == False:
-            print('All-atom model and Calpha contacts: Selecting only CA atoms for entanglement calculations')
+            self.logger.info('All-atom model and Calpha contacts: Selecting only CA atoms for entanglement calculations')
             ref_allatoms_dups = ref_univ.select_atoms("name CA and protein")
         elif self.CG == True:
-            print('Coarse-grained model: Selecting all atoms for entanglement calculations')
+            self.logger.info('Coarse-grained model: Selecting all atoms for entanglement calculations')
             ref_allatoms_dups = ref_univ.select_atoms("all")
         #print(f'ref_allatoms_dups: {ref_allatoms_dups} {len(ref_allatoms_dups)}')
 
@@ -646,7 +664,7 @@ class GaussianEntanglement:
             assert len(check) == len(unique_indices), "You did not remove dup atoms!"
 
             ref_allatoms_unique = ref_allatoms_dups.select_atoms(f"segid {chain}")[unique_indices]
-            print(f'ref_allatoms_unique: {ref_allatoms_unique} {len(ref_allatoms_unique)}')
+            #print(f'ref_allatoms_unique: {ref_allatoms_unique} {len(ref_allatoms_unique)}')
 
             ## select only those unique residue alpha carbons
             if self.CG == False:
@@ -662,7 +680,7 @@ class GaussianEntanglement:
             atom_ix = 0
             res_ix = 0
             PDB_resids = ref_ca_unique.resids
-            print(f'PDB_resids: {PDB_resids}')
+            #print(f'PDB_resids: {PDB_resids}')
             new_atm_idx = []
 
             ## QC if the chain has only one alpha carbon or none
@@ -731,7 +749,7 @@ class GaussianEntanglement:
 
             if PDB_resids.size:
 
-                ent_result, missing_residues = self.get_entanglements(coor, chain_res, pdb_file, PDB_resids, resnames, resid_index_to_ref_allatoms_idx, ca_coor, resid_index_to_resid)
+                ent_result, missing_residues = self.get_entanglements(coor, chain_res, pdb_file, PDB_resids, resnames, resid_index_to_ref_allatoms_idx, ca_coor, resid_index_to_resid, topoly=topoly)
                 # print(f'Number of ENTs found: {len(ent_result)}\n{ent_result}')
       
                 
@@ -772,17 +790,17 @@ class GaussianEntanglement:
                     outdf = pd.DataFrame(outdf)
                     outdf['ENT'] = outdf.apply(lambda row: self.determine_ent_status(row['GLNn'], row['GLNc'], row['TLNn'], row['TLNc']), axis=1)
                     outdf.to_csv(outfile, sep='|', index=False)
-                    print(f'SAVED: {outfile}')
+                    self.logger.info(f'SAVED: {outfile}')
                     ent_result = pd.read_csv(outfile, sep='|', dtype={'crossingsN': str, 'crossingsC': str})
                 else:
-                    print(f'NO CONTACTS DETECTED for {pdb}')
+                    self.logger.info(f'NO CONTACTS DETECTED for {pdb}')
                     ent_result = pd.DataFrame({'ID':[], 'chain':[], 'i':[], 'j': [], 'crossingsN': [], 'crossingsC': [], 'gn':[], 'gc':[], 'GLNn':[], 'GLNc':[], 'TLNn':[], 'TLNc':[], 'CCbond':[], 'ENT':[]})
                     ent_result.to_csv(outfile, sep='|', index=False)
-                    print(f'SAVED: {outfile}')
+                    self.logger.info(f'SAVED: {outfile}')
                     ent_result = pd.read_csv(outfile, sep='|', dtype={'c': str})
                                 
                 if len(missing_residues):
-                    print(f'WRITING: {pdb}_M.txt')
+                    self.logger.info(f'WRITING: {pdb}_M.txt')
                     with open(f"{outdir}/unmapped_missing_residues/{pdb}_M.txt", "a") as f:
                         f.write(f"Chain {chain}: ")
                         for m_res in missing_residues:
@@ -815,20 +833,20 @@ class GaussianEntanglement:
         #outdir = f"{os.getcwd()}/{outdir}"
         if not os.path.isdir(outdir):
             os.mkdir(f"{outdir}") 
-            print(f"Creating directory: {outdir}")
+            self.logger.info(f"Creating directory: {outdir}")
 
         ## get the DCD file name
         dcd_name = dcd.split('/')[-1].split(".")[0]
         if ID == '':
             ID = dcd_name
-        print(f"\n{'#'*100}\nCOMPUTING ENTANGLEMENTS FOR \033[4m{dcd_name}\033[0m with ID {ID}")
-        print(f'Topoly: {topoly} {type(topoly)}')
+        self.logger.info(f"\n{'#'*100}\nCOMPUTING ENTANGLEMENTS FOR \033[4m{dcd_name}\033[0m with ID {ID}")
+        self.logger.debug(f'Topoly: {topoly} {type(topoly)}')
     
 
         ## Define the outfile and check if it exists. If so load it else create it
         outfile = os.path.join(f'{outdir}', f'{ID}_GE.csv')
         if os.path.exists(outfile):
-            print(f'{outfile} ALREADY EXISTS AND WILL BE LOADED')
+            self.logger.info(f'{outfile} ALREADY EXISTS AND WILL BE LOADED')
             outdf = pd.read_csv(outfile, sep='|', dtype={'c': str})
             if ref_contact_file is not None:
                 try:
@@ -856,20 +874,20 @@ class GaussianEntanglement:
                     mask = pd.Series(out_keys).isin(ref_keys).to_numpy()
                     filtered = outdf.loc[mask].reset_index(drop=True)
                     if len(filtered) != len(outdf):
-                        print(
+                        self.logger.info(
                             f'Filtered existing Traj_GE output to reference contacts: '
                             f'{len(outdf)} -> {len(filtered)} rows (ref: {ref_contact_file})'
                         )
                         filtered.to_csv(outfile, sep='|', index=False)
                         outdf = filtered
                 except Exception as e:
-                    print(f'WARNING: Failed to filter Traj_GE output using ref_contact_file={ref_contact_file}: {e}')
+                    self.logger.warning(f'WARNING: Failed to filter Traj_GE output using ref_contact_file={ref_contact_file}: {e}')
 
             return {'outfile': outfile, 'ent_result': outdf}
     
         ## Else analyze the traj and create the outfile
         univ = mda.Universe(PSF, dcd)    
-        print(f'univ: {univ}')
+        self.logger.debug(f'univ: {univ}')
 
         chains_to_analyze = set(univ.segments.segids)
 
@@ -878,33 +896,33 @@ class GaussianEntanglement:
         rows = []
         
         for chain in chains_to_analyze:
-            print(f'Analyzing chain {chain}')
+            self.logger.info(f'Analyzing chain {chain}')
 
             # Get the coordinates of the chain
             chain_atoms = univ.select_atoms(f"segid {chain}")
 
             resids = chain_atoms.resids
-            print(f'resids: {resids}')
+            self.logger.debug(f'resids: {resids}')
 
             resnames = chain_atoms.resnames
-            print(f'resnames: {resnames}')
+            self.logger.debug(f'resnames: {resnames}')
 
             chain_res = resids.size
-            print(f'chain_res: {chain_res}')
+            self.logger.debug(f'chain_res: {chain_res}')
 
             atom_names = chain_atoms.names
-            print(f'atom_names: {atom_names}')
+            self.logger.debug(f'atom_names: {atom_names}')
 
 
             frame_indices = []
             for ts in univ.trajectory[start:stop:stride]:
                 frame_indices.append(ts.frame)
-            print(f'Analyzing frames from {start} to {stop} with stride {stride}')
-            print(f'Total frames to analyze: {len(frame_indices)}')
-            print(f'frame_indices: {frame_indices[:10]} ... {frame_indices[-10:]}')
+            self.logger.info(f'Analyzing frames from {start} to {stop} with stride {stride}')
+            self.logger.info(f'Total frames to analyze: {len(frame_indices)}')
+            self.logger.debug(f'frame_indices: {frame_indices[:10]} ... {frame_indices[-10:]}')
 
             pool_args = [
-                (frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, self.Calpha, self.CG, self.g_threshold, self.density)
+                (frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, self.Calpha, self.CG, self.g_threshold, self.density, self.ent_detection_method)
                 for frame_idx in frame_indices
             ]
             import multiprocessing as mp
@@ -956,13 +974,13 @@ class GaussianEntanglement:
                 before = len(outdf)
                 outdf = outdf.loc[mask].reset_index(drop=True)
                 after = len(outdf)
-                print(f'Filtered Traj_GE to reference contacts: {before} -> {after} rows (ref: {ref_contact_file})')
+                self.logger.info(f'Filtered Traj_GE to reference contacts: {before} -> {after} rows (ref: {ref_contact_file})')
             except Exception as e:
-                print(f'WARNING: Failed to filter Traj_GE output using ref_contact_file={ref_contact_file}: {e}')
+                self.logger.warning(f'WARNING: Failed to filter Traj_GE output using ref_contact_file={ref_contact_file}: {e}')
 
-        print(f'outdf:\n{outdf.to_string()}')
+        self.logger.info(f'outdf:\n{outdf.to_string()}')
         outdf.to_csv(outfile, sep='|', index=False)
-        print(f'SAVED: {outfile}')
+        self.logger.info(f'SAVED: {outfile}')
 
         # Multiprocessing disables per-frame timing, so skip frame_times and mean_time reporting
         # Return a dictionary with the outfile and the results
@@ -980,14 +998,21 @@ class GaussianEntanglement:
         Entanglements are composed of loops (defined by native contacts) and crossing residue(s).
 
         """
+
+        ## Check that if topoly is False then ent_detection_method is not 2 or 3 since those require TLN which requires topoly
+        if not topoly and self.ent_detection_method in (2, 3):
+            self.logger.warning(f'topoly=False but ent_detection_method={self.ent_detection_method} requires TLN — no NCLEs will be detected. Use ent_detection_method=1 (GLN) when topoly is disabled.')
+            raise ValueError(f'topoly=False but ent_detection_method={self.ent_detection_method} requires TLN — no NCLEs will be detected. Use ent_detection_method=1 (GLN) when topoly is disabled.')
+
         Nterm_thresh = termini_threshold[0]
         Cterm_thresh = termini_threshold[1]
         loop_Nthread_thresh = loop_thread_thresh[0]
         loop_Cthread_thresh = loop_thread_thresh[1]
-        print(f'Finding entanglements with Nterm_thresh: {Nterm_thresh}, Cterm_thresh: {Cterm_thresh}, loop_Nthread_thresh: {loop_Nthread_thresh}, loop_Cthread_thresh: {loop_Cthread_thresh}')
+        self.logger.info(f'Finding entanglements with Nterm_thresh: {Nterm_thresh}, Cterm_thresh: {Cterm_thresh}, loop_Nthread_thresh: {loop_Nthread_thresh}, loop_Cthread_thresh: {loop_Cthread_thresh}')
 
         # make native contact contact map
         native_cmap, bb_coor, dist_matrix = self.processes_coor(coor, resids, atom_names, CG=self.CG, Calpha=self.Calpha)
+        l = len(bb_coor)
         # print(f'native_cmap: {native_cmap.shape} {native_cmap}')
         # print(f'bb_coor: {bb_coor.shape} {bb_coor}')
         # print(f'dist_matrix: {dist_matrix.shape} {dist_matrix}')
@@ -1086,8 +1111,8 @@ class GaussianEntanglement:
                     gc = values[1]
                     GLNn = values[2]
                     GLNc = values[3]
-                    TLNn = values[4]
-                    TLNc = values[5]
+                    TLNn = np.nan
+                    TLNc = np.nan
                     entangled_res[(resids[i], resids[j], gn, gc, GLNn, GLNc, TLNn, TLNc)] = [[], []]
                 return entangled_res
     ##########################################################################################################################################################
@@ -1103,8 +1128,8 @@ class GaussianEntanglement:
         Returns a tuple of the native contact map and backbone coordinates.
         """
         heavy_atom_names = ['C', 'O', 'N', 'CA', 'CB', 'CG', 'CD', 'CE', 'CZ', 'SD', 'SG'] # heavy atoms for all atom models
-        for idx, c in enumerate(coor):
-            print(f'Atom {idx}: {atom_names[idx]} at position {c}')
+        # for idx, c in enumerate(coor):
+        #     print(f'Atom {idx}: {atom_names[idx]} at position {c}')
         if CG == True:
             bb_coor = coor
             # make native contact contact map
@@ -1221,7 +1246,7 @@ class GaussianEntanglement:
         #outdir = f"{os.getcwd()}/{outdir}"
         if not os.path.isdir(outdir):
             os.mkdir(f"{outdir}") 
-            print(f"Creating directory: {outdir}")
+            self.logger.info(f"Creating directory: {outdir}")
 
         ## Define the outfile and check if it exists. If so load it else create it
         outfile = os.path.join(f'{outdir}', f'{ID}_GE.pkl')
@@ -1230,9 +1255,9 @@ class GaussianEntanglement:
         Traj = pd.read_csv(TrajFile, sep='|', dtype={'crossingsN': str, 'crossingsC': str})
         #print(Ref.keys())
         #Traj = Traj['ent_result']
-        print(f'Ref {RefFile}')
+        self.logger.info(f'Ref {RefFile}')
         # print(Ref.to_string())
-        print(f'Traj {TrajFile}')
+        self.logger.info(f'Traj {TrajFile}')
         # print(Traj.to_string())
 
         Master = {}
@@ -1240,7 +1265,7 @@ class GaussianEntanglement:
         ## Get the native state info into the dictionary
         ref = {'ent_fingerprint':{}, 'chg_ent_fingerprint':None, 'G_dict':None, 'G':None}
         Num_native_contacts = len(Ref)
-        print(f'Num_native_contacts: {Num_native_contacts}')
+        self.logger.debug(f'Num_native_contacts: {Num_native_contacts}')
         for rowi, row in Ref.iterrows():
             # print(row)
             # Make the key: (i, j)
@@ -1256,8 +1281,8 @@ class GaussianEntanglement:
             gc = float(row['gc'])
             GLNn = int(row['GLNn'])
             GLNc = int(row['GLNc'])
-            TLNn = int(row['TLNn'])
-            TLNc = int(row['TLNc'])
+            TLNn = np.nan if pd.isna(row['TLNn']) else int(row['TLNn'])
+            TLNc = np.nan if pd.isna(row['TLNc']) else int(row['TLNc'])
             value = {'linking_value': [gn, gc], 'crossing_resid': crossing_resid, 'crossing_pattern': crossing_pattern, 'gauss_linking_number': [GLNn, GLNc], 'topoly_linking_number': [TLNn, TLNc], 'native_contact': [i, j]}
             # print(f'Ref value: {value}')
 
@@ -1286,8 +1311,8 @@ class GaussianEntanglement:
                 gc = float(row['gc'])
                 GLNn = int(row['GLNn'])
                 GLNc = int(row['GLNc'])
-                TLNn = int(row['TLNn'])
-                TLNc = int(row['TLNc'])
+                TLNn = np.nan if pd.isna(row['TLNn']) else int(row['TLNn'])
+                TLNc = np.nan if pd.isna(row['TLNc']) else int(row['TLNc'])
                 #print(f'\nFRAME {frame} key: {key}')
 
                 # Make the VALUE: {'linking_value': [0.041183, 0.02078], 'crossing_resid': [[], []], 'crossing_pattern': ['', ''], 'gauss_linking_number': [0, 0], 'topoly_linking_number': [0, 0], 'native_contact': [368, 372]}
@@ -1327,7 +1352,7 @@ class GaussianEntanglement:
         ## save the master as a pickle file
         with open(outfile, 'wb') as fw:
             pickle.dump(Master, fw)
-        print(f'SAVED: {outfile}')
+        self.logger.info(f'SAVED: {outfile}')
 
         return {'outfile':outfile, 'Combined_ref_traj_dict':Master, 'G':pd.DataFrame(Gdf)}
     ##########################################################################################################################################################
@@ -1417,32 +1442,131 @@ class GaussianEntanglement:
         #print(f'ref: {ref}')
         #print(f'frame {frame}')
 
-        ## Check for N terminal change
-        codes = []
-        types = []
-        for i in [0, 1]:
-            ref_G = ref['topoly_linking_number'][i]
-            frame_G = frame['topoly_linking_number'][i]
+        ## Check for N/C terminal change — compute only what ent_detection_method requires
+        ###-------------------------------------------------------------------------------------
+        if self.ent_detection_method in (1, 3):
+            GLN_ref_N_G = ref['gauss_linking_number'][0]
+            GLN_ref_C_G = ref['gauss_linking_number'][1]
+            GLN_frame_N_G = frame['gauss_linking_number'][0]
+            GLN_frame_C_G = frame['gauss_linking_number'][1]
+            print(f'\nGLN_ref_N_G: {GLN_ref_N_G}, GLN_ref_C_G: {GLN_ref_C_G}, GLN_frame_N_G: {GLN_frame_N_G}, GLN_frame_C_G: {GLN_frame_C_G}')
 
-            ## get the change code
-            if abs(frame_G) < abs(ref_G):
-                link = '-'
-            elif abs(frame_G) > abs(ref_G):
-                link = '+'
-            elif abs(frame_G) == abs(ref_G):
-                link = '#'
-            
-            # check if the signs of frame_G and ref_G are the same
-            if frame_G * ref_G >= 0: 
-                chiral = '#'
-            elif frame_G * ref_G < 0: 
-                chiral = '~'
+            ## get the change code for GLN N terminal
+            if abs(GLN_frame_N_G) < abs(GLN_ref_N_G):
+                GLN_N_link = '-'
+            elif abs(GLN_frame_N_G) > abs(GLN_ref_N_G):
+                GLN_N_link = '+'
+            elif abs(GLN_frame_N_G) == abs(GLN_ref_N_G):
+                GLN_N_link = '#'
 
-            code = f'L{link}C{chiral}'
-            codes += [code]
+            ## get the change code for GLN C terminal
+            if abs(GLN_frame_C_G) < abs(GLN_ref_C_G):
+                GLN_C_link = '-'
+            elif abs(GLN_frame_C_G) > abs(GLN_ref_C_G):
+                GLN_C_link = '+'
+            elif abs(GLN_frame_C_G) == abs(GLN_ref_C_G):
+                GLN_C_link = '#'
 
-            ## get the type
-            types += [self.change_codes[code]]
+            # check if the signs of frame_G and ref_G are the same for N terminus
+            if GLN_frame_N_G * GLN_ref_N_G >= 0:
+                GLN_N_chiral = '#'
+            elif GLN_frame_N_G * GLN_ref_N_G < 0:
+                GLN_N_chiral = '~'
+
+            # check if the signs of frame_G and ref_G are the same for C terminus
+            if GLN_frame_C_G * GLN_ref_C_G >= 0:
+                GLN_C_chiral = '#'
+            elif GLN_frame_C_G * GLN_ref_C_G < 0:
+                GLN_C_chiral = '~'
+
+            print(f'GLN_N_link: {GLN_N_link}, GLN_N_chiral: {GLN_N_chiral}, GLN_C_link: {GLN_C_link}, GLN_C_chiral: {GLN_C_chiral}')
+        ###-------------------------------------------------------------------------------------
+
+        ###-------------------------------------------------------------------------------------
+        if self.ent_detection_method in (2, 3):
+            TLN_ref_N_G = ref['topoly_linking_number'][0]
+            TLN_ref_C_G = ref['topoly_linking_number'][1]
+            TLN_frame_N_G = frame['topoly_linking_number'][0]
+            TLN_frame_C_G = frame['topoly_linking_number'][1]
+            print(f'TLN_ref_N_G: {TLN_ref_N_G}, TLN_ref_C_G: {TLN_ref_C_G}, TLN_frame_N_G: {TLN_frame_N_G}, TLN_frame_C_G: {TLN_frame_C_G}')
+
+            ## get the change code for TLN N terminal
+            if abs(TLN_frame_N_G) < abs(TLN_ref_N_G):
+                TLN_N_link = '-'
+            elif abs(TLN_frame_N_G) > abs(TLN_ref_N_G):
+                TLN_N_link = '+'
+            elif abs(TLN_frame_N_G) == abs(TLN_ref_N_G):
+                TLN_N_link = '#'
+
+            ## get the change code for TLN C terminal
+            if abs(TLN_frame_C_G) < abs(TLN_ref_C_G):
+                TLN_C_link = '-'
+            elif abs(TLN_frame_C_G) > abs(TLN_ref_C_G):
+                TLN_C_link = '+'
+            elif abs(TLN_frame_C_G) == abs(TLN_ref_C_G):
+                TLN_C_link = '#'
+
+            # check if the signs of frame_G and ref_G are the same for N terminus
+            if TLN_frame_N_G * TLN_ref_N_G >= 0:
+                TLN_N_chiral = '#'
+            elif TLN_frame_N_G * TLN_ref_N_G < 0:
+                TLN_N_chiral = '~'
+
+            # check if the signs of frame_G and ref_G are the same for C terminus
+            if TLN_frame_C_G * TLN_ref_C_G >= 0:
+                TLN_C_chiral = '#'
+            elif TLN_frame_C_G * TLN_ref_C_G < 0:
+                TLN_C_chiral = '~'
+
+            print(f'TLN_N_link: {TLN_N_link}, TLN_N_chiral: {TLN_N_chiral}, TLN_C_link: {TLN_C_link}, TLN_C_chiral: {TLN_C_chiral}')
+        ###-------------------------------------------------------------------------------------
+
+        ###-------------------------------------------------------------------------------------
+        ## Determine the overall change code for the frame based on the ent_detection_method
+        Ncode = ''
+        Ccode = ''
+        if self.ent_detection_method == 1:
+            # Any nonzero GLN for either termini
+            Ncode = f'L{GLN_N_link}C{GLN_N_chiral}'
+            Ccode = f'L{GLN_C_link}C{GLN_C_chiral}'
+            codes = [Ncode, Ccode]
+
+            Ntype = self.change_codes[Ncode]
+            Ctype = self.change_codes[Ccode]
+            types = [Ntype, Ctype]
+
+
+        elif self.ent_detection_method == 2:
+            # Any nonzero TLN for either termini (default)
+            Ncode = f'L{TLN_N_link}C{TLN_N_chiral}'
+            Ccode = f'L{TLN_C_link}C{TLN_C_chiral}'
+            codes = [Ncode, Ccode]
+
+            Ntype = self.change_codes[Ncode]
+            Ctype = self.change_codes[Ccode]
+            types = [Ntype, Ctype]
+
+        elif self.ent_detection_method == 3:
+            # if both GLN and TLN changes are the same then use that code, if they are different then use the GLN code (because it is more sensitive)
+            GLN_N_code = f'L{GLN_N_link}C{GLN_N_chiral}'
+            GLN_C_code = f'L{GLN_C_link}C{GLN_C_chiral}'
+            TLN_N_code = f'L{TLN_N_link}C{TLN_N_chiral}'
+            TLN_C_code = f'L{TLN_C_link}C{TLN_C_chiral}'
+            if GLN_N_code == TLN_N_code:
+                Ncode = GLN_N_code
+            else:
+                Ncode = 'L#C#'
+            if GLN_C_code == TLN_C_code:
+                Ccode = GLN_C_code
+            else:                
+                Ccode = 'L#C#'
+            codes = [Ncode, Ccode]
+
+            Ntype = self.change_codes[Ncode]
+            Ctype = self.change_codes[Ccode]
+            types = [Ntype, Ctype]
+        ###-------------------------------------------------------------------------------------
+
         #print(f'codes: {codes}')
         #print(f'types: {types}')
 
@@ -1459,7 +1583,8 @@ class GaussianEntanglement:
         'ref_crossing_resid': ref['crossing_resid'],
         'ref_crossing_pattern': ref['crossing_pattern'],
         'ref_gauss_linking_number': ref['gauss_linking_number'],
-        'ref_topoly_linking_number': ref['topoly_linking_number']}
+        'ref_topoly_linking_number': ref['topoly_linking_number'], 
+        'ent_detection_method': self.ent_detection_method}
 
         return chg_ent_fingerprint
     ##########################################################################################################################################################
@@ -1476,12 +1601,12 @@ class GaussianEntanglement:
         #outdir = f"{os.getcwd()}/{outdir}"
         if not os.path.isdir(outdir):
             os.mkdir(f"{outdir}") 
-            print(f"Creating directory: {outdir}")
+            self.logger.info(f"Creating directory: {outdir}")
 
         ## load the dataframe
         GE_data = pd.read_csv(GE_filepath, sep='|', dtype={'crossingsN': str, 'crossingsC': str})
         GE_data = GE_data[GE_data['ENT'] == True].reset_index(drop=True)
-        print(f'GE FILE: {GE_filepath}')
+        self.logger.info(f'GE FILE: {GE_filepath}')
         # print(f'RAW GE_data:\n{GE_data}')
 
         ## select only those entanglements that are mapped for the EXP model
@@ -1507,7 +1632,7 @@ class GaussianEntanglement:
 
         outfile = os.path.join(outdir, f'{ID}.csv')
         GE_data.to_csv(outfile, index=False, sep='|')
-        print(f'SAVED: {outfile}')
+        self.logger.info(f'SAVED: {outfile}')
         GE_data = pd.read_csv(outfile, sep='|', dtype={'c': str})
         # print(f'HQ GE_data:\n{GE_data}')
         return {'outfile':outfile, 'GE_data':GE_data}
@@ -1518,7 +1643,7 @@ class GaussianEntanglement:
         """
         Checks each raw entanglement for crossings where the signs sum to a net of 0. 
         """        
-        print(f'\n{"#"*50}\nRemoving slipknots...')
+        self.logger.info(f'\n{"#"*50}\nRemoving slipknots...')
         new_df = {'ID':[], 'chain':[], 'i':[], 'j':[], 'crossingsN':[], 'crossingsC':[], 'gn':[], 'gc':[], 'GLNn':[], 'GLNc':[], 'TLNn':[], 'TLNc':[], 'CCbond':[], 'ENT':[], 'Slipknot_N':[], 'Slipknot_C':[]}
         for rowi, row in df.iterrows():
             # print(row)
@@ -1647,7 +1772,7 @@ class GaussianEntanglement:
             mapped = True
             for res in key_res:
                 if res not in mapping_pdb2uniprot:
-                    print(f'Res: {res} not mapped! this entanglement will be discarded from {ID}')
+                    self.logger.debug(f'Res: {res} not mapped! this entanglement will be discarded from {ID}')
                     mapped = False
                                     
             if mapped:
@@ -1666,7 +1791,7 @@ class GaussianEntanglement:
                 new_df['CCbond'] += [CCbond]
                 new_df['ENT'] += [ENT]
             else:
-                print(f'Entanglement {rowi} was not mapped and will be discarded')
+                self.logger.info(f'Entanglement {rowi} was not mapped and will be discarded')
 
         new_df = pd.DataFrame(new_df)
         return new_df
@@ -1678,7 +1803,7 @@ class GaussianEntanglement:
         # (1) check if both i and j have pLDDt >= 70. if so continue else completely ignore the ent
         # (2) starting from the loop base get the set of ordered crossings that have pLDDT > 70 and discard any after the first crossings that fails this. 
         """
-        print(f'\n{"#"*50}\nRemoving low quality AF entanglements...')
+        self.logger.info(f'\n{"#"*50}\nRemoving low quality AF entanglements...')
         avg_pLDDT, pLDDT_df = self.average_pLDDT(pdb)
         #print(f'avg_pLDDT: {avg_pLDDT}\n{pLDDT_df}')
 

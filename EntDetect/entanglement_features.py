@@ -12,6 +12,7 @@ from Bio import PDB
 from scipy.spatial.distance import pdist, squareform
 import MDAnalysis as mda
 import requests, sys
+from EntDetect._logging import setup_logger
 np.set_printoptions(linewidth=np.inf, precision=4)
 pd.set_option('display.max_rows', None)
 
@@ -20,13 +21,14 @@ class FeatureGen:
     Processes biological data including PDB files, sequence data, and interaction potentials.
     """
     #############################################################################################################
-    def __init__(self, PDBfile:str, outdir:str='./', cluster_file:str='None'):
+    def __init__(self, PDBfile:str, outdir:str='./', cluster_file:str='None', log_level:int=logging.INFO, logdir:str=None):
         self.PDBfile = PDBfile
         self.outdir = outdir
+        self.logger = setup_logger('FeatureGen', outdir=logdir if logdir is not None else outdir, log_level=log_level)
 
         if not os.path.exists(self.outdir):
             os.makedirs(self.outdir)
-            print(f'Made directory: {self.outdir}')
+            self.logger.debug(f'Made directory: {self.outdir}')
 
         self.traj = md.load(PDBfile) 
         #print(f'traj: {self.traj}')
@@ -95,7 +97,7 @@ class FeatureGen:
             # Return the length of the sequence
             self.prot_size = len(sequence)
             if self.prot_size == 0:
-                print(f'The size of the protein in Uniprot is {self.prot_size} == 0. This likely means this uniprot ID no longer exists. No entanglement features will be calculated')
+                self.logger.error(f'The size of the protein in Uniprot is {self.prot_size} == 0. This likely means this uniprot ID no longer exists. No entanglement features will be calculated')
                 quit()
         else:
             raise ValueError(f"Error: Could not retrieve data for UniProt ID {uniprot_id}.")
@@ -169,14 +171,14 @@ class FeatureGen:
 
         # get mapping of chain letters to chain index 
         chain_ids = {chain.chain_id: chain.index for chain in topology.chains}
-        print(chain_ids)
+        self.logger.debug(f'chain_ids: {chain_ids}')
         if chain not in chain_ids:
             raise ValueError(f'chain {chain} not in PDB file')
         
 
         # Get the protein size from uniprot and a dictionary that maps resid to amino acid (one letter)
         self.get_AA(self.PDBfile, gene)
-        print(gene, chain, pdbid, self.prot_size)
+        self.logger.debug(f'gene: {gene}, chain: {chain}, pdbid: {pdbid}, prot_size: {self.prot_size}')
 
         ## parse lines to get native contacts, crossings,
         rbuffer = 3
@@ -400,7 +402,7 @@ class FeatureGen:
         #print(f'uent_df:\n{uent_df}')
         outfile = os.path.join(self.outdir, f'{gene}_{pdbid}_{chain}_uent_features.csv')
         uent_df.to_csv(outfile, index=False, sep='|')
-        print(f'Unique entanglement features saved to {outfile}')
+        self.logger.info(f'Unique entanglement features saved to {outfile}')
         
         return {'outfile':outfile, 'results': uent_df}
     ########################################################################################################################
