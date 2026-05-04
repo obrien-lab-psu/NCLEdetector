@@ -29,4 +29,5 @@ python scripts/run_nonnative_entanglement_clustering.py \
     --trajnum2pklfile_path $DATASTORE/user_input/metadata/trajnum2file.txt \
     --traj_dir_prefix      $DATASTORE/user_input/cg_trajectories \
     --start_frame          0 \
-    --logdir               $DATASTORE/outputs/workflow2/nonnative_clustering/logs
+    --logdir               $DATASTORE/outputs/workflow2/nonnative_clustering/logs \
+    --nproc               10

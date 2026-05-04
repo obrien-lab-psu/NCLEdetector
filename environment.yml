@@ -25,5 +25,9 @@ dependencies:
   # Optional but commonly used by the Jwalk/SASA pipeline
   - freesasa
   - pip:
+      # pyemma and deeptime have no conda-forge build for Python 3.11;
+      # install via pip (pyemma pulls in deeptime as a dependency).
+      - pyemma==2.5.12
+      - deeptime==0.4.5
       # Install EntDetect from the current checkout (run `conda env create` from repo root)
       - -e .

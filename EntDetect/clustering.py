@@ -11,6 +11,7 @@ import pandas as pd
 import pickle
 import logging
 import sys, getopt, math, os, time, traceback, glob, copy
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from EntDetect._logging import setup_logger
 from scipy.cluster.hierarchy import fcluster, linkage, cophenet
 try:
@@ -881,7 +882,7 @@ class ClusterNonNativeEntanglements:
     """
 
     ##########################################################################################################################################################
-    def __init__(self, pkl_file_path:str, trajnum2pklfile_path:str, traj_dir_prefix:str='./', outdir:str='./ClusterNonNativeEntanglements/', log_level:int=logging.INFO, logdir:str=None) -> None:
+    def __init__(self, pkl_file_path:str, trajnum2pklfile_path:str, traj_dir_prefix:str='./', outdir:str='./ClusterNonNativeEntanglements/', log_level:int=logging.INFO, logdir:str=None, nproc:int=1) -> None:
         """
         Constructor for GaussianEntanglement class.
 
@@ -907,6 +908,7 @@ class ClusterNonNativeEntanglements:
         matplotlib.rcParams['legend.fontsize'] = 'x-small'
         matplotlib.rcParams['figure.dpi'] = 600
 
+        self.nproc = max(1, int(nproc))
         self.logger = setup_logger('ClusterNonNativeEntanglements', outdir=logdir if logdir is not None else outdir, log_level=log_level)
 
         ## Check there are actually .pkl files to cluster with
@@ -1183,54 +1185,74 @@ class ClusterNonNativeEntanglements:
         cluster_data_keys = sorted(list(chg_ent_keyword_dict.keys()))
         cluster_data = {key: [] for key in cluster_data_keys}
         cluster_tree = {key: [] for key in cluster_data_keys}
-        for key in cluster_data_keys:
-            map_list = chg_ent_keyword_dict[key]
 
-            # if len(map_list) == 0:
-                # continue
-            # elif len(map_list) == 1:
-                # cluster_data[key].append([map_list[0]])
-                # print('Found 1 cluster(s) for %s'%(key))
-                # continue
-            
-            # First clustering based on N-ter crossing residues 
-            N_cr_cluster_data = self.do_clustering(map_list, chg_ent_fingerprint_list, 'crossing_resid_0', 
-                                            self.pdist_thread_deviation, cluster_method[0], cluster_dist_cutoff[0])
-            
+        def _process_key(key):
+            """Run the 4-level hierarchical clustering pipeline for one keyword.
+
+            All four ``do_clustering`` calls are fully independent across keywords,
+            so this function is safe to run in a ThreadPoolExecutor.  numpy/scipy
+            release the GIL during heavy array operations, giving real parallelism.
+
+            Note: when ``self.nproc > 1``, ``agglomerative_clustering`` uses
+            ``np.random.permutation`` which draws from the shared global numpy
+            random state.  Results are therefore non-deterministic across runs with
+            multiple workers, but clustering quality is unaffected.
+            """
+            map_list = chg_ent_keyword_dict[key]
+            local_cluster_data = []
             backtrace_idx_list = []
             idx_1 = 0
             idx_2 = 0
             idx_3 = 0
-            # Second clustering based on C-ter crossing residues 
-            for map_list_N_cr in N_cr_cluster_data:
 
-                C_cr_cluster_data = self.do_clustering(map_list_N_cr, chg_ent_fingerprint_list, 'crossing_resid_1', 
-                                                self.pdist_thread_deviation, cluster_method[0], cluster_dist_cutoff[0])
-            
+            # First clustering based on N-ter crossing residues
+            N_cr_cluster_data = self.do_clustering(
+                map_list, chg_ent_fingerprint_list, 'crossing_resid_0',
+                self.pdist_thread_deviation, cluster_method[0], cluster_dist_cutoff[0])
+
+            # Second clustering based on C-ter crossing residues
+            for map_list_N_cr in N_cr_cluster_data:
+                C_cr_cluster_data = self.do_clustering(
+                    map_list_N_cr, chg_ent_fingerprint_list, 'crossing_resid_1',
+                    self.pdist_thread_deviation, cluster_method[0], cluster_dist_cutoff[0])
+
                 # Third clustering based on loop
                 for map_list_C_cr in C_cr_cluster_data:
+                    nc_cluster_data = self.do_clustering(
+                        map_list_C_cr, chg_ent_fingerprint_list, 'native_contact',
+                        self.pdist_loop_overlap, cluster_method[1], cluster_dist_cutoff[1])
 
-                    nc_cluster_data = self.do_clustering(map_list_C_cr, chg_ent_fingerprint_list, 'native_contact', 
-                                                    self.pdist_loop_overlap, cluster_method[1], cluster_dist_cutoff[1])
-                    
                     # Fourth clustering based on cross contamination
                     for map_list_nc in nc_cluster_data:
-
-                        final_cluster_data = self.do_clustering(map_list_nc, chg_ent_fingerprint_list, 'cross_contamination', 
-                                                        self.pdist_cross_contamination, cluster_method[2], cluster_dist_cutoff[2])
+                        final_cluster_data = self.do_clustering(
+                            map_list_nc, chg_ent_fingerprint_list, 'cross_contamination',
+                            self.pdist_cross_contamination, cluster_method[2], cluster_dist_cutoff[2])
                         for final_cluster in final_cluster_data:
-                            cluster_data[key].append(final_cluster)
+                            local_cluster_data.append(final_cluster)
                             backtrace_idx_list.append([idx_1, idx_2, idx_3])
                         idx_3 += 1
                     idx_2 += 1
                 idx_1 += 1
-            
-            backtrace_idx_list = np.array(backtrace_idx_list, dtype=int)
-            cluster_tree[key] = [[np.where(backtrace_idx_list[:,i]==j)[0].tolist() for j in range(backtrace_idx_list[:,i].max()+1)] for i in range(backtrace_idx_list.shape[1])]
 
-            n_cluster = len(cluster_data[key])
-            self.logger.info('Found %d cluster(s) for %s'%(n_cluster, key))
-        
+            backtrace_idx_list = np.array(backtrace_idx_list, dtype=int)
+            local_tree = [
+                [np.where(backtrace_idx_list[:, i] == j)[0].tolist()
+                 for j in range(backtrace_idx_list[:, i].max() + 1)]
+                for i in range(backtrace_idx_list.shape[1])
+            ]
+            n_cluster = len(local_cluster_data)
+            self.logger.info('Found %d cluster(s) for %s' % (n_cluster, key))
+            return key, local_cluster_data, local_tree
+
+        n_workers = min(self.nproc, len(cluster_data_keys)) if cluster_data_keys else 1
+        self.logger.info(
+            f'Clustering {len(cluster_data_keys)} keyword(s) '
+            f'(nproc={n_workers})...')
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            for key, cd, ct in executor.map(_process_key, cluster_data_keys):
+                cluster_data[key] = cd
+                cluster_tree[key] = ct
+
         return (cluster_data, cluster_tree)
     ##########################################################################################################################################################
 
@@ -1259,7 +1281,71 @@ class ClusterNonNativeEntanglements:
             rep_ent_list.append(rep_ent)
         return rep_ent_list
     ##########################################################################################################################################################
-        
+
+    ##########################################################################################################################################################
+    def _process_traj_file(self, traj_idx, ent_data_file, start_frame, end_frame):
+        """Load and pre-process one trajectory pkl file for clustering.
+
+        Called in parallel (one call per trajectory) by ``cluster()``.
+
+        Returns
+        -------
+        tuple : (traj_idx, fingerprint_dict, Q_dict, frame_list, traj_file, keyword_entries)
+            * fingerprint_dict  – {frame: {nc: fingerprint}}
+            * Q_dict            – {frame: Q_value}
+            * frame_list        – sorted list of in-range frame indices
+            * traj_file         – resolved path to the matching .dcd file
+            * keyword_entries   – list of (keyword_str, entry) pairs for building
+                                  chg_ent_keyword_dict after all trajectories are loaded
+        """
+        traj = self.extract_traj_number(ent_data_file)
+        self.logger.debug(
+            f'Processing {ent_data_file} {traj} ({traj_idx + 1} / {len(self.ent_data_file_list)})...')
+
+        ent_data = self.load_pickle(ent_data_file)
+        frame_list = sorted([
+            frame for frame in ent_data.keys()
+            if (frame != 'ref') and (frame >= start_frame) and (frame <= end_frame)
+        ])
+        self.logger.debug(f'frame_list: {frame_list} {len(frame_list)}')
+
+        # Locate the matching trajectory DCD file
+        traj_file = os.path.join(self.traj_dir_prefix, f'{traj}_*.dcd')
+        traj_file = glob.glob(traj_file)
+        if len(traj_file) == 0:
+            raise ValueError(f'No trajectory file found for {ent_data_file}.')
+        elif len(traj_file) > 1:
+            raise ValueError(f'More than 1 trajectory file found for {ent_data_file}.')
+        else:
+            traj_file = traj_file[0]
+
+        fingerprint_dict = {}
+        Q_dict = {}
+        keyword_entries = []  # collected as (keyword_str, entry) to merge after parallel load
+
+        for frame in frame_list:
+            fingerprint_dict[frame] = {}
+            Q_dict[frame] = (
+                np.sum(list(ent_data[frame]['G_dict'].values()))
+                / len(list(ent_data['ref']['ent_fingerprint'].keys())) / 2
+            )
+            for nc, fingerprint in ent_data[frame]['chg_ent_fingerprint'].items():
+                # Skip if no change of entanglement
+                if fingerprint['type'] == ['no change', 'no change']:
+                    continue
+                fingerprint_dict[frame][nc] = fingerprint
+                chg_ent_keyword = fingerprint['code'].copy()
+                for ck in self.classify_key:
+                    if type(fingerprint[ck]) == list:
+                        chg_ent_keyword += fingerprint[ck]
+                    else:
+                        chg_ent_keyword += [fingerprint[ck]]
+                chg_ent_keyword = str(chg_ent_keyword)
+                keyword_entries.append((chg_ent_keyword, [traj_idx, frame] + list(nc)))
+
+        return traj_idx, fingerprint_dict, Q_dict, frame_list, traj_file, keyword_entries
+    ##########################################################################################################################################################
+
     ##########################################################################################################################################################
     def cluster(self, start_frame:int=0, end_frame:int=9999999):
 
@@ -1272,81 +1358,41 @@ class ClusterNonNativeEntanglements:
             # Classify changes of entanglement based on the keyword 
             # "[change_code, classify_key_1_N, classify_key_1_C, classify_key_2_N, classify_key_2_C, ...]"
             self.logger.debug('Reading pkl data and classify changes of entanglement...')
-            chg_ent_fingerprint_list = []
-            Q_list = []
+            chg_ent_fingerprint_list = [None] * len(self.ent_data_file_list)
+            Q_list = [None] * len(self.ent_data_file_list)
+            idx2frame = [None] * len(self.ent_data_file_list)
+            idx2trajfile = [None] * len(self.ent_data_file_list)
+            dtrajs = [None] * len(self.ent_data_file_list)
             chg_ent_keyword_dict = {}
             chg_ent_keyword_list = []
-            idx2frame = []
-            idx2trajfile = []
-            dtrajs = []
             # combined_traj = None
-            for traj_idx, ent_data_file in enumerate(self.ent_data_file_list):
-                #print(traj_idx, ent_data_file)
-                traj = self.extract_traj_number(ent_data_file)
-                proc_str = f'Processing {ent_data_file} {traj} ({traj_idx+1} / {len(self.ent_data_file_list)})...'
-                #print(proc_str, end='\r')
-                self.logger.debug(proc_str)
 
-                chg_ent_fingerprint_list.append({})
-                Q_list.append({})
-                ent_data = self.load_pickle(ent_data_file)
-                frame_list = list(ent_data.keys())
-                # sort frames, for old python version that doesn't support ordered dictionary
-                frame_list = sorted([frame for frame in frame_list if (frame != 'ref') and (frame >= start_frame) and (frame <= end_frame)])
-                self.logger.debug(f'frame_list: {frame_list} {len(frame_list)}')
-                dtrajs.append([[] for frame in frame_list])
-                idx2frame.append(frame_list)
+            n_workers = min(self.nproc, len(self.ent_data_file_list))
+            self.logger.info(
+                f'Loading {len(self.ent_data_file_list)} pkl files '
+                f'(nproc={n_workers})...')
+            with ThreadPoolExecutor(max_workers=n_workers) as executor:
+                futures = {
+                    executor.submit(
+                        self._process_traj_file, ti, f, start_frame, end_frame
+                    ): ti
+                    for ti, f in enumerate(self.ent_data_file_list)
+                }
+                for fut in as_completed(futures):
+                    ti, fingerprint_dict, Q_dict, frame_list, traj_file, keyword_entries = fut.result()
+                    chg_ent_fingerprint_list[ti] = fingerprint_dict
+                    Q_list[ti] = Q_dict
+                    idx2frame[ti] = frame_list
+                    idx2trajfile[ti] = traj_file
+                    dtrajs[ti] = [[] for _ in frame_list]
+                    # Merge keyword entries into the shared dicts (sequential, no lock needed)
+                    for kw, entry in keyword_entries:
+                        if kw not in chg_ent_keyword_list:
+                            chg_ent_keyword_dict[kw] = []
+                            chg_ent_keyword_list.append(kw)
+                        chg_ent_keyword_dict[kw].append(entry)
 
-                # Find the trajectory .dcd file if it exists
-                traj_file = os.path.join(self.traj_dir_prefix, f'{traj}_*.dcd')
-                traj_file = glob.glob(traj_file)
-                if len(traj_file) == 0:
-                    raise ValueError(f'Warning: No trajectory file found for {ent_data_file}.')
-                elif len(traj_file) > 1:
-                    raise ValueError(f'Warning: More than 1 trajectory file found for {ent_data_file}.')
-                else:
-                    traj_file = traj_file[0]
-                #print(f'traj_file: {traj_file}')
-                idx2trajfile.append(traj_file)
-
-                for frame in frame_list:
-                    chg_ent_fingerprint_list[-1][frame] = {}
-                    Q_list[-1][frame] = np.sum(list(ent_data[frame]['G_dict'].values())) / len(list(ent_data['ref']['ent_fingerprint'].keys())) / 2
-                    for nc, fingerprint in ent_data[frame]['chg_ent_fingerprint'].items():
-                        # print(f'  frame {frame} nc {nc} fingerprint {fingerprint}')
-                        
-                        # Skip if no change of entanglement
-                        if fingerprint['type'] == ['no change', 'no change']: # No change of entanglement for both termini
-                            continue
-
-                        # Make sure crossing residues are lists to prevent the clustering from breaking
-                        # if fingerprint['crossing_resid'][0] == '?':
-                        #     fingerprint['crossing_resid'][0] = []
-                        # if fingerprint['crossing_resid'][1] == '?':
-                        #     fingerprint['crossing_resid'][1] = []
-                        # if fingerprint['ref_crossing_resid'][0] == '?':
-                        #     fingerprint['ref_crossing_resid'][0] = []
-                        # if fingerprint['ref_crossing_resid'][1] == '?':
-                        #     fingerprint['ref_crossing_resid'][1] = []
-
-                        chg_ent_fingerprint_list[-1][frame][nc] = fingerprint
-                        chg_ent_keyword = fingerprint['code'].copy()
-                        for ck in self.classify_key:
-                            if type(fingerprint[ck]) == list:
-                                chg_ent_keyword += fingerprint[ck]
-                            else:
-                                chg_ent_keyword += [fingerprint[ck]]
-                        chg_ent_keyword = str(chg_ent_keyword)
-                        if chg_ent_keyword not in chg_ent_keyword_list:
-                            chg_ent_keyword_dict[chg_ent_keyword] = []
-                            chg_ent_keyword_list.append(chg_ent_keyword)
-                        chg_ent_keyword_dict[chg_ent_keyword].append([traj_idx, frame] + list(nc))
-
-                ## DEBUGGING cut loop short and only load the first three files
-                # if traj_idx == 0:
-                #    break
-                # print(' '*len(proc_str), end='\r')
-            self.logger.info('%d data files have been read.'%len(self.ent_data_file_list))
+            self.logger.info('%d data files have been read.' % len(self.ent_data_file_list))
             
             # cluster changes of entanglements found in the trajectories
             self.logger.info('Clustering changes of entanglement for %d keywords...'%(len(chg_ent_keyword_list)))
@@ -1970,12 +2016,12 @@ class MSMNonNativeEntanglementClustering:
         """
 
         # parse the parameters 
-        self.OPpath = OPpath
-        self.logger.debug(f'OPpath: {self.OPpath}')
-
         self.outdir = outdir
         self.ID = ID
         self.logger = setup_logger('MSMNonNativeEntanglementClustering', outdir=logdir if logdir is not None else outdir, ID=ID, log_level=log_level)
+
+        self.OPpath = OPpath
+        self.logger.debug(f'OPpath: {self.OPpath}')
         self.logger.debug(f'outdir: {self.outdir}')
         self.logger.debug(f'ID: {self.ID}')
 

@@ -26,6 +26,10 @@ Flags
   --traj_dir_prefix      Path prefix to the directory containing trajectory DCD files
   --start_frame          First frame index to include, 0-based (default: 0)
   --end_frame            Last frame index to include, 0-based (default: all frames)
+  --nproc                Number of parallel worker threads (default: 1)
+                         Parallelises both pkl loading (per trajectory) and
+                         entanglement-keyword clustering (per unique keyword).
+                         Use the number of available CPU cores for best speed.
   --log_level            Logging verbosity: DEBUG, INFO, WARNING, ERROR (default: INFO)
   --logdir               Directory for log file (default: same as --outdir)
 """
@@ -54,6 +58,9 @@ def main(argv=None):
     # --- frame selection ---
     parser.add_argument("--start_frame", type=int, default=0,           help="First frame index to include, 0-based (default: 0)")
     parser.add_argument("--end_frame",   type=int, default=9999999,     help="Last frame index to include, 0-based (default: all frames)")
+
+    # --- parallelism ---
+    parser.add_argument("--nproc",       type=int, default=1,           help="Number of parallel worker threads (default: 1)")
 
     # --- logging ---
     parser.add_argument("--log_level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging verbosity (default: INFO)")
@@ -95,6 +102,7 @@ def main(argv=None):
         outdir=outdir,
         log_level=log_level,
         logdir=logdir,
+        nproc=args.nproc,
     )
     logger.info(f'ClusterNonNativeEntanglements: {clustering_NNents}')
     clustering_NNents.cluster(start_frame=args.start_frame, end_frame=args.end_frame)
