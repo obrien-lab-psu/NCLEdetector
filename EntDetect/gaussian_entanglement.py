@@ -44,6 +44,7 @@ from scipy.spatial.distance import pdist, squareform
 from topoly import lasso_type  # used pip
 import re
 import pickle
+import json
 from collections import defaultdict
 import time
 import multiprocessing as mp
@@ -83,7 +84,7 @@ class GaussianEntanglement:
         self.CG = CG
         self.nproc = nproc
         self.ent_detection_method = ent_detection_method
-        self.logger.info(f'GaussianEntanglement initialized with g_threshold: {g_threshold}, density: {density}, Calpha: {Calpha}, CG: {CG}, nproc: {nproc}, ent_detection_method: {ent_detection_method}')
+        self.logger.debug(f'GaussianEntanglement initialized with g_threshold: {g_threshold}, density: {density}, Calpha: {Calpha}, CG: {CG}, nproc: {nproc}, ent_detection_method: {ent_detection_method}')
 
         self.change_codes = {'L-C~': 'loss of linking number & switched linking chirality', 
                         'L-C#': 'loss of linking number & no change of linking chirality', 
@@ -92,7 +93,6 @@ class GaussianEntanglement:
                         'L#C~': 'no change of linking number & switched linking chirality', 
                         'L#C#': 'no change'}
         # print class initialization parameters
-        print(f'GaussianEntanglement initialized with g_threshold: {g_threshold}, density: {density}, Calpha: {Calpha}, CG: {CG}, nproc: {nproc}, ent_detection_method: {ent_detection_method}')
     ##########################################################################################################################################################
 
     ##########################################################################################################################################################
@@ -937,14 +937,6 @@ class GaussianEntanglement:
         outdf['frame'] = pd.to_numeric(outdf['frame'], errors='coerce')
         outdf = outdf.sort_values(by='frame', ascending=True).reset_index(drop=True)
 
-        # ENT = []
-        # for idx, row in outdf.iterrows():
-        #     if (row['TLNn'] != 0) or (row['TLNc'] != 0):
-        #         ENT.append(True)
-        #     else:
-        #         ENT.append(False)
-        # outdf['ENT'] = ENT
-        # print(f'outdf:\n{outdf.to_string()}')
         outdf['ENT'] = outdf.apply(lambda row: self.determine_ent_status(row['GLNn'], row['GLNc'], row['TLNn'], row['TLNc']), axis=1)
 
         if ref_contact_file is not None:
@@ -978,7 +970,7 @@ class GaussianEntanglement:
             except Exception as e:
                 self.logger.warning(f'WARNING: Failed to filter Traj_GE output using ref_contact_file={ref_contact_file}: {e}')
 
-        self.logger.info(f'outdf:\n{outdf.to_string()}')
+        self.logger.info(f'outdf:\n{outdf.head()}\n{outdf.tail()}')
         outdf.to_csv(outfile, sep='|', index=False)
         self.logger.info(f'SAVED: {outfile}')
 
@@ -1008,7 +1000,7 @@ class GaussianEntanglement:
         Cterm_thresh = termini_threshold[1]
         loop_Nthread_thresh = loop_thread_thresh[0]
         loop_Cthread_thresh = loop_thread_thresh[1]
-        self.logger.info(f'Finding entanglements with Nterm_thresh: {Nterm_thresh}, Cterm_thresh: {Cterm_thresh}, loop_Nthread_thresh: {loop_Nthread_thresh}, loop_Cthread_thresh: {loop_Cthread_thresh}')
+        self.logger.debug(f'Finding entanglements with Nterm_thresh: {Nterm_thresh}, Cterm_thresh: {Cterm_thresh}, loop_Nthread_thresh: {loop_Nthread_thresh}, loop_Cthread_thresh: {loop_Cthread_thresh}')
 
         # make native contact contact map
         native_cmap, bb_coor, dist_matrix = self.processes_coor(coor, resids, atom_names, CG=self.CG, Calpha=self.Calpha)
@@ -1202,81 +1194,37 @@ class GaussianEntanglement:
     ##########################################################################################################################################################
 
     ##########################################################################################################################################################
-    def combine_ref_traj_GE(self, RefFile: dict, TrajFile: dict, outdir: str='./', ID: str=''):
+    def combine_ref_traj_GE(self, RefFile: dict, TrajFile: dict, outdir: str='./', ID: str='', chunk_frames: int=None, chunk_suffix: str='_chunk'):
         """
-        This function collects the reference and trajectory entanglements and combines them into a single dataframe and pickle file and saves both. 
-        The dataframe is saved as a csv and is easy to read while the .pkl saves as a binary format and saves space and is required for downstream clustering
-        of non-native entanglements. 
-        The format of this pickle file is as follows
-
-        LEVEL 1: ref, 6600, 6601, ...
-
-        LEVEL 2 for ref: ent_fingerprint, chg_ent_fingerprint, G_dict, G
-            ent_fingerprint is a dictionary with the following structure
-                KEY: (368, 372) 
-                VALUE: {'GLN': [0.04118376194383041, 0.020784770839564926], 
-                        'crossing_resid': [[], []], 
-                        'crossing_pattern': ['', ''], 
-                        'linking_number': [0, 0], 
-                        'native_contact': [368, 372]}
-
-            chg_ent_fingerprint = None (because it is a refernece state)
-
-            G_dict = None (because it is a refernece state)
-
-            G = None (because it is a refernece state)
-
-        LEVEL 2 for 6600 or any frame: 
-            ent_fingerprint is a dictionary with the following structure
-                KEY: (368, 372) 
-                VALUE: {'GLN': [0.044431527151880604, 0.010669483331061843], 'crossing_resid': [[], []], 'crossing_pattern': ['', ''], 'linking_number': [0, 0], 'native_contact': [368, 372], 'surrounding_resid': [[], []]}
-
-            chg_ent_fingerprint is a dictionary with the following structure
-                KEY: (368, 372) 
-                VALUE: {'type': ['no change', 'no change'], 'code': ['L#C#', 'L#C#'], 'GLN': [0.044431527151880604, 0.010669483331061843], 'crossing_resid': [[], []], 'crossing_pattern': ['', ''], 'linking_number': [0, 0], 'native_contact': [368, 372], 'surrounding_resid': [[], []], 'ref_GLN': [0.04118376194383041, 0.020784770839564926], 'ref_crossing_resid': [[], []], 'ref_crossing_pattern': ['', ''], 'ref_linking_number': [0, 0], 'ref_native_contact': [368, 372], 'ref_surrounding_resid': [[], []]}
-
-            G_dict is a dictionary with the following structure
-                KEY: change code
-                VALUE: count of change code
-                EXP: {'L-C~': 0, 'L-C#': 2, 'L+C~': 0, 'L+C#': 0, 'L#C~': 0, 'L#C#': 1630}
-
-            G is the float value of the fraction of native contacts that have a change in entanglement in the frame
+        Combines reference and trajectory entanglements into pickle files.
+        
+        If chunk_frames is None (default): creates single {ID}_GE.pkl with all frames (backward compatible)
+        If chunk_frames > 0: creates multiple chunk files {ID}{chunk_suffix}_0000.pkl, etc., each with ref data
+        
+        Each chunk pickle contains: {'ref': ref_dict, frame_num: frame_dict, ...}
         """
         ## set up the outdir for this calculation
-        #outdir = f"{os.getcwd()}/{outdir}"
         if not os.path.isdir(outdir):
             os.mkdir(f"{outdir}") 
             self.logger.info(f"Creating directory: {outdir}")
 
-        ## Define the outfile and check if it exists. If so load it else create it
-        outfile = os.path.join(f'{outdir}', f'{ID}_GE.pkl')
-        #Ref = Ref['ent_result']
+        ## Load reference and trajectory data
         Ref = pd.read_csv(RefFile, sep='|', dtype={'crossingsN': str, 'crossingsC': str})
         Traj = pd.read_csv(TrajFile, sep='|', dtype={'crossingsN': str, 'crossingsC': str})
-        #print(Ref.keys())
-        #Traj = Traj['ent_result']
         self.logger.info(f'Ref {RefFile}')
-        # print(Ref.to_string())
         self.logger.info(f'Traj {TrajFile}')
-        # print(Traj.to_string())
 
-        Master = {}
         ##########################################################################################
-        ## Get the native state info into the dictionary
-        ref = {'ent_fingerprint':{}, 'chg_ent_fingerprint':None, 'G_dict':None, 'G':None}
+        ## Parse the reference entanglements into ref_dict
+        ref_dict = {'ent_fingerprint':{}, 'chg_ent_fingerprint':None, 'G_dict':None, 'G':None}
         Num_native_contacts = len(Ref)
         self.logger.debug(f'Num_native_contacts: {Num_native_contacts}')
+        
         for rowi, row in Ref.iterrows():
-            # print(row)
-            # Make the key: (i, j)
             i = int(row['i'])
             j = int(row['j'])
             key = (i, j)
-            #print(f'\nREF key: {key}')
-
-            # Make the VALUE: {'GLN': [0.041183, 0.02078], 'crossing_resid': [[], []], 'crossing_pattern': ['', ''], 'linking_number': [0, 0], 'native_contact': [368, 372]}
             crossing_resid, crossing_pattern = self.processes_crossings(row)
-
             gn = float(row['gn'])
             gc = float(row['gc'])
             GLNn = int(row['GLNn'])
@@ -1284,16 +1232,14 @@ class GaussianEntanglement:
             TLNn = np.nan if pd.isna(row['TLNn']) else int(row['TLNn'])
             TLNc = np.nan if pd.isna(row['TLNc']) else int(row['TLNc'])
             value = {'linking_value': [gn, gc], 'crossing_resid': crossing_resid, 'crossing_pattern': crossing_pattern, 'gauss_linking_number': [GLNn, GLNc], 'topoly_linking_number': [TLNn, TLNc], 'native_contact': [i, j]}
-            # print(f'Ref value: {value}')
-
-            # Update the Master dict
-            ref['ent_fingerprint'][key] = value
-      
-        Master['ref'] = ref
+            ref_dict['ent_fingerprint'][key] = value
 
         ##########################################################################################
-        ## Get the traj info into the dictionary
+        ## Process trajectory frames
         Gdf = {'Frame':[], 'L-C~':[], 'L-C#':[], 'L+C~':[], 'L+C#':[], 'L#C~':[], 'L#C#':[], 'G':[]}
+        
+        # Collect all frames first to allow chunking
+        frames_data = {}
         for frame, frame_df in Traj.groupby('frame'):
             frame_dict = {'ent_fingerprint': {}, 
                      'chg_ent_fingerprint': {}, 
@@ -1302,8 +1248,6 @@ class GaussianEntanglement:
             
             ## Get the ent_fingerprint data for the frame
             for rowi, row in frame_df.iterrows():
-                # print(row)
-                # Make the key: (i, j)
                 i = int(row['i'])
                 j = int(row['j'])
                 key = (i, j)
@@ -1313,29 +1257,19 @@ class GaussianEntanglement:
                 GLNc = int(row['GLNc'])
                 TLNn = np.nan if pd.isna(row['TLNn']) else int(row['TLNn'])
                 TLNc = np.nan if pd.isna(row['TLNc']) else int(row['TLNc'])
-                #print(f'\nFRAME {frame} key: {key}')
 
-                # Make the VALUE: {'linking_value': [0.041183, 0.02078], 'crossing_resid': [[], []], 'crossing_pattern': ['', ''], 'gauss_linking_number': [0, 0], 'topoly_linking_number': [0, 0], 'native_contact': [368, 372]}
                 crossing_resid, crossing_pattern = self.processes_crossings(row)
-
                 value = {'linking_value': [gn, gc], 'crossing_resid': crossing_resid, 'crossing_pattern': crossing_pattern, 'gauss_linking_number': [GLNn, GLNc], 'topoly_linking_number': [TLNn, TLNc], 'native_contact': [i, j]}
-                # print(f'Traj value: {value}')
-
-                # Update the Master dict
                 frame_dict['ent_fingerprint'][key] = value
 
-                ## Get the chg_ent_fingerprint data for the frame for those native contacts present
-                if key in Master['ref']['ent_fingerprint']:
-                    chg_ent_fingerprint = self.get_chg_ent_fingerprint(ref = Master['ref']['ent_fingerprint'][key], frame = value)
-                    # print(chg_ent_fingerprint)
+                ## Get the chg_ent_fingerprint data for the frame
+                if key in ref_dict['ent_fingerprint']:
+                    chg_ent_fingerprint = self.get_chg_ent_fingerprint(ref = ref_dict['ent_fingerprint'][key], frame = value)
                     frame_dict['chg_ent_fingerprint'][key] = chg_ent_fingerprint
-
-                    ## update the G_dict
                     frame_dict['G_dict'][chg_ent_fingerprint['code'][0]] += 1
                     frame_dict['G_dict'][chg_ent_fingerprint['code'][1]] += 1
 
-            ## Calculate G and then update the master dictionary
-            # print(f'FRAME {frame} CHANGE SUMMARY: {frame_dict["G_dict"]}')
+            ## Calculate G for this frame
             Gdf['Frame'] += [frame]
             G = 0
             for code in ['L-C~', 'L-C#', 'L+C~', 'L+C#', 'L#C~']:
@@ -1343,18 +1277,79 @@ class GaussianEntanglement:
                 Gdf[code] += [frame_dict['G_dict'][code]]
             Gdf['L#C#'] += [frame_dict['G_dict']['L#C#']]
             G /= (Num_native_contacts*2)
-            # print(f'G: {G}')
             Gdf['G'] += [G]
             frame_dict['G'] = G
-            Master[frame] = frame_dict
-        #print('Master:', Master)
+            frames_data[frame] = frame_dict
 
-        ## save the master as a pickle file
-        with open(outfile, 'wb') as fw:
-            pickle.dump(Master, fw)
-        self.logger.info(f'SAVED: {outfile}')
+        ##########################################################################################
+        ## Save output based on chunking mode
+        if chunk_frames is None:
+            # Backward-compatible mode: single file with all frames
+            Master = {'ref': ref_dict}
+            Master.update(frames_data)
+            outfile = os.path.join(f'{outdir}', f'{ID}_GE.pkl')
+            with open(outfile, 'wb') as fw:
+                pickle.dump(Master, fw)
+            self.logger.info(f'SAVED: {outfile}')
+            return {'outfile': outfile, 'Combined_ref_traj_dict': Master, 'G': pd.DataFrame(Gdf)}
+        
+        else:
+            # Chunking mode: split frames into chunks, each with ref data
+            sorted_frames = sorted(frames_data.keys())
+            total_frames = len(sorted_frames)
+            num_chunks = (total_frames + chunk_frames - 1) // chunk_frames  # ceiling division
+            
+            chunk_metadata = {
+                'ID': ID,
+                'total_frames': total_frames,
+                'chunk_size': chunk_frames,
+                'num_chunks': num_chunks,
+                'chunks': []
+            }
+            
+            first_chunk_file = None
+            for chunk_idx in range(num_chunks):
+                start_idx = chunk_idx * chunk_frames
+                end_idx = min(start_idx + chunk_frames, total_frames)
+                chunk_frame_nums = sorted_frames[start_idx:end_idx]
+                
+                # Create chunk dict with ref and frame data
+                chunk_dict = {'ref': ref_dict}
+                for frame_num in chunk_frame_nums:
+                    chunk_dict[frame_num] = frames_data[frame_num]
+                
+                # Save chunk
+                chunk_filename = f'{ID}{chunk_suffix}_{chunk_idx:04d}.pkl'
+                chunk_filepath = os.path.join(outdir, chunk_filename)
+                with open(chunk_filepath, 'wb') as fw:
+                    pickle.dump(chunk_dict, fw)
+                self.logger.info(f'SAVED: {chunk_filepath}')
+                
+                if first_chunk_file is None:
+                    first_chunk_file = chunk_filepath
+                
+                # Record metadata for this chunk
+                chunk_metadata['chunks'].append({
+                    'chunk_index': chunk_idx,
+                    'filename': chunk_filename,
+                    'frame_range': [int(chunk_frame_nums[0]), int(chunk_frame_nums[-1])],
+                    'num_frames': len(chunk_frame_nums)
+                })
+            
+            # Save metadata file
+            metadata_filepath = os.path.join(outdir, f'{ID}_chunk_metadata.json')
+            with open(metadata_filepath, 'w') as fw:
+                json.dump(chunk_metadata, fw, indent=2)
+            self.logger.info(f'SAVED: {metadata_filepath}')
+            
+            # Return with outfile pointing to first chunk for backward compatibility
+            return {
+                'outfile': first_chunk_file, 
+                'Combined_ref_traj_dict': None,  # Not applicable for chunked mode
+                'G': pd.DataFrame(Gdf),
+                'chunk_info': chunk_metadata
+            }
 
-        return {'outfile':outfile, 'Combined_ref_traj_dict':Master, 'G':pd.DataFrame(Gdf)}
     ##########################################################################################################################################################
 
     ##########################################################################################################################################################

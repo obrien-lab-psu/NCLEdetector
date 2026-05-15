@@ -14,15 +14,14 @@ Examples
 Basic run:
   python scripts/run_nonnative_entanglement_clustering.py \\
     --outdir              $DATASTORE/outputs/workflow2/nonnative_clustering \\
-    --pkl_file_path       $DATASTORE/outputs/workflow2/OP_demo/G/Combined_GE/ \\
     --trajnum2pklfile_path $DATASTORE/user_input/metadata/trajnum2file.txt \\
     --traj_dir_prefix     $DATASTORE/user_input/cg_trajectories
 
 Flags
 -----
   --outdir               Output directory for clustering results
-  --pkl_file_path        Directory containing per-trajectory entanglement pkl files (Combined_GE/)
-  --trajnum2pklfile_path CSV file mapping trajectory numbers to pkl file paths
+  --trajnum2pklfile_path CSV file (source of truth) with columns: trajnum, pklfile
+                         Users control exactly which pkl files to analyze via this file
   --traj_dir_prefix      Path prefix to the directory containing trajectory DCD files
   --start_frame          First frame index to include, 0-based (default: 0)
   --end_frame            Last frame index to include, 0-based (default: all frames)
@@ -51,8 +50,7 @@ def main(argv=None):
 
     # --- identity / IO ---
     parser.add_argument("--outdir",               type=str, required=True,  help="Output directory for clustering results")
-    parser.add_argument("--pkl_file_path",         type=str, required=True,  help="Directory containing per-trajectory entanglement pkl files (Combined_GE/)")
-    parser.add_argument("--trajnum2pklfile_path",  type=str, required=True,  help="CSV file mapping trajectory numbers to pkl file paths")
+    parser.add_argument("--trajnum2pklfile_path",  type=str, required=True,  help="CSV file mapping trajectory numbers to pkl file paths (source of truth for which files to analyze)")
     parser.add_argument("--traj_dir_prefix",       type=str, required=True,  help="Path prefix to the directory containing trajectory DCD files")
 
     # --- frame selection ---
@@ -82,9 +80,6 @@ def main(argv=None):
 
     ###---------------------------------------------------------------------------------------------------------
     # --- input validation ---
-    if not os.path.isdir(args.pkl_file_path):
-        parser.error(f"--pkl_file_path does not exist or is not a directory: {args.pkl_file_path}")
-
     if not os.path.isfile(args.trajnum2pklfile_path):
         parser.error(f"--trajnum2pklfile_path does not exist: {args.trajnum2pklfile_path}")
 
@@ -96,7 +91,6 @@ def main(argv=None):
 
     ###---------------------------------------------------------------------------------------------------------
     clustering_NNents = ClusterNonNativeEntanglements(
-        pkl_file_path=args.pkl_file_path,
         trajnum2pklfile_path=args.trajnum2pklfile_path,
         traj_dir_prefix=args.traj_dir_prefix,
         outdir=outdir,

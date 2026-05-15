@@ -251,7 +251,7 @@ class CalculateOP:
     #######################################################################################
 
     #######################################################################################
-    def G(self, topoly:bool=True, Calpha:bool=True, CG:bool=True, nproc: int = 10) -> dict:
+    def G(self, topoly:bool=True, Calpha:bool=True, CG:bool=True, nproc: int = 10, chunk_frames:int=None, chunk_suffix:str='_chunk') -> dict:
         self.logger.info(f'Calculating the G entanglement order parameter')
         """
         Calculate the G entanglement order parameter for each frame of the DCD 
@@ -271,6 +271,8 @@ class CalculateOP:
         self.logger.debug(f'Calpha: {Calpha}')
         self.logger.debug(f'CG: {CG}')
         self.logger.debug(f'nproc: {nproc}')
+        self.logger.debug(f'chunk_frames: {chunk_frames}')
+        self.logger.debug(f'chunk_suffix: {chunk_suffix}')
 
         ## initialize the entanglement object
         ge = GaussianEntanglement(
@@ -315,7 +317,7 @@ class CalculateOP:
         ## Create the combined .pkl file required for clustering non-native entanglements
         ## Will also calculate G at the same time
         self.logger.info(f'Creating the combined .pkl file required for clustering non-native entanglements...')
-        Combined_data = ge.combine_ref_traj_GE(NativeEnt['outfile'], TrajEnt['outfile'], outdir=os.path.join(self.Gpath,'Combined_GE/'), ID=f'{self.ID}_traj{self.Traj}')
+        Combined_data = ge.combine_ref_traj_GE(NativeEnt['outfile'], TrajEnt['outfile'], outdir=os.path.join(self.Gpath,'Combined_GE/'), ID=f'{self.ID}_traj{self.Traj}', chunk_frames=chunk_frames, chunk_suffix=chunk_suffix)
         G = Combined_data['G']
         Goutfile = os.path.join(self.Gpath, f'{self.ID}_Traj{self.Traj}.G')
         G.to_csv(Goutfile, index=False)
@@ -380,7 +382,7 @@ class CalculateOP:
         self.logger.info(f'Step 2: save the SASA output')
         SASAoutput = pd.DataFrame(SASAoutput)
         self.logger.info(f'SASAoutput:\n{SASAoutput}')
-        SASAoutfile = os.path.join(self.SASAPATH, f'{self.ID}.SASA')
+        SASAoutfile = os.path.join(self.SASAPATH, f'{self.ID}_Traj{self.Traj}.SASA')
         SASAoutput.to_csv(SASAoutfile, index=False)
         self.logger.info(f'SAVED: {SASAoutfile}')
 
@@ -438,7 +440,7 @@ class CalculateOP:
             self.logger.info(f'Made directory: {self.XPpath}')
 
         # Make the xl_list file for all possible cross-linkable residue combinations
-        xl_list = os.path.join(self.XPpath, 'XLresidue_pairs.txt')
+        xl_list = os.path.join(self.XPpath, f'{self.ID}_Traj{self.Traj}_XLresidue_pairs.txt')
         self.find_residue_pairs(pdb, output_file=xl_list)
 
         ## Check that the Jwalk results directory exists and load them
@@ -447,7 +449,8 @@ class CalculateOP:
         if not pdbObj.exists():
             self.logger.error(f'ERROR: The input file supplied cannot be found. Please enter a .pdb file type')
             sys.exit(2)
-        Jwalk_outfile = os.path.join(self.XPpath, f'Jwalk_results/{pdbObj.stem}_crosslink_list.txt')
+        jwalk_results_dir = os.path.join(self.XPpath, f'Jwalk_results_{self.ID}_Traj{self.Traj}')
+        Jwalk_outfile = os.path.join(jwalk_results_dir, 'Jwalk_results', f'{pdbObj.stem}_crosslink_list.txt')
         if os.path.exists(Jwalk_outfile):
             self.logger.info(f'Jwalk outfile exists: {Jwalk_outfile}')
 
@@ -463,12 +466,12 @@ class CalculateOP:
             # ncpus: OPTIONAL - Specify number of cpus to use (default: 1)
 
             #self.runJwalk(pdb, xl_list='NULL', aa1='LYS', aa2='LYS', max_dist=sys.float_info.max, jwalk_results_dir=self.XPpath, vox=1, ncpus=1) # No precompiled list of residues to check
-            self.runJwalk(pdb, xl_list=xl_list, max_dist=sys.float_info.max, jwalk_results_dir=self.XPpath, vox=1, ncpus=1)
+            self.runJwalk(pdb, xl_list=xl_list, max_dist=sys.float_info.max, jwalk_results_dir=jwalk_results_dir, vox=1, ncpus=1)
             self.logger.debug('Jwalk calculated')
 
         ## Check that the Jwalk results directory exists and load them
         col_names = ["Index", "Model", "Atom1", "Atom2", "SASD", "Euclidean Distance"]
-        Jwalk_df = pd.read_csv(Jwalk_outfile, delim_whitespace=True, names=col_names, skiprows=1)
+        Jwalk_df = pd.read_csv(Jwalk_outfile, sep=r'\s+', names=col_names, skiprows=1, engine='python', index_col=False)
 
         ## Calculate the XP score
         XP_scores = []

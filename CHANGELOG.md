@@ -5,6 +5,22 @@ All notable changes to EntDetect will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.7] - 2026-05-15
+
+### Added
+- `Documentation/workflow2_trajectory_analysis.ipynb` — new interactive Jupyter notebook covering the full Workflow 2 pipeline (Q/G/K/SASA/XP order parameters, non-native entanglement clustering, MSM construction, folding pathway statistics). Includes inline figures: G vs Q free-energy/metastable-state map and JS divergence time series plot.
+- `CalculateOP.G()` now accepts `chunk_frames` and `chunk_suffix` keyword arguments for chunked GE pickle output, matching production SLURM settings.
+
+### Fixed
+- `CalculateOP.XP()`: re-reading cached Jwalk output files failed with `AttributeError` when the saved file was 7-column tab-separated (written by a prior XP call) rather than the original 6-column space-padded format. Parser now uses `sep=r'\s+'` with `engine='python'` and `index_col=False` so both formats are read correctly.
+- `CalculateOP.SASA()` and `CalculateOP.XP()` output paths are now namespaced per trajectory (`1ZMR_Traj{N}.SASA`, `XLresidue_pairs` prefixed with ID+Traj, Jwalk results subdirectory named `Jwalk_results_{ID}_Traj{N}/`) to avoid cross-trajectory collisions when running on multiple trajectories in the same output directory.
+
+### Changed
+- SLURM scripts (`assets/slurm/scripts/run_OP_traj*.slurm`): corrected output directory paths from `OP_demo/` → `OP/` and `OP_demo_AA/` → `OP_AA/` to match production layout.
+- `EntDetect/clustering.py`: parallelised non-native entanglement clustering; fixed MSM logger output ordering.
+- `EntDetect/gaussian_entanglement.py`: refactored GE combination logic to support chunked pickle merging.
+- `Documentation/workflow2_trajectory_analysis.md`: corrected output-file schemas, column names, and parameter names throughout (e.g. `tarj_type_col` typo in `MSMStats`/`FoldingPathwayStats`).
+
 ## [1.1.4] - 2026-03-03
 
 ### Added

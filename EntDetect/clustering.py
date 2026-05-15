@@ -11,6 +11,7 @@ import pandas as pd
 import pickle
 import logging
 import sys, getopt, math, os, time, traceback, glob, copy
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from EntDetect._logging import setup_logger
 from scipy.cluster.hierarchy import fcluster, linkage, cophenet
@@ -211,6 +212,9 @@ class ClusterNativeEntanglements:
             gn, gc = row['gn'], row['gc']
             GLNn, GLNc = row['GLNn'], row['GLNc']
             TLNn, TLNc = row['TLNn'], row['TLNc']
+            # Handle empty strings from NaN replacement: convert to np.nan
+            TLNn = np.nan if (isinstance(TLNn, str) and TLNn == '') else TLNn
+            TLNc = np.nan if (isinstance(TLNc, str) and TLNc == '') else TLNc
             CCbond = row['CCbond']
 
             # keep track of number of raw ents for QC purposes
@@ -823,8 +827,9 @@ class ClusterNativeEntanglements:
                     gc = float(gc)
                     GLNn = int(GLNn)
                     GLNc = int(GLNc)
-                    TLNn = int(TLNn)
-                    TLNc = int(TLNc)
+                    # Handle NaN/empty TLN values: convert to int only if not NaN
+                    TLNn = np.nan if pd.isna(TLNn) else int(TLNn)
+                    TLNc = np.nan if pd.isna(TLNc) else int(TLNc)
                     
                     # Separate crossings into N and C terminal
                     all_crossings = list(ijr[3:-1])
@@ -882,7 +887,7 @@ class ClusterNonNativeEntanglements:
     """
 
     ##########################################################################################################################################################
-    def __init__(self, pkl_file_path:str, trajnum2pklfile_path:str, traj_dir_prefix:str='./', outdir:str='./ClusterNonNativeEntanglements/', log_level:int=logging.INFO, logdir:str=None, nproc:int=1) -> None:
+    def __init__(self, trajnum2pklfile_path:str, traj_dir_prefix:str='./', outdir:str='./ClusterNonNativeEntanglements/', log_level:int=logging.INFO, logdir:str=None, nproc:int=1) -> None:
         """
         Constructor for GaussianEntanglement class.
 
@@ -911,27 +916,34 @@ class ClusterNonNativeEntanglements:
         self.nproc = max(1, int(nproc))
         self.logger = setup_logger('ClusterNonNativeEntanglements', outdir=logdir if logdir is not None else outdir, log_level=log_level)
 
-        ## Check there are actually .pkl files to cluster with
-        self.pkl_file_path = pkl_file_path
         self.traj_dir_prefix = traj_dir_prefix
-        if not self.pkl_file_path is None:
-            ent_data_file_list = os.listdir(self.pkl_file_path)
-            ent_data_file_list = [f for f in ent_data_file_list if f.endswith('.pkl')]
-            self.ent_data_file_list = [os.path.join(self.pkl_file_path, f) for f in ent_data_file_list]
-            if len(self.ent_data_file_list) == 0:
-                self.logger.error('Error: No files found in the path "%s"'%self.pkl_file_path)
-                sys.exit()
-            self.logger.info(f'FOUND {len(self.ent_data_file_list)} .pkl files to cluster')
+        
+        ## Load the dataframe that maps trajectory numbers to pkl file paths
+        self.trajnum2pklfile_path = trajnum2pklfile_path
+        self.trajnum2pklfile = pd.read_csv(self.trajnum2pklfile_path)
+        
+        ## Extract pkl file paths from the manifest (source of truth)
+        if 'pklfile' not in self.trajnum2pklfile.columns:
+            self.logger.error('Error: trajnum2pklfile CSV must contain a "pklfile" column')
+            sys.exit()
+        
+        self.ent_data_file_list = self.trajnum2pklfile['pklfile'].tolist()
+        
+        # Verify all pkl files exist
+        missing_files = [f for f in self.ent_data_file_list if not os.path.isfile(f)]
+        if missing_files:
+            self.logger.error(f'Error: {len(missing_files)} pkl files not found:')
+            for f in missing_files:
+                self.logger.error(f'  {f}')
+            sys.exit()
+        
+        self.logger.info(f'FOUND {len(self.ent_data_file_list)} .pkl files to cluster from manifest')
 
         ## Set up the outdir for this calculation
         self.outdir = outdir
         if not os.path.isdir(self.outdir):
             os.mkdir(f"{self.outdir}") 
             self.logger.info(f"Creating directory: {self.outdir}")
-
-        ## load in the dataframe that matches a traj .pkl file to a traj number
-        self.trajnum2pklfile_path = trajnum2pklfile_path
-        self.trajnum2pklfile = pd.read_csv(self.trajnum2pklfile_path)
     ##########################################################################################################################################################
 
     ##########################################################################################################################################################
@@ -941,17 +953,59 @@ class ClusterNonNativeEntanglements:
     ##########################################################################################################################################################
 
     ##########################################################################################################################################################
-    def load_pickle(self, filename):
-        data = []
+    def load_pickle(self, filename, start_frame=None, end_frame=None):
+        """Load pickle file and optionally filter frames.
+        
+        Parameters
+        ----------
+        filename : str
+            Path to pickle file
+        start_frame : int, optional
+            Minimum frame index to keep (inclusive)
+        end_frame : int, optional
+            Maximum frame index to keep (inclusive)
+        
+        Returns
+        -------
+        dict
+            Dictionary with frame keys and 'ref' key. Filtered to frame range if specified.
+        
+        Note: Large unfiltered dictionaries are explicitly deleted to ensure timely 
+        garbage collection, especially important when multiple threads load in parallel.
+        """
+        import gc
+        data_dict = {}
+        self.logger.debug(f'Loading pickle file: {filename}')
         with open(filename, 'rb') as fr:
             try:
                 while True:
-                    data.append(pickle.load(fr))
+                    chunk = pickle.load(fr)
+                    self.logger.debug(f"Loaded chunk with size: {len(chunk)}")
+                    if start_frame is not None or end_frame is not None:
+                        self.logger.debug(f"Filtering chunk for frames between {start_frame} and {end_frame}")
+                        filtered_chunk = {}
+
+                        for k, v in chunk.items():
+                            if k == "ref":
+                                filtered_chunk[k] = v
+
+                            elif ((start_frame is None or k >= start_frame) and (end_frame is None or k <= end_frame)):
+                                filtered_chunk[k] = v
+
+                        del chunk  # CRITICAL: Explicitly free large unfiltered dict before update
+                        chunk = filtered_chunk
+
+                    self.logger.debug(f"Loaded filtered chunk with size: {len(chunk)}")
+                    data_dict.update(chunk)
+                    del chunk  # Free memory after update
+
             except EOFError:
                 pass
-        data_dict = {}
-        for da in data:
-            data_dict.update(da)
+        
+        self.logger.debug(f'Total frames loaded: {len(data_dict) - 1}')  # Exclude 'ref' key from frame count
+        
+        # Force garbage collection to prevent memory accumulation in parallel loads
+        gc.collect()
         return data_dict
     ##########################################################################################################################################################
     
@@ -960,7 +1014,7 @@ class ClusterNonNativeEntanglements:
         f_match = self.trajnum2pklfile[self.trajnum2pklfile['pklfile'] == f]
         if f_match.empty:
             self.logger.error(f'Error: {f} not found in {self.trajnum2pklfile_path}')
-            quit()
+            raise ValueError(f'Error: {f} not found in {self.trajnum2pklfile_path}')
         match = f_match['trajnum'].values[0]
         return match
     ##########################################################################################################################################################
@@ -1302,11 +1356,10 @@ class ClusterNonNativeEntanglements:
         self.logger.debug(
             f'Processing {ent_data_file} {traj} ({traj_idx + 1} / {len(self.ent_data_file_list)})...')
 
-        ent_data = self.load_pickle(ent_data_file)
-        frame_list = sorted([
-            frame for frame in ent_data.keys()
-            if (frame != 'ref') and (frame >= start_frame) and (frame <= end_frame)
-        ])
+        # Load pickle with frame filtering applied
+        ent_data = self.load_pickle(ent_data_file, start_frame, end_frame)
+        # Frame list is now already filtered, just exclude 'ref'
+        frame_list = sorted([frame for frame in ent_data.keys() if frame != 'ref'])
         self.logger.debug(f'frame_list: {frame_list} {len(frame_list)}')
 
         # Locate the matching trajectory DCD file
@@ -1343,6 +1396,11 @@ class ClusterNonNativeEntanglements:
                 chg_ent_keyword = str(chg_ent_keyword)
                 keyword_entries.append((chg_ent_keyword, [traj_idx, frame] + list(nc)))
 
+        # Explicitly free the full deserialized pkl dict — it can be ~10 GB and the
+        # semaphore in cluster() is held until this function returns, so freeing it
+        # here lets CPython recycle the memory before the next load starts.
+        del ent_data
+
         return traj_idx, fingerprint_dict, Q_dict, frame_list, traj_file, keyword_entries
     ##########################################################################################################################################################
 
@@ -1368,14 +1426,25 @@ class ClusterNonNativeEntanglements:
             # combined_traj = None
 
             n_workers = min(self.nproc, len(self.ent_data_file_list))
+            # Each ~1 GB pkl file inflates to ~10 GB of live Python objects during
+            # deserialization.  Use memory_cutoff as a proxy for available RAM to
+            # derive a safe concurrency limit: memory_cutoff / 1e10 (10 GB/file).
+            n_load_workers = min(n_workers, max(1, int(self.memory_cutoff // 1e10)))
             self.logger.info(
                 f'Loading {len(self.ent_data_file_list)} pkl files '
-                f'(nproc={n_workers})...')
+                f'(nproc={n_workers}, concurrent_loads={n_load_workers})...')
+            # Semaphore caps how many threads may simultaneously hold a deserialized
+            # pkl in memory.  n_workers threads are still available to start new
+            # loads as soon as a slot frees, so throughput is not reduced.
+            _load_sem = threading.Semaphore(n_load_workers)
+
+            def _throttled_process(ti, f):
+                with _load_sem:
+                    return self._process_traj_file(ti, f, start_frame, end_frame)
+
             with ThreadPoolExecutor(max_workers=n_workers) as executor:
                 futures = {
-                    executor.submit(
-                        self._process_traj_file, ti, f, start_frame, end_frame
-                    ): ti
+                    executor.submit(_throttled_process, ti, f): ti
                     for ti, f in enumerate(self.ent_data_file_list)
                 }
                 for fut in as_completed(futures):
@@ -1667,11 +1736,11 @@ class ClusterNonNativeEntanglements:
         "rep_struct_data": rep_struct_data}
 
         for key, value in save_items.items():
-            self.logger.info(f"{key}: type={type(value)}", end="")
             try:
-                self.logger.info(f", shape={np.shape(value)}")
+                shape_info = f", shape={np.shape(value)}"
             except Exception as e:
-                self.logger.info(f", shape=unavailable ({e})")
+                shape_info = f", shape=unavailable ({e})"
+            self.logger.info(f"{key}: type={type(value)}{shape_info}")
 
 
         # Save data

@@ -2,10 +2,10 @@
 #SBATCH -J NonNativeClustering
 #SBATCH --partition=basic
 #SBATCH -N 1
-#SBATCH -n 10
+#SBATCH -n 4
 #SBATCH -t 72:00:00
 #SBATCH --account=read_crch_ims86
-#SBATCH --mem=100G
+#SBATCH --mem=100GB
 #SBATCH -o assets/slurm/logs/%x-%j.out
 #SBATCH -e assets/slurm/logs/%x-%j.err
 
@@ -25,9 +25,10 @@ mkdir -p $DATASTORE/outputs/workflow2/nonnative_clustering/logs
 # run nonnative clustering
 python scripts/run_nonnative_entanglement_clustering.py \
     --outdir               $DATASTORE/outputs/workflow2/nonnative_clustering \
-    --pkl_file_path        $DATASTORE/outputs/workflow2/OP_demo/G/Combined_GE/ \
     --trajnum2pklfile_path $DATASTORE/user_input/metadata/trajnum2file.txt \
     --traj_dir_prefix      $DATASTORE/user_input/cg_trajectories \
-    --start_frame          0 \
+    --start_frame          6600 \
+    --end_frame            6667 \
     --logdir               $DATASTORE/outputs/workflow2/nonnative_clustering/logs \
-    --nproc               10
+    --nproc               4 \
+    --log_level           DEBUG

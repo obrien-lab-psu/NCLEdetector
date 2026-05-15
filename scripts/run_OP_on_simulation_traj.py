@@ -55,6 +55,8 @@ Flags
   --sec_elements         STRIDE secondary structure definitions (required for Q, G, K)
   --domain               Domain boundary definitions (required for Q, G, K)
   --xp_pdb               All-atom PDB for XP cross-link probability (required for XP)
+  --chunk_frames         Frames per chunk for Combined_GE (default: None = single file)
+  --chunk_suffix         Naming suffix for chunk files (default: _chunk)
   --log_level            Logging verbosity: DEBUG, INFO, WARNING, ERROR (default: INFO)
   --logdir               Directory for log file (default: same as --outdir)
 """
@@ -101,6 +103,10 @@ def main(argv=None):
     parser.add_argument("--domain",       type=str, default=None, help="Domain boundary definitions file")
 
     parser.add_argument("--xp_pdb",   type=str, default=None, help="All-atom PDB for XP (required for XP)")
+
+    # --- G chunking (for large trajectories) ---
+    parser.add_argument("--chunk_frames", type=int, default=None, help="Frames per chunk for Combined_GE output (default: None = single file)")
+    parser.add_argument("--chunk_suffix", type=str, default="_chunk", help="Naming suffix for chunked files (default: _chunk)")
 
     # --- logging ---
     parser.add_argument("--log_level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging verbosity (default: INFO)")
@@ -164,7 +170,7 @@ def main(argv=None):
         logger.info(f'Q keys: {list(Qdata_dict.keys())}')
 
     if 'G' in ops:
-        Gdata_dict = CalcOP.G(topoly=topoly, Calpha=Calpha, CG=CG, nproc=args.nproc)
+        Gdata_dict = CalcOP.G(topoly=topoly, Calpha=Calpha, CG=CG, nproc=args.nproc, chunk_frames=args.chunk_frames, chunk_suffix=args.chunk_suffix)
         logger.info(f'G keys: {list(Gdata_dict.keys())}')
 
     if 'K' in ops:
