@@ -500,7 +500,7 @@ class CalculateOP:
             self.find_residue_pairs(pdb, output_file=xl_list)
 
             # temporary directory for per-frame PDB files
-            frames_dir = os.path.join(self.XPpath, 'frames')
+            frames_dir = os.path.join(self.XPpath, f'frames_Traj{self.Traj}')
             os.makedirs(frames_dir, exist_ok=True)
 
             # parent directory for per-frame Jwalk outputs

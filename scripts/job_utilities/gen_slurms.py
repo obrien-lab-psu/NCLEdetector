@@ -126,7 +126,7 @@ python scripts/run_OP_on_simulation_traj.py \
   --ent_detection_method 2 \
   --nproc        {nproc} \
   --xp_pdb $REFSTRUCT/1zmr_model_clean.pdb \
-  --ops SASA XP
+  --ops XP
 """
 ####################################################################################################################################
 
@@ -185,7 +185,7 @@ python scripts/run_OP_on_simulation_traj.py \
 nproc = 10
 for i in range(1, 1001):
     job_name = f"OP_traj{i}"
-    slurm_script = run_OP_on_simulation_traj_template_slurm.format(job_name=job_name, traj_num=i, nproc=nproc)
+    slurm_script = run_OP_on_simulation_traj_template_slurm_v2.format(job_name=job_name, traj_num=i, nproc=nproc)
     print(f"Generating SLURM script for trajectory {i}...")
     # print(slurm_script)
     outfile = f"assets/slurm/scripts/run_OP_traj{i}.slurm"

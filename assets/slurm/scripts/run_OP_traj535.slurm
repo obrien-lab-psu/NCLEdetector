@@ -24,16 +24,9 @@ set -euo pipefail
 DATASTORE=/scratch/ims86/EntDetect_Datastore
 REFSTRUCT=$DATASTORE/user_input/reference_structures
 
-mkdir -p $DATASTORE/outputs/workflow2/OP/G
-mkdir -p $DATASTORE/outputs/workflow2/OP/Q
-mkdir -p $DATASTORE/outputs/workflow2/OP/K
-mkdir -p $DATASTORE/outputs/workflow2/OP/logs
 mkdir -p $DATASTORE/outputs/workflow2/OP_AA/SASA
 mkdir -p $DATASTORE/outputs/workflow2/OP_AA/XP
 mkdir -p $DATASTORE/outputs/workflow2/OP_AA/logs
 
-# --- CG: Q, G, K ---
-python scripts/run_OP_on_simulation_traj.py   --Traj 535   --PSF  $REFSTRUCT/1zmr_model_clean_ca.psf   --COR  $REFSTRUCT/1zmr_model_clean_ca.cor   --DCD  $DATASTORE/user_input/cg_trajectories/535_prod.dcd   --resolution cg   --contacts calpha   --ID   1ZMR   --sec_elements $REFSTRUCT/secondary_struc_defs.txt   --domain       $REFSTRUCT/domain_def.dat   --outdir       $DATASTORE/outputs/workflow2/OP   --logdir       $DATASTORE/outputs/workflow2/OP/logs   --start        0   --ent_detection_method 1   --nproc        10   --ops Q G K   --no_topoly   --chunk_frames 100 --chunk_suffix _chunk 
-
 # --- AA: SASA, XP ---
-python scripts/run_OP_on_simulation_traj.py   --Traj   535   --ID     1ZMR   --PSF    $REFSTRUCT/1zmr_model_clean.pdb   --COR    $REFSTRUCT/1zmr_model_clean.pdb   --DCD    $DATASTORE/user_input/aa_trajectories/535_prod_aa.dcd   --resolution aa   --contacts calpha   --sec_elements $REFSTRUCT/secondary_struc_defs.txt   --domain       $REFSTRUCT/domain_def.dat   --outdir $DATASTORE/outputs/workflow2/OP_AA   --logdir $DATASTORE/outputs/workflow2/OP_AA/logs   --start  0   --nproc        10   --xp_pdb $REFSTRUCT/1zmr_model_clean.pdb   --ops SASA XP
+python scripts/run_OP_on_simulation_traj.py   --Traj   535   --ID     1ZMR   --PSF    $REFSTRUCT/1zmr_model_clean.pdb   --COR    $REFSTRUCT/1zmr_model_clean.pdb   --DCD    $DATASTORE/user_input/aa_trajectories/535_prod_aa.dcd   --resolution aa   --contacts calpha   --sec_elements $REFSTRUCT/secondary_struc_defs.txt   --domain       $REFSTRUCT/domain_def.dat   --outdir $DATASTORE/outputs/workflow2/OP_AA   --logdir $DATASTORE/outputs/workflow2/OP_AA/logs   --start  0   --ent_detection_method 2   --nproc        10   --xp_pdb $REFSTRUCT/1zmr_model_clean.pdb   --ops XP
