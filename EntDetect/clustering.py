@@ -61,6 +61,8 @@ class ClusterNativeEntanglements:
             self.cut_off = 57
         elif organism == 'Yeast':
             self.cut_off = 49
+        else:
+            self.cut_off = 53  # Average of Ecoli(57)/Yeast(49)/Human(52) OTs for novel organisms
         
         if cut_off is not None:
             self.cut_off = cut_off
