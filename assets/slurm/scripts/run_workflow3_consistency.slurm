@@ -86,8 +86,9 @@ fi
 n_xp=$(ls -1 $XP_DIR/*.XP 2>/dev/null | wc -l)
 echo "✓ Found $n_xp XP files"
 
-if [[ ! -d "$DATASTORE/exp_data" ]] || [[ -z $(ls -1 $DATASTORE/exp_data/*.xlsx 2>/dev/null) ]]; then
-    echo "ERROR: No experimental Excel files found in $DATASTORE/exp_data/"
+EXP_DATA_DIR="$DATASTORE/user_input/experimental_data"
+if [[ ! -d "$EXP_DATA_DIR" ]] || [[ -z $(ls -1 $EXP_DATA_DIR/*.xlsx 2>/dev/null) ]]; then
+    echo "ERROR: No experimental Excel files found in $EXP_DATA_DIR"
     exit 1
 fi
 echo "✓ Experimental data found"
@@ -111,7 +112,6 @@ echo ""
 # Create logs directory
 mkdir -p $OUTDIR/logs
 
-# Run collect + consistency test using run_compare_sim2exp.py (mode 1: collect from per-traj files)
 python scripts/run_compare_sim2exp.py \
     --sasa_dir "$SASA_DIR" \
     --xp_dir "$XP_DIR" \
@@ -119,8 +119,8 @@ python scripts/run_compare_sim2exp.py \
     --n_frames 335 \
     --msm_data_file "$DATASTORE/outputs/workflow2/MSM/1ZMR_prod_MSMmapping.csv" \
     --meta_dist_file "$DATASTORE/outputs/workflow2/MSM/1ZMR_prod_meta_dist.npy" \
-    --LiPMS_exp_file "$DATASTORE/exp_data/LiPMS_exp.xlsx" \
-    --XLMS_exp_file "$DATASTORE/exp_data/XLMS_exp.xlsx" \
+    --LiPMS_exp_file "$EXP_DATA_DIR/ecPGK_significant_LiPMS_peptide_R1_merged.xlsx" \
+    --XLMS_exp_file "$EXP_DATA_DIR/ecPGK_significant_XLMS_peptide_R1_merged.xlsx" \
     --cluster_data_file "$DATASTORE/outputs/workflow2/nonnative_clustering/cluster_data_topoly_linking_number.npz" \
     --OPpath "$DATASTORE/outputs/workflow2/OP_AA/" \
     --AAdcd_dir "$DATASTORE/user_input/aa_trajectories/" \
