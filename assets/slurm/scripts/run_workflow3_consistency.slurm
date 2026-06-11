@@ -72,18 +72,18 @@ OUTDIR=$DATASTORE/outputs/workflow3
 SASA_DIR=$DATASTORE/outputs/workflow2/OP_AA/SASA
 XP_DIR=$DATASTORE/outputs/workflow2/OP_AA/XP
 
-if [[ ! -d "$SASA_DIR" ]] || [[ -z $(ls -1 $SASA_DIR/*_SASA 2>/dev/null | head -1) ]]; then
+if [[ ! -d "$SASA_DIR" ]] || [[ -z $(ls -1 $SASA_DIR/*.SASA 2>/dev/null | head -1) ]]; then
     echo "ERROR: SASA files not found in $SASA_DIR"
     exit 1
 fi
-n_sasa=$(ls -1 $SASA_DIR/*_SASA 2>/dev/null | wc -l)
+n_sasa=$(ls -1 $SASA_DIR/*.SASA 2>/dev/null | wc -l)
 echo "✓ Found $n_sasa SASA files"
 
-if [[ ! -d "$XP_DIR" ]] || [[ -z $(ls -1 $XP_DIR/*_XP 2>/dev/null | head -1) ]]; then
+if [[ ! -d "$XP_DIR" ]] || [[ -z $(ls -1 $XP_DIR/*.XP 2>/dev/null | head -1) ]]; then
     echo "ERROR: XP files not found in $XP_DIR"
     exit 1
 fi
-n_xp=$(ls -1 $XP_DIR/*_XP 2>/dev/null | wc -l)
+n_xp=$(ls -1 $XP_DIR/*.XP 2>/dev/null | wc -l)
 echo "✓ Found $n_xp XP files"
 
 if [[ ! -d "$DATASTORE/exp_data" ]] || [[ -z $(ls -1 $DATASTORE/exp_data/*.xlsx 2>/dev/null) ]]; then
