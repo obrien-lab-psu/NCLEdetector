@@ -98,6 +98,9 @@ def main(argv=None):
                         help="Total number of trajectories for CollectOP (required with --sasa_dir).")
     parser.add_argument("--n_frames", type=int, default=None,
                         help="Frames per trajectory stored in each file (required with --sasa_dir).")
+    parser.add_argument("--collect_jwalk_npy", action='store_true',
+                        help="Also build Jwalk.npy with CollectOP (legacy path). "
+                             "By default, XL-MS scoring streams directly from XP files to reduce memory use.")
     # --- Direct array paths (used when skipping collection) ---
     parser.add_argument("--sasa_data_file", type=str, default=None,
                         help="Path to pre-built SASA.npy. Required if --sasa_dir is not provided.")
@@ -158,9 +161,15 @@ def main(argv=None):
             prot_len  = prot_len,
         )
         sasa_data_file = collector.collect_SASA()
-        dist_data_file = collector.collect_Jwalk()
+        if args.collect_jwalk_npy:
+            dist_data_file = collector.collect_Jwalk()
+        else:
+            dist_data_file = None
         print(f'CollectOP SASA:  {sasa_data_file}')
-        print(f'CollectOP Jwalk: {dist_data_file}')
+        if dist_data_file is not None:
+            print(f'CollectOP Jwalk: {dist_data_file}')
+        else:
+            print('CollectOP Jwalk: skipped (streaming XP mode enabled)')
 
     # ── Step 2: run the consistency test ──────────────────────────────────
     MS = MassSpec(msm_data_file=msm_data_file,
@@ -173,6 +182,7 @@ def main(argv=None):
                     OPpath=OPpath,
                     AAdcd_dir=AAdcd_dir,
                     native_AA_pdb=native_AA_pdb,
+                    xp_dir=args.xp_dir,
                     state_idx_list=state_idx_list,
                     prot_len=prot_len,
                     last_num_frames=last_num_frames,

@@ -980,7 +980,18 @@ class CollectOP:
                 self.logger.warning(f'Missing XP file: {fpath}')
                 continue
 
-            df = pd.read_csv(fpath, sep='\t')
+            df = pd.read_csv(
+                fpath,
+                sep='\t',
+                usecols=['Frame', 'Atom1', 'Atom2', 'Euclidean Distance', 'SASD'],
+                dtype={
+                    'Frame': np.int32,
+                    'Euclidean Distance': np.float32,
+                    'SASD': np.float32,
+                    'Atom1': 'string',
+                    'Atom2': 'string',
+                },
+            )
             frames = sorted(df['Frame'].unique())
 
             if len(frames) != self.n_frames:
@@ -990,8 +1001,7 @@ class CollectOP:
                 )
                 continue
 
-            for frame_idx, frame_num in enumerate(frames):
-                fdf   = df[df['Frame'] == frame_num]
+            for frame_idx, (_, fdf) in enumerate(df.groupby('Frame', sort=True)):
                 fdict = {}
                 for _, row in fdf.iterrows():
                     k1  = self._atom_to_key_part(row['Atom1'])
@@ -1001,6 +1011,8 @@ class CollectOP:
                         'Jwalk':     float(row['SASD']),
                     }
                 jwalk_arr[traj_num - 1, frame_idx] = fdict
+
+            del df
 
             self.logger.info(f'Collected Jwalk/XP: Traj {traj_num}')
 

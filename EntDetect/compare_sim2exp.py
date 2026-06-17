@@ -19,7 +19,7 @@ class MassSpec:
     #############################################################################################################
     def __init__(self, msm_data_file:str, meta_dist_file:str, LiPMS_exp_file:str, sasa_data_file:str, XLMS_exp_file:str, dist_data_file:str,
                  cluster_data_file:str, OPpath:str, AAdcd_dir:str, native_AA_pdb:str, native_state_idx:int, state_idx_list:list, prot_len:int, last_num_frames:int,
-                 rm_traj_list:list=[], outdir:str='./', ID:str='', resid2residueidx_map:dict={},
+                 rm_traj_list:list=[], outdir:str='./', ID:str='', xp_dir:str=None, resid2residueidx_map:dict={},
                  start:int=0, end:int=999999999999, stride:int=1, verbose:bool=False, num_perm:int=10000, n_boot:int=10000, lag_frame:int=1, nproc:int=1, log_level:int=logging.INFO, logdir:str=None):
 
 
@@ -29,6 +29,7 @@ class MassSpec:
         self.sasa_data_file = sasa_data_file
         self.XLMS_exp_file = XLMS_exp_file
         self.dist_data_file = dist_data_file
+        self.xp_dir = xp_dir
         self.cluster_data_file = cluster_data_file
         self.OPpath = OPpath
         self.AAdcd_dir = AAdcd_dir
@@ -38,6 +39,10 @@ class MassSpec:
         self.rm_traj_list = rm_traj_list
         self.outdir = outdir
         self.ID = ID
+
+        # Initialize logging before any log calls in constructor.
+        self.logger = setup_logger('MassSpec', outdir=logdir if logdir is not None else self.outdir, ID=self.ID, log_level=log_level)
+
         self.resid2residueidx_map = resid2residueidx_map
         if len(self.resid2residueidx_map) == 0:
             self.resid2residueidx_map = {i + 1:i for i in range(prot_len)}
@@ -60,7 +65,6 @@ class MassSpec:
         #self.n_boot = 100
 
         # make the outdir if it doesnt existgs
-        self.logger = setup_logger('MassSpec', outdir=logdir if logdir is not None else self.outdir, ID=self.ID, log_level=log_level)
         if not os.path.exists(self.outdir):
             os.makedirs(self.outdir)
             self.logger.debug(f'Creating directory: {self.outdir}')
@@ -355,6 +359,21 @@ class MassSpec:
             self.logger.info(f'meta_dtrajs_last.shape: {meta_dtrajs_last.shape}')
             self.logger.info(f'meta_dtrajs_last\n{meta_dtrajs_last} {meta_dtrajs_last.shape}')
             self.logger.debug(np.unique(meta_dtrajs_last))
+
+            # Keep MSM trajectory indexing aligned with downstream OP arrays.
+            rm_traj_set = set(int(t) for t in self.rm_traj_list)
+            keep_traj_idx = [
+                idx for idx in range(meta_dtrajs_last.shape[0])
+                if int(traj_idx_to_trajnum[idx]) not in rm_traj_set
+            ]
+            meta_dtrajs_last = meta_dtrajs_last[keep_traj_idx, :]
+            traj_idx_to_trajnum = {
+                new_idx: int(traj_idx_to_trajnum[old_idx])
+                for new_idx, old_idx in enumerate(keep_traj_idx)
+            }
+            self.logger.info(
+                f'meta_dtrajs_last.shape after mirror-image removal: {meta_dtrajs_last.shape}'
+            )
             #################################################################
 
 
@@ -388,7 +407,7 @@ class MassSpec:
             self.logger.info(f'Updated state_idx_list: {self.state_idx_list}')
             for idx, arr in enumerate(frame_list):
                 state = self.state_idx_list[idx]
-                self.logger.info(idx, state, arr.shape)
+                self.logger.info(f'state_list_idx={idx}, state={state}, shape={arr.shape}')
 
             native_sel = np.array(np.where(meta_dtrajs_last[:, sel_frame_idx] == self.native_state_idx)).T
             native_sel[:,1] = sel_frame_idx[native_sel[:,1]]
@@ -404,22 +423,17 @@ class MassSpec:
             sasa_traj_list = np.load(self.sasa_data_file, allow_pickle=True)[:,-self.last_num_frames:,:]
             self.logger.info(f'sasa_traj_list.shape: {sasa_traj_list.shape}')
 
-            # remove trajectories that are in the rm_traj_list - 1
-            sasa_traj_list = [v for i, v in enumerate(sasa_traj_list) if i not in np.asarray(self.rm_traj_list) - 1]
-            sasa_traj_list = np.array(sasa_traj_list)
-            self.logger.info(f'sasa_traj_list.shape after removal of mirror images: {sasa_traj_list.shape}')
+            # Apply the same trajectory filtering used for MSM indexing.
+            sasa_traj_list = sasa_traj_list[keep_traj_idx, :, :]
+            self.logger.info(f'sasa_traj_list.shape after mirror-image removal: {sasa_traj_list.shape}')
             #################################################################
 
 
             #################################################################
-            # Load distance data
-            dist_traj_list = np.load(self.dist_data_file, allow_pickle=True)[:,-self.last_num_frames:]
-            self.logger.info(f'dist_traj_list.shape: {dist_traj_list.shape}')
-
-            # remove trajectories that are in the rm_traj_list - 1
-            dist_traj_list = [v for i, v in enumerate(dist_traj_list) if i not in np.asarray(self.rm_traj_list) - 1]
-            dist_traj_list = np.array(dist_traj_list)
-            self.logger.info(f'dist_traj_list.shape after removal of mirror images: {dist_traj_list.shape}')
+            # XL-MS scores are computed either from a pre-built Jwalk.npy
+            # (legacy mode) or directly from per-trajectory XP files
+            # (memory-friendly streaming mode).
+            dist_traj_list = None
             #################################################################
 
 
@@ -433,7 +447,7 @@ class MassSpec:
             self.logger.info(f'frame_list:')
             for idx, arr in enumerate(frame_list):
                 state = self.state_idx_list[idx]
-                self.logger.info(idx, state, arr.shape)
+                self.logger.info(f'state_list_idx={idx}, state={state}, shape={arr.shape}')
             native_sel = np.array([sel for sel in native_sel if not sel.tolist() in nan_frame_sel.tolist()])
             self.logger.info(f'native_sel:\n{native_sel} {native_sel.shape}')
             #################################################################
@@ -461,15 +475,91 @@ class MassSpec:
                     SA = np.sum(sasa_traj_list[:,:,sel], axis=-1)
                     M_LiPMS[:,:,idx] = SA
                 
-                M_XLMS = np.zeros((*meta_dtrajs_last.shape, len(XLMS_sig_data)))
+                xlms_targets = []
                 for idx, key in enumerate(XLMS_sig_data.keys()):
                     pair_AA = [k[0] for k in key.split('-')]
                     key_0 = '-'.join([k[1:]+'|A' for k in key.split('-')])
-                    for i in range(meta_dtrajs_last.shape[0]):
-                        for j in range(meta_dtrajs_last.shape[1]):
-                            JWalk_dist = dist_traj_list[i,j][key_0]['Jwalk']
-                            score = self.score_XL(pair_AA, JWalk_dist)
-                            M_XLMS[i,j,idx] = score
+                    xlms_targets.append((idx, key_0, pair_AA))
+
+                M_XLMS = np.zeros((*meta_dtrajs_last.shape, len(XLMS_sig_data)))
+                if self.dist_data_file is not None and os.path.exists(self.dist_data_file):
+                    dist_traj_list = np.load(self.dist_data_file, allow_pickle=True)[:,-self.last_num_frames:]
+                    self.logger.info(f'dist_traj_list.shape: {dist_traj_list.shape}')
+
+                    # Apply the same trajectory filtering used for MSM indexing.
+                    dist_traj_list = dist_traj_list[keep_traj_idx, :]
+                    self.logger.info(f'dist_traj_list.shape after mirror-image removal: {dist_traj_list.shape}')
+
+                    n_traj = min(meta_dtrajs_last.shape[0], dist_traj_list.shape[0])
+                    n_frame = min(meta_dtrajs_last.shape[1], dist_traj_list.shape[1])
+                    for i in range(n_traj):
+                        for j in range(n_frame):
+                            frame_data = dist_traj_list[i, j]
+                            if frame_data is None:
+                                continue
+                            for idx, key_0, pair_AA in xlms_targets:
+                                if key_0 not in frame_data:
+                                    continue
+                                JWalk_dist = frame_data[key_0].get('Jwalk', -1)
+                                M_XLMS[i, j, idx] = self.score_XL(pair_AA, JWalk_dist)
+                elif self.xp_dir is not None and os.path.isdir(self.xp_dir):
+                    self.logger.info(f'Computing XL-MS scores in streaming mode from XP files in: {self.xp_dir}')
+                    target_lookup = {key_0: (idx, pair_AA) for idx, key_0, pair_AA in xlms_targets}
+
+                    for traj_idx in range(meta_dtrajs_last.shape[0]):
+                        traj_num = int(traj_idx_to_trajnum[traj_idx])
+                        if traj_num in rm_traj_set:
+                            continue
+
+                        fpath = os.path.join(self.xp_dir, f'{self.ID}_Traj{traj_num}.XP')
+                        if not os.path.exists(fpath):
+                            self.logger.warning(f'Missing XP file for streaming XL-MS scoring: {fpath}')
+                            continue
+
+                        df = pd.read_csv(
+                            fpath,
+                            sep='\t',
+                            usecols=['Frame', 'Atom1', 'Atom2', 'SASD'],
+                            dtype={'Frame': np.int32, 'SASD': np.float32, 'Atom1': 'string', 'Atom2': 'string'},
+                        )
+                        if df.empty:
+                            continue
+
+                        frame_values = np.sort(df['Frame'].unique())
+                        frame_to_idx = {int(f): idx for idx, f in enumerate(frame_values)}
+
+                        atom1_parts = df['Atom1'].str.split('-', expand=True)
+                        atom2_parts = df['Atom2'].str.split('-', expand=True)
+                        if atom1_parts.shape[1] < 3 or atom2_parts.shape[1] < 3:
+                            self.logger.warning(f'Malformed Atom fields in {fpath}; skipping trajectory {traj_num}')
+                            continue
+
+                        frame_key_df = pd.DataFrame({
+                            'Frame': df['Frame'].values,
+                            'SASD': df['SASD'].values,
+                            'key': (atom1_parts[1].astype(str) + '|'+ atom1_parts[2].astype(str) + '-' +
+                                    atom2_parts[1].astype(str) + '|' + atom2_parts[2].astype(str)).values,
+                        })
+
+                        frame_key_df = frame_key_df[frame_key_df['key'].isin(target_lookup.keys())]
+                        frame_key_df = frame_key_df.drop_duplicates(subset=['Frame', 'key'], keep='first')
+                        if frame_key_df.empty:
+                            continue
+
+                        for key_0, key_df in frame_key_df.groupby('key', sort=False):
+                            idx, pair_AA = target_lookup[key_0]
+                            for frame_num, sasd in zip(key_df['Frame'].values, key_df['SASD'].values):
+                                frame_idx = frame_to_idx.get(int(frame_num), None)
+                                if frame_idx is None or frame_idx >= meta_dtrajs_last.shape[1]:
+                                    continue
+                                M_XLMS[traj_idx, frame_idx, idx] = self.score_XL(pair_AA, float(sasd))
+
+                        if (traj_idx + 1) % 50 == 0:
+                            self.logger.info(f'Streamed XP scoring progress: {traj_idx + 1}/{meta_dtrajs_last.shape[0]} trajectories')
+                else:
+                    raise ValueError(
+                        'XL-MS scoring requires either dist_data_file (Jwalk.npy) or xp_dir (per-trajectory XP files).'
+                    )
 
                 # Save data
                 np.savez(npz_outfile, 
@@ -522,7 +612,7 @@ class MassSpec:
                     # for near-native states
                     self.logger.info(f'len(self.state_idx_list): {self.state_idx_list} {len(self.state_idx_list)}')
                     for idx_1, state_id in enumerate(self.state_idx_list):
-                        self.logger.info(idx_1, state_id)
+                        self.logger.info(f'state_list_idx={idx_1}, state={state_id}')
                         near_native_sel = np.array(frame_list[idx_1], dtype=int)
                         self.logger.debug(near_native_sel)
                         M_0_near_native = M_0[near_native_sel[:,0], near_native_sel[:,1]]
@@ -1288,12 +1378,77 @@ class MassSpec:
         ##############################################################################
         # Create visualization
         self.logger.info(f'Create visualizations...')
-        self.logger.info(f'Loading dist_traj_list: {self.dist_data_file}')
-        dist_traj_list = np.load(self.dist_data_file, allow_pickle=True)[:,-last_num_frames:]
-        self.logger.info(f'Loaded distance data: {dist_traj_list.shape}')
-        dist_traj_list = [v for i, v in enumerate(dist_traj_list) if i not in np.asarray(self.rm_traj_list) - 1]
-        dist_traj_list = np.array(dist_traj_list)
-        self.logger.info(f'dist_traj_list after removal of mirror images: {dist_traj_list.shape}')
+        if self.dist_data_file is not None and os.path.exists(self.dist_data_file):
+            self.logger.info(f'Loading dist_traj_list: {self.dist_data_file}')
+            dist_traj_list = np.load(self.dist_data_file, allow_pickle=True)[:,-last_num_frames:]
+            self.logger.info(f'Loaded distance data: {dist_traj_list.shape}')
+            dist_traj_list = [v for i, v in enumerate(dist_traj_list) if i not in np.asarray(self.rm_traj_list) - 1]
+            dist_traj_list = np.array(dist_traj_list)
+            self.logger.info(f'dist_traj_list after removal of mirror images: {dist_traj_list.shape}')
+        elif self.xp_dir is not None and os.path.isdir(self.xp_dir):
+            self.logger.info(f'Building sparse dist_traj_list from XP files in: {self.xp_dir}')
+            dist_traj_list = np.empty((len(idx2traj), last_num_frames), dtype=object)
+            dist_traj_list[:] = None
+
+            needed_frames_by_traj = {}
+            for state_id in self.state_idx_list:
+                for k in rep_group_dict[state_id].keys():
+                    for kk in rep_group_dict[state_id][k].keys():
+                        traj_idx, frame_idx = rep_group_dict[state_id][k][kk]
+                        needed_frames_by_traj.setdefault(int(traj_idx), set()).add(int(frame_idx))
+
+            for traj_idx, needed_frame_idx in needed_frames_by_traj.items():
+                traj_num = int(idx2traj[traj_idx])
+                fpath = os.path.join(self.xp_dir, f'{self.ID}_Traj{traj_num}.XP')
+                if not os.path.exists(fpath):
+                    self.logger.warning(f'Missing XP file for sparse visualization load: {fpath}')
+                    continue
+
+                df = pd.read_csv(
+                    fpath,
+                    sep='\t',
+                    usecols=['Frame', 'Atom1', 'Atom2', 'Euclidean Distance', 'SASD'],
+                    dtype={
+                        'Frame': np.int32,
+                        'SASD': np.float32,
+                        'Euclidean Distance': np.float32,
+                        'Atom1': 'string',
+                        'Atom2': 'string',
+                    },
+                )
+                if df.empty:
+                    continue
+
+                frame_values = np.sort(df['Frame'].unique())
+                frame_to_idx = {int(f): idx for idx, f in enumerate(frame_values)}
+                df['frame_idx'] = df['Frame'].map(frame_to_idx)
+                df = df[df['frame_idx'].isin(needed_frame_idx)]
+                if df.empty:
+                    continue
+
+                atom1_parts = df['Atom1'].str.split('-', expand=True)
+                atom2_parts = df['Atom2'].str.split('-', expand=True)
+                if atom1_parts.shape[1] < 3 or atom2_parts.shape[1] < 3:
+                    self.logger.warning(f'Malformed Atom fields in {fpath}; skipping sparse load for traj {traj_num}')
+                    continue
+
+                df['key'] = (
+                    atom1_parts[1].astype(str) + '|' + atom1_parts[2].astype(str) + '-' +
+                    atom2_parts[1].astype(str) + '|' + atom2_parts[2].astype(str)
+                )
+
+                for frame_idx, frame_df in df.groupby('frame_idx', sort=False):
+                    frame_dict = {}
+                    for _, row in frame_df.iterrows():
+                        frame_dict[row['key']] = {
+                            'Euclidean': float(row['Euclidean Distance']),
+                            'Jwalk': float(row['SASD']),
+                        }
+                    dist_traj_list[traj_idx, int(frame_idx)] = frame_dict
+        else:
+            raise ValueError(
+                'Representative structure visualization requires either dist_data_file (Jwalk.npy) or xp_dir.'
+            )
 
 
         # Check if the viz_rep_struct path exists. if so remove it and make a fresh one

@@ -3,9 +3,9 @@
 #SBATCH --partition=basic
 #SBATCH -N 1
 #SBATCH -n 8
-#SBATCH -t 06:00:00
+#SBATCH -t 36:00:00
 #SBATCH --account=read_crch_ims86
-#SBATCH --mem=64G
+#SBATCH --mem=128G
 #SBATCH -o assets/slurm/logs/%x-%j.out
 #SBATCH -e assets/slurm/logs/%x-%j.err
 
@@ -20,7 +20,7 @@
 #   - Jwalk collection: ~3-4 hours
 #   - Consistency test: ~1-3 hours
 #
-# Memory: 64 GB
+# Memory: 128 GB
 # CPUs: 8
 #
 # Prerequisites:
@@ -125,11 +125,11 @@ python scripts/run_compare_sim2exp.py \
     --OPpath "$DATASTORE/outputs/workflow2/OP_AA/" \
     --AAdcd_dir "$DATASTORE/user_input/aa_trajectories/" \
     --native_AA_pdb "$DATASTORE/user_input/reference_structures/1zmr_model_clean.pdb" \
-    --state_idx_list 4 6 8 \
+    --state_idx_list 4 5 6 7 \
     --prot_len 387 \
     --last_num_frames 335 \
     --rm_traj_list 65 75 155 162 199 231 264 286 296 314 354 417 448 472 473 474 577 579 591 703 704 732 758 812 833 870 876 944 967 \
-    --native_state_idx 9 \
+    --native_state_idx 8 \
     --outdir "$OUTDIR/MassSpec_ConsistencyTest" \
     --ID 1ZMR \
     --start 0 \

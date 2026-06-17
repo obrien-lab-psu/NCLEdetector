@@ -129,7 +129,7 @@ class ProteomeLogisticRegression:
                 k = k.replace('AA[T.', '').replace(']', '')
             coefficients[k] = v
         for k,v in coefficients.items():
-            self.logger.info(k,v)
+            self.logger.info(f'{k}: {v}')
         self.coefficients = coefficients
 
         ## recalculate the pvalue to add more digits as statsmodels truncates it to 0 if it is below 0.0001 for some reason. 
@@ -163,28 +163,35 @@ class ProteomeLogisticRegression:
         - mask_column (list): Column header to use for masking the data. Should be a column containing null values for samples to exclude. 
         """
 
-        files = glob.glob(os.path.join(self.dataframe_files, '*'))
-        #files = [f for f in files if any(s in f for s in self.gene_list)] # get only those files in the gene list
-        self.logger.info(f'Number of files: {len(files)}')
-
         self.data = pd.DataFrame()
         self.n = 0
-        for i, gene in enumerate(self.gene_list):
-            gene_resFeat = [f for f in files if gene in f]
-            if len(gene_resFeat) == 0:
-                self.logger.warning(f"WARNING: No residue feature file found for gene {gene}")
-                continue
-            elif len(gene_resFeat) > 1:
-                self.logger.warning(f"WARNING: More than 1 residue feature file found for gene {gene}")
-                continue
-            gene_resFeat_file = gene_resFeat[0]
-            #print(f'gene_resFeat_file: {gene_resFeat_file} {i}')
-            if len(self.data) == 0:
-                self.data = pd.read_csv(gene_resFeat_file, sep=sep, usecols=reg_var+[response_var]+[mask_column, 'gene'])
-                self.n += 1
-            else:
-                self.data = pd.concat((self.data, pd.read_csv(gene_resFeat_file, sep=sep, usecols=reg_var+[response_var]+[mask_column, 'gene'])))
-                self.n += 1
+
+        if os.path.isfile(self.dataframe_files):
+            self.logger.info(f'Loading single design matrix file: {self.dataframe_files}')
+            self.data = pd.read_csv(self.dataframe_files, sep=sep, usecols=reg_var+[response_var]+[mask_column, 'gene'])
+            self.data = self.data[self.data['gene'].isin(self.gene_list)]
+            self.n = len(self.data['gene'].dropna().unique())
+        else:
+            files = glob.glob(os.path.join(self.dataframe_files, '*'))
+            #files = [f for f in files if any(s in f for s in self.gene_list)] # get only those files in the gene list
+            self.logger.info(f'Number of files: {len(files)}')
+
+            for i, gene in enumerate(self.gene_list):
+                gene_resFeat = [f for f in files if gene in f]
+                if len(gene_resFeat) == 0:
+                    self.logger.warning(f"WARNING: No residue feature file found for gene {gene}")
+                    continue
+                elif len(gene_resFeat) > 1:
+                    self.logger.warning(f"WARNING: More than 1 residue feature file found for gene {gene}")
+                    continue
+                gene_resFeat_file = gene_resFeat[0]
+                #print(f'gene_resFeat_file: {gene_resFeat_file} {i}')
+                if len(self.data) == 0:
+                    self.data = pd.read_csv(gene_resFeat_file, sep=sep, usecols=reg_var+[response_var]+[mask_column, 'gene'])
+                    self.n += 1
+                else:
+                    self.data = pd.concat((self.data, pd.read_csv(gene_resFeat_file, sep=sep, usecols=reg_var+[response_var]+[mask_column, 'gene'])))
+                    self.n += 1
 
         #self.data = self.data[self.data['gene'].isin(self.reg_genes)]
         self.data = self.data[self.data['AA'] != 'NC']
@@ -447,34 +454,46 @@ class MonteCarlo:
         - ID_column (str): Column header for the gene ID.
         """
 
-        files = glob.glob(os.path.join(self.dataframe_files, '*'))
-        #files = [f for f in files if any(s in f for s in self.gene_list)] # get only those files in the gene list
-        self.logger.info(f'Number of files: {len(files)}')
-
         self.data = pd.DataFrame()
         self.n = 0
         self.prot_size = {'gene':[], 'prot_size':[]}
-        for i, gene in enumerate(self.gene_list):
-            gene_resFeat = [f for f in files if gene in f]
-            if len(gene_resFeat) == 0:
-                self.logger.warning(f"WARNING: No residue feature file found for gene {gene}")
-                continue
-            elif len(gene_resFeat) > 1:
-                self.logger.warning(f"WARNING: More than 1 residue feature file found for gene {gene}")
-                continue
-            gene_resFeat_file = gene_resFeat[0]
-            #print(f'gene_resFeat_file: {gene_resFeat_file} {i}')
-            if len(self.data) == 0:
-                self.data = pd.read_csv(gene_resFeat_file, sep=sep, usecols=reg_var+[response_var]+[mask_column, ID_column, Length_column])
-                self.n += 1
-                self.prot_size['gene'] += [gene]
-                self.prot_size['prot_size'] += [self.data[Length_column].values[0]]
-            else:
-                df = pd.read_csv(gene_resFeat_file, sep=sep, usecols=reg_var+[response_var]+[mask_column, ID_column, Length_column])
-                self.data = pd.concat((self.data, df))
-                self.n += 1
-                self.prot_size['gene'] += [gene]
-                self.prot_size['prot_size'] += [df[Length_column].values[0]]
+        if os.path.isfile(self.dataframe_files):
+            self.logger.info(f'Loading single design matrix file: {self.dataframe_files}')
+            self.data = pd.read_csv(self.dataframe_files, sep=sep, usecols=reg_var+[response_var]+[mask_column, ID_column, Length_column])
+            self.data = self.data[self.data[ID_column].isin(self.gene_list)]
+            self.n = len(self.data[ID_column].dropna().unique())
+
+            size_df = self.data[[ID_column, Length_column]].dropna().drop_duplicates(subset=[ID_column])
+            self.prot_size = {
+                'gene': size_df[ID_column].tolist(),
+                'prot_size': size_df[Length_column].tolist(),
+            }
+        else:
+            files = glob.glob(os.path.join(self.dataframe_files, '*'))
+            #files = [f for f in files if any(s in f for s in self.gene_list)] # get only those files in the gene list
+            self.logger.info(f'Number of files: {len(files)}')
+
+            for i, gene in enumerate(self.gene_list):
+                gene_resFeat = [f for f in files if gene in f]
+                if len(gene_resFeat) == 0:
+                    self.logger.warning(f"WARNING: No residue feature file found for gene {gene}")
+                    continue
+                elif len(gene_resFeat) > 1:
+                    self.logger.warning(f"WARNING: More than 1 residue feature file found for gene {gene}")
+                    continue
+                gene_resFeat_file = gene_resFeat[0]
+                #print(f'gene_resFeat_file: {gene_resFeat_file} {i}')
+                if len(self.data) == 0:
+                    self.data = pd.read_csv(gene_resFeat_file, sep=sep, usecols=reg_var+[response_var]+[mask_column, ID_column, Length_column])
+                    self.n += 1
+                    self.prot_size['gene'] += [gene]
+                    self.prot_size['prot_size'] += [self.data[Length_column].values[0]]
+                else:
+                    df = pd.read_csv(gene_resFeat_file, sep=sep, usecols=reg_var+[response_var]+[mask_column, ID_column, Length_column])
+                    self.data = pd.concat((self.data, df))
+                    self.n += 1
+                    self.prot_size['gene'] += [gene]
+                    self.prot_size['prot_size'] += [df[Length_column].values[0]]
 
         #self.data = self.data[self.data['gene'].isin(self.reg_genes)]
         self.data = self.data[self.data['AA'] != 'NC']
@@ -984,7 +1003,7 @@ class FoldingPathwayStats:
                     pathways[path] += 1
             
             for k, v in pathways.items():
-                self.logger.info(k,v)
+                self.logger.info(f'{k}: {v}')
 
             tot_num = 0
             for path in pathways.keys():
@@ -1100,7 +1119,7 @@ class FoldingPathwayStats:
         M = 0.5 * (P + Q)
         self.logger.debug(M)
         entropy_arr = 0.5 * (entropy(P, M, axis=1) + entropy(Q, M, axis=1))
-        self.logger.info(entropy_arr, len(entropy_arr))
+        self.logger.info(f'entropy_arr (n={len(entropy_arr)}): {entropy_arr}')
         # entropy_arr = 0.5 * (entropy(P_list[0], M, axis=1) + entropy(P_list[1], M, axis=1))
 
         JS_list.append(entropy_arr)
