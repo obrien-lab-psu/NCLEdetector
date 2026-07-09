@@ -9,7 +9,7 @@
 #
 # Build (from repo root):
 #   docker build -f container/Dockerfile -t ghcr.io/obrien-lab-psu/entdetect:local .
-FROM mambaorg/micromamba:1.5.8-jammy
+FROM mambaorg/micromamba:2.8.1-ubuntu22.04
 
 # ---------------------------------------------------------------------------
 # System dependencies
