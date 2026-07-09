@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create the exactly-pinned conda environment from the lock file
 # ---------------------------------------------------------------------------
 COPY container/environment.lock.yml /tmp/environment.lock.yml
-RUN micromamba create -y --strict-channel-priority -n entdetect -f /tmp/environment.lock.yml \
+RUN micromamba create -y -n entdetect -f /tmp/environment.lock.yml \
     && micromamba clean --all --yes \
     && rm -f /tmp/environment.lock.yml
 
