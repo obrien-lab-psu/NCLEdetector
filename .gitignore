@@ -70,3 +70,12 @@ structure_files/
 
 # SLURM log files (can be hundreds of GB)
 assets/slurm/logs/
+
+# Generated per-trajectory SLURM scripts (produced by scripts/job_utilities/gen_slurms_*)
+assets/slurm/scripts/run_OP*traj*.slurm
+
+# Visualization scratch outputs
+viz_rep_struct/
+
+# Scratch images
+tmp.png
