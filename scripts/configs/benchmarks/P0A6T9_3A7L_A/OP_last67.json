@@ -1,0 +1,21 @@
+{
+  "ID": "P0A6T9",
+  "PSF": "/storage/group/epo2/default/ims86/git_slugs/Failure-to-Form_Native_Entanglements_slug/Simulations_of_Native_Entanglement_Misfolding/Temp_Quench_Dynamics/P0A6T9_3A7L_A/setup/P0A6T9_3A7L_A_rebuilt_clean_ca.psf",
+  "COR": "/storage/group/epo2/default/ims86/git_slugs/Failure-to-Form_Native_Entanglements_slug/Simulations_of_Native_Entanglement_Misfolding/Temp_Quench_Dynamics/P0A6T9_3A7L_A/setup/P0A6T9_3A7L_A_rebuilt_clean_ca.cor",
+  "sec_elements": "/scratch/ims86/EntDetect_Datastore/user_input/benchmarks/P0A6T9_3A7L_A/secondary_struc_defs.txt",
+  "domain": "/scratch/ims86/EntDetect_Datastore/user_input/benchmarks/P0A6T9_3A7L_A/domain_def.dat",
+  "ops": [
+    "Q",
+    "G",
+    "K"
+  ],
+  "CG": true,
+  "Calpha": true,
+  "nproc": 8,
+  "log_level": "INFO",
+  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/benchmarks/P0A6T9_3A7L_A/OP_last67",
+  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/benchmarks/P0A6T9_3A7L_A/OP_last67/logs",
+  "start": 6600,
+  "end": 6667,
+  "ent_detection_method": 2
+}

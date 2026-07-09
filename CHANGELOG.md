@@ -5,6 +5,31 @@ All notable changes to EntDetect will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-07-08
+
+### Added
+- **Containerization** (`container/`): reproducible Docker (`Dockerfile`) and Singularity/Apptainer (`apptainer.def`) images that expose all minimal-workflow console-scripts directly, an exact `environment.lock.yml`, a `smoke_test.sh`, and a `README.md`. GitHub Actions workflow (`.github/workflows/container.yml`) builds and pushes both to GHCR on version tags.
+- `scripts/run_OP_on_simulation_traj.py` — new `--end` flag (backward-compatible; default = end of trajectory) so a frame window can be selected from the config together with `--start`.
+- **`--config` (JSON/YAML) support** with CLI-over-config merge for `run_compare_sim2exp.py`, `run_population_modeling.py`, and `run_montecarlo.py`, via the new shared helper `scripts/_cli_config.py`.
+- `run_population_modeling.py` — optional integrated batch preprocessing (`--run_batch_native_ncle` and `batch_*` keys) that runs Workflow 4 Step 1 before the regression, plus configurable `load_data(...)` parameters (`sep`, `reg_var`, `response_var`, `var2binarize`, `mask_column`).
+- `run_montecarlo.py` — configurable `load_data(...)` parameters (`sep`, `reg_var`, `response_var`, `var2binarize`, `mask_column`, `ID_column`, `Length_column`).
+- `MassSpec` — automatic collection of per-trajectory SASA/XP arrays via `CollectOP` when a `sasa_dir`/`xp_dir` is provided (SASA always; Jwalk only with `--collect_jwalk_npy`, otherwise XP streaming).
+- **CG benchmark harness**: `scripts/benchmarks/setup_cg_benchmarks.py`, per-protein configs under `scripts/configs/benchmarks/`, config-driven SLURM arrays under `assets/slurm/scripts/benchmarks/` (MW1–4), and `Documentation/Benchmarks.md`.
+
+### Changed
+- **BREAKING** `run_montecarlo.py` — renamed `--outpath`→`--outdir` and `--tag`→`--ID` to match the underlying `MonteCarlo` API and the rest of the toolkit.
+- **BREAKING** `run_population_modeling.py` — renamed `--tag`→`--ID`.
+- **BREAKING** `run_compare_sim2exp.py` — removed the dead `--start`/`--end`/`--stride` flags (they were never used in the consistency test).
+- **BREAKING** `EntDetect.statistics.MonteCarlo.load_data(...)` — no longer takes `response_var` (it is reused from the constructor); `test_var` is auto-appended to the loaded columns when omitted from `reg_var`.
+- **BREAKING** `EntDetect.statistics` — `MSMStats` and `FoldingPathwayStats` moved to a one-init / path-based method API.
+- `EntDetect.compare_sim2exp.MassSpec.__init__` — added `sasa_dir`, `n_traj`, `n_frames`, `collect_jwalk_npy` parameters for in-constructor collection.
+- Documentation: substantial Workflow 2/3/4 tutorial and I/O-reference updates; fixed all broken table-of-contents anchors across the workflow tutorials.
+
+### Fixed
+- `EntDetect/order_params.py` — G computation crashed with `Cluster_NativeEntanglements() got an unexpected keyword argument 'outfile'`; corrected the call (`ID=`), unblocking all G/OP runs on CG structures.
+- `EntDetect/compare_sim2exp.py` — Workflow 3 consistency test aligned SASA/XP OP arrays to the MSM by **trajectory number** instead of MSM position, fixing a silent misalignment (and dropped trajectories) when the MSM mapping already excludes mirror trajectories.
+- `EntDetect/statistics.py` — `MonteCarlo` now handles single-entry gene lists (`np.atleast_1d`).
+
 ## [1.2.0] - 2026-06-11
 
 ### Added

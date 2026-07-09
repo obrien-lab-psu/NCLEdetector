@@ -57,6 +57,7 @@ def main(argv=None):
     ###---------------------------------------------------------------------------------------------------------
     import sys, os
     import argparse
+    import json
     import time
     import logging
     start_time = time.time()
@@ -66,33 +67,92 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Build a Markov state model from pre-computed order-parameter trajectories.")
 
+    parser.add_argument("--config", type=str, required=False, default=argparse.SUPPRESS,
+                        help="Optional path to JSON or YAML config file. CLI flags override config values.")
+
     # --- identity / IO ---
-    parser.add_argument("--outdir",  type=str, required=True,  help="Output directory for MSM results")
-    parser.add_argument("--OPpath",  type=str, required=True,  help="Directory containing Q/ and G/ subdirectories of per-trajectory OP files")
-    parser.add_argument("--ID",      type=str, required=True,  help="Base name for output files")
+    parser.add_argument("--outdir",  type=str, default=argparse.SUPPRESS, help="Output directory for MSM results")
+    parser.add_argument("--OPpath",  type=str, default=argparse.SUPPRESS, help="Directory containing Q/ and G/ subdirectories of per-trajectory OP files")
+    parser.add_argument("--ID",      type=str, default=argparse.SUPPRESS, help="Base name for output files")
 
     # --- frame selection ---
-    parser.add_argument("--start",   type=int, default=0,           help="First frame index to include, 0-based (default: 0)")
-    parser.add_argument("--end",     type=int, default=99999999999, help="Last frame index to include, 0-based (default: all frames)")
-    parser.add_argument("--stride",  type=int, default=1,           help="Frame stride for loading OP data (default: 1)")
+    parser.add_argument("--start",   type=int, default=argparse.SUPPRESS, help="First frame index to include, 0-based (default: 0)")
+    parser.add_argument("--end",     type=int, default=argparse.SUPPRESS, help="Last frame index to include, 0-based (default: all frames)")
+    parser.add_argument("--stride",  type=int, default=argparse.SUPPRESS, help="Frame stride for loading OP data (default: 1)")
 
     # --- MSM settings ---
-    parser.add_argument("--n_large_states", type=int,   default=10,          help="Number of metastable macro-states requested from PCCA+ (default: 10)")
-    parser.add_argument("--n_small_states", type=int,   default=1,           help="Number of inactive micro-state clusters (default: 1)")
-    parser.add_argument("--n_cluster",      type=int,   default=400,         help="Number of k-means microstates (default: 400)")
-    parser.add_argument("--kmean_stride",   type=int,   default=2,           help="Frame stride used during k-means clustering (default: 2)")
-    parser.add_argument("--lagtime",        type=int,   default=20,          help="MSM lag time in frames (default: 20)")
-    parser.add_argument("--dt",             type=float, default=0.015/1000,  help="MD timestep in ns (default: 1.5e-5)")
-    parser.add_argument("--ITS",            type=str,   default='False',     help="Run implied timescale analysis: True/False (default: False)")
+    parser.add_argument("--n_large_states", type=int,   default=argparse.SUPPRESS, help="Number of metastable macro-states requested from PCCA+ (default: 10)")
+    parser.add_argument("--n_small_states", type=int,   default=argparse.SUPPRESS, help="Number of inactive micro-state clusters (default: 1)")
+    parser.add_argument("--n_cluster",      type=int,   default=argparse.SUPPRESS, help="Number of k-means microstates (default: 400)")
+    parser.add_argument("--kmean_stride",   type=int,   default=argparse.SUPPRESS, help="Frame stride used during k-means clustering (default: 2)")
+    parser.add_argument("--lagtime",        type=int,   default=argparse.SUPPRESS, help="MSM lag time in frames (default: 20)")
+    parser.add_argument("--dt",             type=float, default=argparse.SUPPRESS, help="MD timestep in ns (default: 1.5e-5)")
+    parser.add_argument("--ITS",            type=str,   default=argparse.SUPPRESS, help="Run implied timescale analysis: True/False (default: False)")
 
     # --- trajectory filtering ---
-    parser.add_argument("--rm_traj_list", type=int, nargs='+', default=[], help="Trajectory numbers to exclude (e.g. confirmed mirror conformations)")
+    parser.add_argument("--rm_traj_list", type=int, nargs='+', default=argparse.SUPPRESS, help="Trajectory numbers to exclude (e.g. confirmed mirror conformations)")
 
     # --- logging ---
-    parser.add_argument("--log_level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging verbosity (default: INFO)")
-    parser.add_argument("--logdir",    type=str, default=None, help="Directory for log file (default: same as --outdir)")
+    parser.add_argument("--log_level", default=argparse.SUPPRESS, choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging verbosity (default: INFO)")
+    parser.add_argument("--logdir",    type=str, default=argparse.SUPPRESS, help="Directory for log file (default: same as --outdir)")
 
-    args = parser.parse_args(argv)
+    def _load_config_file(cfg_path):
+        if not os.path.isfile(cfg_path):
+            parser.error(f"--config file does not exist: {cfg_path}")
+        ext = os.path.splitext(cfg_path)[1].lower()
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as fh:
+                if ext == ".json":
+                    cfg = json.load(fh)
+                elif ext in {".yml", ".yaml"}:
+                    try:
+                        import yaml
+                    except ImportError:
+                        parser.error("YAML config requested but PyYAML is not installed.")
+                    cfg = yaml.safe_load(fh)
+                else:
+                    parser.error(f"Unsupported config extension '{ext}'. Use .json, .yml, or .yaml.")
+        except Exception as exc:
+            parser.error(f"Failed to load config file {cfg_path}: {exc}")
+        if cfg is None:
+            cfg = {}
+        if not isinstance(cfg, dict):
+            parser.error("Config file must define a top-level object/dictionary.")
+        return cfg
+
+    cli_args = vars(parser.parse_args(argv))
+    config_path = cli_args.pop("config", None)
+    config_args = _load_config_file(config_path) if config_path else {}
+
+    merged = {
+        "outdir": None,
+        "OPpath": None,
+        "ID": None,
+        "start": 0,
+        "end": 99999999999,
+        "stride": 1,
+        "n_large_states": 10,
+        "n_small_states": 1,
+        "n_cluster": 400,
+        "kmean_stride": 2,
+        "lagtime": 20,
+        "dt": 0.015/1000,
+        "ITS": "False",
+        "rm_traj_list": [],
+        "log_level": "INFO",
+        "logdir": None,
+    }
+    merged.update(config_args)
+    merged.update(cli_args)
+
+    if merged["outdir"] is None:
+        parser.error("Missing required argument: --outdir (or provide it in --config)")
+    if merged["OPpath"] is None:
+        parser.error("Missing required argument: --OPpath (or provide it in --config)")
+    if merged["ID"] is None:
+        parser.error("Missing required argument: --ID (or provide it in --config)")
+
+    args = argparse.Namespace(**merged)
 
     outdir = args.outdir
     OPpath = args.OPpath

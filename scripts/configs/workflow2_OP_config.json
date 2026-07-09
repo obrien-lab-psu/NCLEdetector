@@ -1,0 +1,21 @@
+{
+  "Traj": "420",
+  "ID": "1ZMR",
+  "PSF": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean_ca.psf",
+  "COR": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean_ca.cor",
+  "DCD": "/scratch/ims86/EntDetect_Datastore/user_input/cg_trajectories/420_prod.dcd",
+  "sec_elements": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/secondary_struc_defs.txt",
+  "domain": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/domain_def.dat",
+  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP",
+  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP/logs",
+  "start": 0,
+  "ops": ["Q", "G", "K"],
+  "CG": true,
+  "Calpha": true,
+  "ent_detection_method": 1,
+  "no_topoly": true,
+  "nproc": 10,
+  "chunk_frames": 100,
+  "chunk_suffix": "_chunk",
+  "log_level": "INFO"
+}

@@ -64,7 +64,7 @@ class ProteomeLogisticRegression:
         """
         self.dataframe_files = dataframe_files
         self.outdir = outdir
-        self.gene_list = np.loadtxt(gene_list, dtype=str)
+        self.gene_list = np.atleast_1d(np.loadtxt(gene_list, dtype=str))
         self.ID = ID
         self.logger = setup_logger('ProteomeLogisticRegression', outdir=logdir if logdir is not None else outdir, ID=ID, log_level=log_level)
         self.logger.info('Initializing ProteomeLogisticRegression')
@@ -313,7 +313,7 @@ class MonteCarlo:
         """
         self.dataframe_files = dataframe_files
         self.outdir = outdir
-        self.gene_list = np.loadtxt(gene_list, dtype=str)
+        self.gene_list = np.atleast_1d(np.loadtxt(gene_list, dtype=str))
         self.num_genes = len(self.gene_list)
         self.logger = setup_logger('MonteCarlo', outdir=logdir if logdir is not None else outdir, ID=ID, log_level=log_level)
         self.logger.debug(f'gene_list: {self.gene_list} {self.num_genes}')
@@ -441,25 +441,29 @@ class MonteCarlo:
     ################################################################################################
 
     ################################################################################################
-    def load_data(self, sep:str, reg_var:list, response_var:str, var2binarize:list, mask_column:str, ID_column:str, Length_column:str):
+    def load_data(self, sep:str, reg_var:list, var2binarize:list, mask_column:str, ID_column:str, Length_column:str):
         """
         Loads the residue feature files and filters the data for analysis.
         
         Parameters:
         - sep (str): The separator used in the CSV files.
         - reg_var (list): List of regression variables to include in the analysis.
-        - response_var (str): The response variable for the regression.
         - var2binarize (list): List of variables to binarize. Best not to use booleans and convert to 0/1
         - mask_column (list): Column header to use for masking the data. Should be a column containing null values for samples to exclude. 
         - ID_column (str): Column header for the gene ID.
         """
+
+        reg_var = list(reg_var)
+        if self.test_var not in reg_var:
+            self.logger.info(f'Appending test_var {self.test_var} to reg_var for MonteCarlo loading')
+            reg_var.append(self.test_var)
 
         self.data = pd.DataFrame()
         self.n = 0
         self.prot_size = {'gene':[], 'prot_size':[]}
         if os.path.isfile(self.dataframe_files):
             self.logger.info(f'Loading single design matrix file: {self.dataframe_files}')
-            self.data = pd.read_csv(self.dataframe_files, sep=sep, usecols=reg_var+[response_var]+[mask_column, ID_column, Length_column])
+            self.data = pd.read_csv(self.dataframe_files, sep=sep, usecols=reg_var+[self.response_var]+[mask_column, ID_column, Length_column])
             self.data = self.data[self.data[ID_column].isin(self.gene_list)]
             self.n = len(self.data[ID_column].dropna().unique())
 
@@ -484,12 +488,12 @@ class MonteCarlo:
                 gene_resFeat_file = gene_resFeat[0]
                 #print(f'gene_resFeat_file: {gene_resFeat_file} {i}')
                 if len(self.data) == 0:
-                    self.data = pd.read_csv(gene_resFeat_file, sep=sep, usecols=reg_var+[response_var]+[mask_column, ID_column, Length_column])
+                    self.data = pd.read_csv(gene_resFeat_file, sep=sep, usecols=reg_var+[self.response_var]+[mask_column, ID_column, Length_column])
                     self.n += 1
                     self.prot_size['gene'] += [gene]
                     self.prot_size['prot_size'] += [self.data[Length_column].values[0]]
                 else:
-                    df = pd.read_csv(gene_resFeat_file, sep=sep, usecols=reg_var+[response_var]+[mask_column, ID_column, Length_column])
+                    df = pd.read_csv(gene_resFeat_file, sep=sep, usecols=reg_var+[self.response_var]+[mask_column, ID_column, Length_column])
                     self.data = pd.concat((self.data, df))
                     self.n += 1
                     self.prot_size['gene'] += [gene]
@@ -504,7 +508,7 @@ class MonteCarlo:
         self.logger.info(f'number of genes: {len(self.data[ID_column].unique())}')
 
         self.data = self.encode_boolean_columns(self.data, boolean_columns=var2binarize)
-        self.data = self.data[[ID_column]+[response_var]+reg_var]
+        self.data = self.data[[ID_column]+[self.response_var]+reg_var]
         self.logger.info(f'Loaded Regression DataFrame:\n{self.data}')
 
         self.prot_size = pd.DataFrame(self.prot_size)
@@ -512,8 +516,8 @@ class MonteCarlo:
         #print(f"Data loaded and filtered. Number of unique genes: {len(self.data['gene'].unique())}")
 
         if self.random:
-            self.logger.info(f'Randomizing {response_var} column')
-            self.data[response_var] = self.data[response_var].sample(frac=1).values
+            self.logger.info(f'Randomizing {self.response_var} column')
+            self.data[self.response_var] = self.data[self.response_var].sample(frac=1).values
             self.logger.info(f'Randomized Regression DataFrame:\n{self.data}')
 
     ################################################################################################
@@ -791,7 +795,7 @@ class MonteCarlo:
             dfs += [reg_row]
 
             ## save the final gene list for the state
-            state_final_genelist_outfile = f'{self.outdir}State{state}_final_genelist_{self.ID}.txt'
+            state_final_genelist_outfile = os.path.join(self.outdir, f'State{state}_final_genelist_{self.ID}.txt')
             logging.info(state_data['genes'])
             np.savetxt(state_final_genelist_outfile, list(state_data['genes']), fmt='%s')
             logging.info(f'SAVED: {state_final_genelist_outfile}')
@@ -811,7 +815,7 @@ class MonteCarlo:
                 state_df['beta'] += [state_data['beta'][i]]
             state_df = pd.DataFrame(state_df)
             #print(state_df)
-            state_final_traj_outfile = f'{self.outdir}State{state}_final_traj_{self.ID}.csv'
+            state_final_traj_outfile = os.path.join(self.outdir, f'State{state}_final_traj_{self.ID}.csv')
             state_df.to_csv(state_final_traj_outfile, index=False)
             logging.info(f'SAVED: {state_final_traj_outfile}')
 
@@ -819,7 +823,7 @@ class MonteCarlo:
         self.logger.debug(outdf)
 
         ## Save the final step regression data
-        final_step_outfile = f'{self.outdir}Final_step_reg_{self.ID}.csv'
+        final_step_outfile = os.path.join(self.outdir, f'Final_step_reg_{self.ID}.csv')
         outdf.to_csv(final_step_outfile, index=False)
         self.logger.debug(f'SAVED: {final_step_outfile}')
         logging.info(f'SAVED: {final_step_outfile}')
@@ -885,10 +889,6 @@ class FoldingPathwayStats:
     def __init__(self, outdir:str='./FoldingPathwayStats', 
                  n_window:int=200, 
                  n_traj:int=1000, 
-                 tarj_type_col:str='traj_type',
-                 traj_type_list:list=['A', 'B'], 
-                 msm_data:pd.DataFrame()=None, 
-                 meta_set_file:str='',
                  state_type:str='metastablestate',
                  rm_traj_list:list=[], log_level:int=logging.INFO, logdir:str=None): 
         """
@@ -900,10 +900,6 @@ class FoldingPathwayStats:
         self.outdir = outdir
         self.n_window = n_window
         self.n_traj = n_traj
-        self.tarj_type_col = tarj_type_col
-        self.traj_type_list = traj_type_list
-        self.msm_data = msm_data
-        self.meta_set_file = meta_set_file
         self.state_type = state_type
         self.rm_traj_list = [str(t) for t in rm_traj_list]  # Ensure rm_traj_list is a list of strings
         if self.state_type not in ['microstate', 'metastablestate']:
@@ -922,7 +918,7 @@ class FoldingPathwayStats:
     ####################################################################
 
     ####################################################################
-    def post_trans(self, ):
+    def post_trans(self, msm_data_file:str, traj_type_col:str, traj_type_list:list, outdir:str=None, outfile_name:str=None):
         """
         The folding pathways are identified as following:
 
@@ -939,14 +935,24 @@ class FoldingPathwayStats:
         # print(f'Loading MSM data from {self.msm_data}')
         # msm_data = pd.read_csv(self.msm_data)
         # print(f'msm_data:\n{msm_data}')
-        msm_data = self.msm_data[~self.msm_data['traj'].isin(self.rm_traj_list)]
+        if not msm_data_file:
+            raise ValueError('msm_data_file must be provided')
+        if not traj_type_list:
+            raise ValueError('traj_type_list must contain at least one trajectory type label')
+
+        target_outdir = outdir if outdir is not None else self.outdir
+        os.makedirs(target_outdir, exist_ok=True)
+
+        self.logger.info(f'Loading MSM data from {msm_data_file}')
+        msm_data = pd.read_csv(msm_data_file)
+        msm_data = msm_data[~msm_data['traj'].isin(self.rm_traj_list)]
         self.logger.info(f'msm_data:\n{msm_data}')
 
         folding_pathways = {}
-        folding_pathways_df = {self.tarj_type_col:[], 'pathway':[], 'probability':[]}
-        for traj_type in self.traj_type_list:
+        folding_pathways_df = {traj_type_col:[], 'pathway':[], 'probability':[]}
+        for traj_type in traj_type_list:
             self.logger.info(f'Processing {traj_type} trajectories')
-            traj_type_msm_data = msm_data[msm_data[self.tarj_type_col] == traj_type]
+            traj_type_msm_data = msm_data[msm_data[traj_type_col] == traj_type]
             self.logger.info(f'traj_type_msm_data:\n{traj_type_msm_data}')
                 
             # Quality check that there is data
@@ -1017,14 +1023,16 @@ class FoldingPathwayStats:
             folding_pathways[traj_type] = {'pathways': sort_pathways, 'states_on_pathway': states_on_pathway}
 
             for path, prob in sort_pathways:
-                folding_pathways_df[self.tarj_type_col].append(traj_type)
+                folding_pathways_df[traj_type_col].append(traj_type)
                 folding_pathways_df['pathway'].append(path)
                 folding_pathways_df['probability'].append(prob)
 
         # print(folding_pathways)
         folding_pathways_df = pd.DataFrame(folding_pathways_df)
         self.logger.debug(folding_pathways_df)
-        outfile = os.path.join(self.outdir, f'FoldingPathways_{self.state_type}_{"-".join(self.traj_type_list)}.csv')
+        if outfile_name is None:
+            outfile_name = f'FoldingPathways_{self.state_type}_{"-".join(traj_type_list)}.csv'
+        outfile = os.path.join(target_outdir, outfile_name)
         folding_pathways_df.to_csv(outfile, index=False)
         self.logger.info(f'Saved folding pathways to {outfile}')
 
@@ -1032,24 +1040,38 @@ class FoldingPathwayStats:
     ####################################################################
 
     ####################################################################
-    def JS_divergence(self,):
+    def JS_divergence(self, msm_data_file:str, traj_type_col:str, traj_type_list:list, meta_set_file:str=None, outdir:str=None, outfile_name:str=None):
 
         # Load MSM data
         # print(f'Loading MSM data from {self.msm_data}')
         # msm_data = pd.read_csv(self.msm_data)
         # print(f'msm_data:\n{msm_data}')
         # msm_data = msm_data[~msm_data['traj'].isin(self.rm_traj_list)]
-        msm_data = self.msm_data[~self.msm_data['traj'].isin(self.rm_traj_list)]
+        if not msm_data_file:
+            raise ValueError('msm_data_file must be provided')
+        if not traj_type_list:
+            raise ValueError('traj_type_list must contain at least one trajectory type label')
+
+        target_outdir = outdir if outdir is not None else self.outdir
+        os.makedirs(target_outdir, exist_ok=True)
+
+        self.logger.info(f'Loading MSM data from {msm_data_file}')
+        msm_data = pd.read_csv(msm_data_file)
+        msm_data = msm_data[~msm_data['traj'].isin(self.rm_traj_list)]
         self.logger.info(f'msm_data:\n{msm_data}')
 
         dtrajs = np.asarray([msm_data[msm_data['traj'] == t][self.state_type].values for t in msm_data['traj'].unique()])
         self.logger.info(f'dtrajs shape: {dtrajs.shape}\n{dtrajs}')
 
         # Load the meta set
-        meta_set_df = pd.read_csv(self.meta_set_file)
-        self.logger.info(f'meta_set_df:\n{meta_set_df}')
-        meta_set = [s['microstates'].values for i, s in meta_set_df.groupby('metastable_state')]
-        self.logger.debug(f'meta_set: {meta_set}')
+        meta_set = []
+        if self.state_type == 'microstate':
+            if not meta_set_file:
+                raise ValueError('meta_set_file must be provided when state_type is microstate')
+            meta_set_df = pd.read_csv(meta_set_file)
+            self.logger.info(f'meta_set_df:\n{meta_set_df}')
+            meta_set = [s['microstates'].values for i, s in meta_set_df.groupby('metastable_state')]
+            self.logger.debug(f'meta_set: {meta_set}')
 
         # Get the number of states present for the state type
         n_states = len(np.unique(dtrajs))
@@ -1060,16 +1082,16 @@ class FoldingPathwayStats:
         self.logger.debug(f'max_T_len: {max_T_len}')
             
         # make list of traj_idx for each mutant type
-        mtype2trajid = {traj_type: [] for traj_type in self.traj_type_list}
+        mtype2trajid = {traj_type: [] for traj_type in traj_type_list}
         for i_ax, (traj, traj_df) in enumerate(msm_data.groupby('traj')):
-            traj_type = traj_df[self.tarj_type_col].values[0]
+            traj_type = traj_df[traj_type_col].values[0]
             if traj_type in mtype2trajid:
                 mtype2trajid[traj_type].append(i_ax)
         self.logger.debug(f'mtype2trajid: {mtype2trajid}')
 
         # analysis MSM for each mutant
         P_list = []
-        for i_ax, traj_type in enumerate(self.traj_type_list):
+        for i_ax, traj_type in enumerate(traj_type_list):
             dtrajs_0 = dtrajs[mtype2trajid[traj_type]]
             self.logger.info(f'Processing {traj_type} trajectories with {len(dtrajs_0)} trajectories')
             P_list_0 = np.zeros((max_T_len, n_states))
@@ -1093,7 +1115,7 @@ class FoldingPathwayStats:
         if self.state_type == 'microstate':
             for ms in meta_set:
                 P_list_0 = []
-                for i_ax, traj_type in enumerate(self.traj_type_list):
+                for i_ax, traj_type in enumerate(traj_type_list):
                     P = np.copy(P_list[i_ax][:,ms])
                     for i in range(len(P)):
                         if np.sum(P[i,:]) != 0:
@@ -1126,7 +1148,9 @@ class FoldingPathwayStats:
         JS_list = np.array(JS_list).T
 
         ## write the output file
-        outfile = os.path.join(self.outdir, f'JS_div_{self.state_type}_{"-".join(self.traj_type_list)}.dat')
+        if outfile_name is None:
+            outfile_name = f'JS_div_{self.state_type}_{"-".join(traj_type_list)}.dat'
+        outfile = os.path.join(target_outdir, outfile_name)
         fo = open(outfile, 'w')
         fo.write('%10s '%('Time(s)'))
         for j in range(JS_list.shape[1]-1):
@@ -1139,6 +1163,7 @@ class FoldingPathwayStats:
             fo.write('\n')
         fo.close()
         self.logger.debug(f'SAVED: {outfile}')
+        return JS_list
     ####################################################################
 
 #########################################################################################################################
@@ -1153,10 +1178,6 @@ class MSMStats:
     def __init__(self, outdir:str='./MSMStats', 
                  n_window:int=200, 
                  n_traj:int=1000, 
-                 traj_type_list:list=['A', 'B'], 
-                 tarj_type_col:str='traj_type',
-                 msm_data_file:str='', 
-                 meta_set_file:str='',
                  state_type:str='metastablestate',
                  rm_traj_list:list=[], log_level:int=logging.INFO, logdir:str=None): 
         """
@@ -1168,10 +1189,6 @@ class MSMStats:
         self.outdir = outdir
         self.n_window = n_window
         self.n_traj = n_traj
-        self.traj_type_list = traj_type_list
-        self.tarj_type_col = tarj_type_col
-        self.msm_data_file = msm_data_file
-        self.meta_set_file = meta_set_file
         self.state_type = state_type
         self.rm_traj_list = [str(t) for t in rm_traj_list]  # Ensure rm_traj_list is a list of strings
         if self.state_type not in ['microstate', 'metastablestate']:
@@ -1195,12 +1212,17 @@ class MSMStats:
     ####################################################################
 
     ####################################################################
-    def StateProbabilityStats(self, ):
+    def StateProbabilityStats(self, msm_data_file:str, traj_type_col:str, traj_type_list:list, outfile_name:str='MSTS.csv', outdir:str=None):
         """
         This function calculates the state probabilities from the MSM data and saves them to a file.
         It also calculates the bootstrap statistics for the state probabilities.
-        """        
-        outfile = os.path.join(self.outdir, f'MSTS.csv')
+        """
+        if not traj_type_list:
+            raise ValueError('traj_type_list must contain at least one trajectory type label')
+
+        target_outdir = outdir if outdir is not None else self.outdir
+        os.makedirs(target_outdir, exist_ok=True)
+        outfile = os.path.join(target_outdir, outfile_name)
         if os.path.exists(outfile):
             self.logger.info(f'File {outfile} already exists. Skipping calculation.')
             df = pd.read_csv(outfile)
@@ -1210,8 +1232,8 @@ class MSMStats:
         
         else:
             # Load MSM data
-            self.logger.info(f'Loading MSM data from {self.msm_data_file}')
-            msm_data = pd.read_csv(self.msm_data_file)
+            self.logger.info(f'Loading MSM data from {msm_data_file}')
+            msm_data = pd.read_csv(msm_data_file)
             self.logger.info(f'msm_data:\n{msm_data}')
             msm_data = msm_data[~msm_data['traj'].isin(self.rm_traj_list)]
             self.logger.info(f'msm_data:\n{msm_data}')
@@ -1243,12 +1265,12 @@ class MSMStats:
 
             MSTS_list = []
             boot_stat_list = []
-            df = {self.tarj_type_col:[], 'Time(s)':[], 'State':[], 'Probability':[], 'Lower CI':[], 'Upper CI':[]}
-            for i_ax, traj_type in enumerate(self.traj_type_list):
+            df = {traj_type_col:[], 'Time(s)':[], 'State':[], 'Probability':[], 'Lower CI':[], 'Upper CI':[]}
+            for i_ax, traj_type in enumerate(traj_type_list):
                 self.logger.info(f'Processing {traj_type} trajectories')
 
                 ## Get the dtrajs for this trajectory type
-                meta_dtrajs = msm_data[msm_data[self.tarj_type_col] == traj_type]
+                meta_dtrajs = msm_data[msm_data[traj_type_col] == traj_type]
                 self.logger.info(f'meta_dtrajs:\n{meta_dtrajs}')
                 meta_dtrajs = np.asarray([meta_dtrajs[meta_dtrajs['traj'] == t][self.state_type].values for t in meta_dtrajs['traj'].unique()])
                 self.logger.info(f'meta_dtrajs:\n{meta_dtrajs} shape: {meta_dtrajs.shape}')
@@ -1294,14 +1316,14 @@ class MSMStats:
                 ## make the output dataframe 
                 for i in range(PPT.shape[0]):
                     for j in range(n_states):
-                        df[self.tarj_type_col].append(traj_type)
+                        df[traj_type_col].append(traj_type)
                         df['Time(s)'].append(t_span[i])
                         df['State'].append(j+1)  # +1 because states are 0-indexed in the data
                         df['Probability'].append(PPT[i,j])
                         df['Lower CI'].append(lower[i,j])
                         df['Upper CI'].append(upper[i,j])
             df = pd.DataFrame(df)
-            df = df.sort_values(by=[self.tarj_type_col, 'State', 'Time(s)'])
+            df = df.sort_values(by=[traj_type_col, 'State', 'Time(s)'])
             self.logger.debug(df)
 
             ## save the dataframe to a csv file
@@ -1311,21 +1333,25 @@ class MSMStats:
     ####################################################################
 
     ####################################################################
-    def Plot_StateProbabilityStats(self, df=None):
+    def Plot_StateProbabilityStats(self, df:pd.DataFrame, traj_type_col:str, traj_type_list:list, outdir:str=None, filename_prefix:str=''):
         """
         This function plots the state probabilities from the MSM data.
         Makes one plot for each traj_type.
         It also adds the confidence intervals.
         """
         if df is None:
-            df = self.StateProbabilityStats()
-        
-        for traj_type in self.traj_type_list:
-            outfile = os.path.join(self.outdir, f'{traj_type}_MSTS_plot.png')
+            raise ValueError('df must be provided. Generate it first with StateProbabilityStats(...).')
+
+        target_outdir = outdir if outdir is not None else self.outdir
+        os.makedirs(target_outdir, exist_ok=True)
+
+        for traj_type in traj_type_list:
+            prefix = f'{filename_prefix}_' if filename_prefix else ''
+            outfile = os.path.join(target_outdir, f'{prefix}{traj_type}_MSTS_plot.png')
             self.logger.info(f'Plotting state probabilities to {outfile}')
             plt.figure(figsize=(10, 6))
             
-            traj_df = df[df[self.tarj_type_col] == traj_type]
+            traj_df = df[df[traj_type_col] == traj_type]
             for state in traj_df['State'].unique():
                 state_df = traj_df[traj_df['State'] == state]
                 plt.plot(state_df['Time(s)'], state_df['Probability'], label=f'{traj_type} State {state}')

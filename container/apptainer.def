@@ -1,0 +1,41 @@
+# EntDetect Apptainer/Singularity definition.
+#
+# Bootstraps directly from the published Docker image on GHCR so the Singularity
+# image has IDENTICAL contents and functionality to the Docker image.
+#
+# Build a .sif (no root needed with --fakeroot on most HPC):
+#   apptainer build entdetect.sif container/apptainer.def
+# or pull the prebuilt image directly:
+#   apptainer pull entdetect.sif docker://ghcr.io/obrien-lab-psu/entdetect:latest
+#
+# Run a minimal workflow (bind your datastore 1:1 so config paths resolve):
+#   apptainer exec --bind /scratch/me/EntDetect_Datastore \
+#       entdetect.sif run_OP_on_simulation_traj --config /scratch/me/.../OP.json
+Bootstrap: docker
+From: ghcr.io/obrien-lab-psu/entdetect:latest
+
+%labels
+    Maintainer obrien-lab-psu
+    Description EntDetect NCLE detection toolkit (minimal-workflow CLIs)
+
+%environment
+    export PATH=/opt/conda/envs/entdetect/bin:$PATH
+    export MAMBA_DEFAULT_ENV=entdetect
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+
+%runscript
+    # `apptainer run entdetect.sif <tool> [args]` runs any console-script;
+    # with no args it drops into a shell.
+    if [ "$#" -eq 0 ]; then
+        exec bash
+    else
+        exec "$@"
+    fi
+
+%test
+    # Verify the environment and bundled tools are functional in the built image.
+    export PATH=/opt/conda/envs/entdetect/bin:$PATH
+    run_OP_on_simulation_traj --help >/dev/null && echo "console-scripts OK"
+    perl --version >/dev/null && echo "perl OK"
+    python -c "import EntDetect, topoly, mdtraj, MDAnalysis, freesasa, pyemma; print('python stack OK')"

@@ -259,7 +259,7 @@ Qdata = CalcOP.Q()
 Gdata = CalcOP.G(topoly=True)
 Kdata = CalcOP.K()
 SASAdata = CalcOP.SASA()
-XPdata = CalcOP.XP(pdb='protein.pdb')
+XPdata = CalcOP.XP(pdb_file='protein.pdb')
 ```
 
 **Notes:**

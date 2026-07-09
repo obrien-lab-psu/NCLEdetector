@@ -21,24 +21,8 @@ class FeatureGen:
     Processes biological data including PDB files, sequence data, and interaction potentials.
     """
     #############################################################################################################
-    def __init__(self, PDBfile:str, outdir:str='./', cluster_file:str='None', log_level:int=logging.INFO, logdir:str=None):
-        self.PDBfile = PDBfile
-        self.outdir = outdir
-        self.logger = setup_logger('FeatureGen', outdir=logdir if logdir is not None else outdir, log_level=log_level)
-
-        if not os.path.exists(self.outdir):
-            os.makedirs(self.outdir)
-            self.logger.debug(f'Made directory: {self.outdir}')
-
-        self.traj = md.load(PDBfile) 
-        #print(f'traj: {self.traj}')
-
-        ## parse lines to get native contacts, crossings,
-        if os.path.exists(cluster_file):
-            self.GE_data = pd.read_csv(cluster_file, sep='|', dtype={'c': str, 'crossingsN': str, 'crossingsC': str})
-            #print(self.GE_data)
-        else:
-            raise ValueError(f"{self.cluster_file} does not exits")
+    def __init__(self, log_level:int=logging.INFO, logdir:str=None):
+        self.logger = setup_logger('FeatureGen', outdir=logdir if logdir is not None else './', log_level=log_level)
     #############################################################################################################
 
     #############################################################################################################
@@ -123,10 +107,25 @@ class FeatureGen:
     #############################################################################################################
 
     #############################################################################################################
-    def get_uent_features(self, gene:str, pdbid:str, chain:str='A'):
+    def get_uent_features(self, pdb_file:str, outdir:str='./', cluster_file:str='None', gene:str='None', pdbid:str='None', chain:str='A'):
         """
         Get the features for each unique entanglement provided in the clustered_unampped_GE file
         """
+
+        self.pdb_file = pdb_file
+        self.outdir = outdir
+        self.cluster_file = cluster_file
+
+        if not os.path.exists(self.outdir):
+            os.makedirs(self.outdir)
+            self.logger.debug(f'Made directory: {self.outdir}')
+
+        self.traj = md.load(self.pdb_file)
+
+        if os.path.exists(self.cluster_file):
+            self.GE_data = pd.read_csv(self.cluster_file, sep='|', dtype={'c': str, 'crossingsN': str, 'crossingsC': str})
+        else:
+            raise ValueError(f"{self.cluster_file} does not exist")
 
         uent_df = {'gene':[],
                     'PDB':[],
@@ -177,7 +176,7 @@ class FeatureGen:
         
 
         # Get the protein size from uniprot and a dictionary that maps resid to amino acid (one letter)
-        self.get_AA(self.PDBfile, gene)
+        self.get_AA(self.pdb_file, gene)
         self.logger.debug(f'gene: {gene}, chain: {chain}, pdbid: {pdbid}, prot_size: {self.prot_size}')
 
         ## parse lines to get native contacts, crossings,

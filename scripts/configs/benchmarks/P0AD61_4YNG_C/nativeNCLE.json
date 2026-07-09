@@ -1,0 +1,17 @@
+{
+  "pdb_file": "/scratch/ims86/EntDetect_Datastore/user_input/benchmarks/P0AD61_4YNG_C/P0AD61_ca.pdb",
+  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow1/benchmarks/P0AD61_4YNG_C",
+  "ID": "P0AD61",
+  "chain": "A",
+  "organism": "Ecoli",
+  "gene": "P0AD61",
+  "model": "EXP",
+  "CG": true,
+  "Calpha": true,
+  "ent_detection_method": 2,
+  "g_threshold": 0.6,
+  "density": 1.0,
+  "cut_off": null,
+  "log_level": "INFO",
+  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow1/benchmarks/P0AD61_4YNG_C/logs"
+}

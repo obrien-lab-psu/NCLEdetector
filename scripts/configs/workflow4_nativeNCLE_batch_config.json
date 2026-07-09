@@ -1,0 +1,16 @@
+{
+    "batch_pdb_dir": "/scratch/ims86/EntDetect_Datastore/user_input/proteome_structures/AF",
+    "gene_list": "/scratch/ims86/EntDetect_Datastore/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_ent_genes.txt",
+    "batch_outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/nativeNCLE_all",
+    "batch_organism": "Ecoli",
+    "batch_model": "AF",
+    "batch_ent_detection_method": 3,
+    "batch_g_threshold": 0.6,
+    "batch_density": 1.0,
+    "batch_residue_features_file": "/scratch/ims86/EntDetect_Datastore/user_input/experimental_data/PDB_residue_features/AF/residueFeatures.csv",
+    "reg_formula": "cut_C_Rall ~ AA + region",
+    "batch_design_matrix_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/residue_dataframes_workflow4.csv",
+    "batch_nproc": 16,
+    "batch_logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/logs",
+    "log_level": "INFO"
+}

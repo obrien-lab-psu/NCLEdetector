@@ -300,7 +300,7 @@ class CalculateOP:
         
         ## Cluster the native entanglements
         self.logger.info(f'Clustering the native entanglements...')
-        nativeClusteredEnt = clustering.Cluster_NativeEntanglements(NativeEnt['outfile'], outdir=os.path.join(self.Gpath,'Native_clustered_GE/'), outfile=f'{self.ID}_NativeEntClusters.txt')
+        nativeClusteredEnt = clustering.Cluster_NativeEntanglements(NativeEnt['outfile'], outdir=os.path.join(self.Gpath,'Native_clustered_GE/'), ID=f'{self.ID}_native')
         #print(nativeClusteredEnt)
         
         ## Get the trajectory entanglements
@@ -481,12 +481,12 @@ class CalculateOP:
     #######################################################################################
 
     #######################################################################################
-    def XP(self, pdb:str='None', use_traj:bool=False, nproc:int=1) -> dict:
+    def XP(self, pdb_file:str='None', use_traj:bool=False, nproc:int=1, **kwargs) -> dict:
         """
         Calculates the cross-linking probability (XP) for all pairs of amino acid types [K, S, T, Y, M].
 
         use_traj=False (default):
-            Runs on the single static PDB supplied as `pdb` — original behaviour.
+            Runs on the single static PDB supplied as `pdb_file`.
             Output: XP/Jwalk_results_{ID}_Traj{N}/Jwalk_results/{stem}_crosslink_list.txt
 
         use_traj=True:
@@ -496,6 +496,13 @@ class CalculateOP:
             XP/{ID}_Traj{N}.XP  with columns: Frame | Index | Model | Atom1 | Atom2 | SASD | Euclidean Distance | XP
             nproc > 1 parallelises frame-level Jwalk runs via ThreadPoolExecutor.
         """
+        legacy_pdb = kwargs.pop('pdb', None)
+        if kwargs:
+            unexpected = ', '.join(sorted(kwargs.keys()))
+            raise TypeError(f"Unexpected keyword argument(s): {unexpected}")
+        if legacy_pdb is not None and pdb_file == 'None':
+            pdb_file = legacy_pdb
+
         traj_nproc = 1 # number of processors in the pool for the trajectory mode — Jwalk is not thread safe so must be run with nproc=1, but we can parallelise across frames with ThreadPoolExecutor
 
         # make output directory
@@ -509,9 +516,9 @@ class CalculateOP:
         if not use_traj:
             # ── single-PDB path (original behaviour, unchanged) ───────────────
             xl_list = os.path.join(self.XPpath, f'{self.ID}_Traj{self.Traj}_XLresidue_pairs.txt')
-            self.find_residue_pairs(pdb, output_file=xl_list)
+            self.find_residue_pairs(pdb_file, output_file=xl_list)
 
-            pdbObj = pathlib.Path(pdb)
+            pdbObj = pathlib.Path(pdb_file)
             if not pdbObj.exists():
                 self.logger.error(f'ERROR: The input file supplied cannot be found. Please enter a .pdb file type')
                 sys.exit(2)
@@ -520,7 +527,7 @@ class CalculateOP:
             if os.path.exists(Jwalk_outfile):
                 self.logger.info(f'Jwalk outfile exists: {Jwalk_outfile}')
             else:
-                self.runJwalk(pdb, xl_list=xl_list, max_dist=50.0,
+                self.runJwalk(pdb_file, xl_list=xl_list, max_dist=50.0,
                               jwalk_results_dir=jwalk_results_dir, vox=1, ncpus=nproc)
                 self.logger.debug('Jwalk calculated')
 
@@ -548,7 +555,7 @@ class CalculateOP:
 
             # compute residue pairs once from the reference PDB (topology is frame-invariant)
             xl_list = os.path.join(self.XPpath, f'{self.ID}_Traj{self.Traj}_XLresidue_pairs.txt')
-            self.find_residue_pairs(pdb, output_file=xl_list)
+            self.find_residue_pairs(pdb_file, output_file=xl_list)
 
             # temporary directory for per-frame PDB files
             frames_dir = os.path.join(self.XPpath, f'frames_Traj{self.Traj}')

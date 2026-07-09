@@ -24,8 +24,8 @@
 # CPUs: 8
 #
 # Prerequisites:
-#   - Per-traj SASA files: /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA/SASA/
-#   - Per-traj XP files: /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA/XP/
+#   - Per-traj SASA files: /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA_last67/SASA/
+#   - Per-traj XP files: /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA_last67/XP/
 #   - Experimental Excel files: /scratch/ims86/EntDetect_Datastore/exp_data/
 #   - MSM data: /scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM/
 #
@@ -69,8 +69,8 @@ echo "Verifying prerequisites..."
 
 DATASTORE=/scratch/ims86/EntDetect_Datastore
 OUTDIR=$DATASTORE/outputs/workflow3
-SASA_DIR=$DATASTORE/outputs/workflow2/OP_AA/SASA
-XP_DIR=$DATASTORE/outputs/workflow2/OP_AA/XP
+SASA_DIR=$DATASTORE/outputs/workflow2/OP_AA_last67/SASA
+XP_DIR=$DATASTORE/outputs/workflow2/OP_AA_last67/XP
 
 if [[ ! -d "$SASA_DIR" ]] || [[ -z $(ls -1 $SASA_DIR/*.SASA 2>/dev/null | head -1) ]]; then
     echo "ERROR: SASA files not found in $SASA_DIR"
@@ -116,25 +116,22 @@ python scripts/run_compare_sim2exp.py \
     --sasa_dir "$SASA_DIR" \
     --xp_dir "$XP_DIR" \
     --n_traj 1000 \
-    --n_frames 335 \
+    --n_frames 67 \
     --msm_data_file "$DATASTORE/outputs/workflow2/MSM/1ZMR_prod_MSMmapping.csv" \
     --meta_dist_file "$DATASTORE/outputs/workflow2/MSM/1ZMR_prod_meta_dist.npy" \
     --LiPMS_exp_file "$EXP_DATA_DIR/ecPGK_significant_LiPMS_peptide_R1_merged.xlsx" \
     --XLMS_exp_file "$EXP_DATA_DIR/ecPGK_significant_XLMS_peptide_R1_merged.xlsx" \
-    --cluster_data_file "$DATASTORE/outputs/workflow2/nonnative_clustering/cluster_data_topoly_linking_number.npz" \
-    --OPpath "$DATASTORE/outputs/workflow2/OP_AA/" \
+    --cluster_data_file "$DATASTORE/outputs/workflow2/nonnative_clustering_last67/cluster_data_topoly_linking_number.npz" \
+    --OPpath "$DATASTORE/outputs/workflow2/OP_last67/" \
     --AAdcd_dir "$DATASTORE/user_input/aa_trajectories/" \
     --native_AA_pdb "$DATASTORE/user_input/reference_structures/1zmr_model_clean.pdb" \
-    --state_idx_list 4 5 6 7 \
+    --state_idx_list 5 6 7 8 \
     --prot_len 387 \
-    --last_num_frames 335 \
+    --last_num_frames 67 \
     --rm_traj_list 65 75 155 162 199 231 264 286 296 314 354 417 448 472 473 474 577 579 591 703 704 732 758 812 833 870 876 944 967 \
-    --native_state_idx 8 \
-    --outdir "$OUTDIR/MassSpec_ConsistencyTest" \
+    --native_state_idx 9 \
+    --outdir "$OUTDIR/MassSpec_ConsistencyTest_last67" \
     --ID 1ZMR \
-    --start 0 \
-    --end -1 \
-    --stride 1 \
     --num_perm 1000 \
     --n_boot 100 \
     --lag_frame 20 \
@@ -156,11 +153,17 @@ if [[ $EXIT_CODE -eq 0 ]]; then
     echo ""
     echo "✓ Consistency test completed successfully!"
     echo ""
-    echo "Output files saved to: $OUTDIR"
-    echo "  - consistency_pvalues.npy"
-    echo "  - representative_structures.pkl"
-    echo "  - consistency_results.png"
-    echo "  - logs/consistency_test.log"
+    echo "Output files saved to: $OUTDIR/MassSpec_ConsistencyTest_last67/"
+    echo "  - SASA.npy"
+    echo "  - native_M_data.npz"
+    echo "  - CollectOP.log"
+    echo "  - consist_signal_struct_data.npz"
+    echo "  - Consistent_structures_v8.xlsx"
+    echo "  - LiPMS_XLMS_consist_data_v9.npz"
+    echo "  - LiPMS_XLMS_consist_pvalues_metastates_v11_down_sample_lag20.xlsx"
+    echo "  - 1ZMR.log"
+    echo ""
+    echo "Full stdout log: $OUTDIR/logs/consistency_test.log"
     echo ""
     echo "View results:"
     echo "  tail -n 50 $OUTDIR/logs/consistency_test.log"

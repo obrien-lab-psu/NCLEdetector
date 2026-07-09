@@ -1,19 +1,31 @@
 #!/usr/bin/env python3
 from EntDetect._logging import setup_logger
 
+if __package__ in {None, ""}:
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from scripts._cli_config import parse_args_with_config
+else:
+    from ._cli_config import parse_args_with_config
+
 """
-Batch Workflow 4 helper for Steps 3 and 4.
+Batch Workflow 4 helper for Step 2.
 
 This script scans a directory of PDB files, filters to structures whose IDs are
 present in a gene list, and runs scripts/run_nativeNCLE.py in parallel for each
 selected structure.
 
-Optionally, it can also build Step 4 regression/design-matrix files by combining:
+It also builds the residue-level design matrix needed for downstream regression and Monte Carlo analysis by combining:
 1) per-residue experimental/structural features from a residueFeatures CSV, and
 2) region labels inferred from NCLE `ent_region` output columns.
 
 Compared to run_nativeNCLE.py, this wrapper accepts --pdb_dir and --gene_list
-instead of --struct, then forwards the remaining nativeNCLE options.
+instead of --pdb_file, then forwards the remaining supported nativeNCLE options.
+
+Provide parameters directly as CLI flags, through `--config` JSON/YAML, or both.
+When both are provided, CLI flags override config values.
 
 Example
 -------
@@ -23,9 +35,9 @@ python scripts/run_workflow4_nativeNCLE_batch.py \
   --outdir /scratch/ims86/EntDetect_Datastore/outputs/workflow4/nativeNCLE_all \
   --organism Ecoli \
   --model AF \
-  --contacts heavy \
-  --resolution aa \
   --ent_detection_method 3 \
+    --g_threshold 0.6 \
+    --density 1.0 \
     --nproc 16 \
     --residue_features_file /scratch/ims86/EntDetect_Datastore/user_input/experimental_data/PDB_residue_features/AF/residueFeatures.csv \
     --reg_formula "cut_C_Rall ~ AA + region"
@@ -181,18 +193,20 @@ def _build_native_command(args, native_script, pdb_file, root_outdir, logdir):
     pdb_name = os.path.basename(pdb_file)
     protein_id = os.path.splitext(pdb_name)[0]
     protein_outdir = os.path.join(root_outdir, protein_id)
-    accession = args.Accession if args.Accession is not None else protein_id
+    gene = args.gene if args.gene is not None else protein_id
 
     cmd = [
         sys.executable,
         native_script,
-        "--struct", pdb_file,
+        "--pdb_file", pdb_file,
         "--outdir", protein_outdir,
         "--ID", protein_id,
         "--organism", args.organism,
-        "--Accession", accession,
+        "--gene", gene,
         "--model", args.model,
         "--ent_detection_method", str(args.ent_detection_method),
+        "--g_threshold", str(args.g_threshold),
+        "--density", str(args.density),
         "--log_level", args.log_level,
         "--logdir", logdir,
     ]
@@ -200,17 +214,11 @@ def _build_native_command(args, native_script, pdb_file, root_outdir, logdir):
     if args.chain is not None:
         cmd.extend(["--chain", args.chain])
 
-    if args.resolution is not None:
-        cmd.extend(["--resolution", args.resolution])
+    if args.cut_off is not None:
+        cmd.extend(["--cut_off", str(args.cut_off)])
 
-    if args.contacts is not None:
-        cmd.extend(["--contacts", args.contacts])
-
-    if args.cluster_cutoff is not None:
-        cmd.extend(["--cluster_cutoff", str(args.cluster_cutoff)])
-
-    if args.cg:
-        cmd.append("--cg")
+    if args.CG:
+        cmd.append("--CG")
 
     if args.Calpha:
         cmd.append("--Calpha")
@@ -241,63 +249,156 @@ def main(argv=None):
             "Batch-run scripts/run_nativeNCLE.py over a PDB directory filtered by a gene list."
         )
     )
+    parser.add_argument("--config", type=str, required=False, default=argparse.SUPPRESS,
+                        help="Optional path to JSON/YAML config file. CLI flags override config values.")
 
     # --- required batch inputs ---
-    parser.add_argument("--pdb_dir", type=str, required=True,
+    parser.add_argument("--pdb_dir", type=str, required=False, default=argparse.SUPPRESS,
                         help="Directory containing input .pdb files")
-    parser.add_argument("--gene_list", type=str, required=True,
+    parser.add_argument("--gene_list", type=str, required=False, default=argparse.SUPPRESS,
                         help="Gene/accession list file (one ID per line)")
-    parser.add_argument("--outdir", type=str, required=True,
+    parser.add_argument("--outdir", type=str, required=False, default=argparse.SUPPRESS,
                         help="Root output directory; each protein writes to outdir/<ID>")
 
     # --- parallelism / matching behavior ---
-    parser.add_argument("--nproc", type=int, default=8,
+    parser.add_argument("--nproc", type=int, default=argparse.SUPPRESS,
                         help="Number of parallel nativeNCLE jobs (default: 8)")
-    parser.add_argument("--allow_prefix_match", action="store_true",
+    parser.add_argument("--allow_prefix_match", action="store_true", default=argparse.SUPPRESS,
                         help=(
                             "Allow gene IDs to match as prefix of PDB stem (useful for "
                             "filenames containing structure suffixes)."
                         ))
-    parser.add_argument("--dry_run", action="store_true",
+    parser.add_argument("--dry_run", action="store_true", default=argparse.SUPPRESS,
                         help="Print selected proteins and exit without running jobs")
 
-    # --- forwarded run_nativeNCLE options (minus --struct) ---
-    parser.add_argument("--chain", type=str, default=None,
+    # --- forwarded run_nativeNCLE options (minus --pdb_file, which is set per PDB) ---
+    parser.add_argument("--chain", type=str, default=argparse.SUPPRESS,
                         help="Chain identifier (optional)")
-    parser.add_argument("--organism", type=str, default="Ecoli",
+    parser.add_argument("--organism", type=str, default=argparse.SUPPRESS,
                         help="Organism for clustering: Ecoli | Human | Yeast")
-    parser.add_argument("--Accession", type=str, default=None,
-                        help="Accession value passed to run_nativeNCLE. If omitted, uses each protein ID from the PDB stem.")
-    parser.add_argument("--cg", action="store_true",
-                        help="Pass --cg to run_nativeNCLE (legacy flag)")
-    parser.add_argument("--Calpha", "--calpha", action="store_true", dest="Calpha",
-                        help="Pass --Calpha to run_nativeNCLE (legacy flag)")
-    parser.add_argument("--resolution", type=str, choices=["aa", "cg"], default=None,
-                        help="Resolution forwarded to run_nativeNCLE")
-    parser.add_argument("--contacts", type=str, choices=["heavy", "calpha"], default=None,
-                        help="Contact type forwarded to run_nativeNCLE")
-    parser.add_argument("--cluster_cutoff", type=float, default=None,
+    parser.add_argument("--gene", type=str, default=argparse.SUPPRESS,
+                        help="Gene or accession value passed to run_nativeNCLE. If omitted, each protein uses its PDB stem.")
+    parser.add_argument("--CG", action="store_true", dest="CG", default=argparse.SUPPRESS,
+                        help="Pass --CG to run_nativeNCLE for coarse-grained C-alpha inputs")
+    parser.add_argument("--Calpha", "--calpha", action="store_true", dest="Calpha", default=argparse.SUPPRESS,
+                        help="Pass --Calpha to run_nativeNCLE to use C-alpha contacts")
+    parser.add_argument("--g_threshold", type=float, default=argparse.SUPPRESS,
+                        help="Gaussian entanglement score cutoff forwarded to run_nativeNCLE")
+    parser.add_argument("--density", type=float, default=argparse.SUPPRESS,
+                        help="Topoly triangulation density forwarded to run_nativeNCLE")
+    parser.add_argument("--cut_off", type=float, default=argparse.SUPPRESS,
                         help="Cluster cutoff forwarded to run_nativeNCLE")
-    parser.add_argument("--model", type=str, default="AF",
+    parser.add_argument("--model", type=str, default=argparse.SUPPRESS,
                         help="Model type for HQ selection: EXP | AF")
-    parser.add_argument("--ent_detection_method", type=int, default=3,
+    parser.add_argument("--ent_detection_method", type=int, default=argparse.SUPPRESS,
                         help="Entanglement detection method passed to run_nativeNCLE")
 
-    # --- optional Step 4 design-matrix build ---
-    parser.add_argument("--residue_features_file", type=str, default=None,
+    # --- optional design-matrix build integrated into the batch workflow ---
+    parser.add_argument("--residue_features_file", type=str, default=argparse.SUPPRESS,
                         help="Path to residue features CSV (e.g., .../PDB_residue_features/AF/residueFeatures.csv)")
-    parser.add_argument("--reg_formula", type=str, default=None,
+    parser.add_argument("--reg_formula", type=str, default=argparse.SUPPRESS,
                         help="Regression formula for design matrix (e.g., 'cut_C_Rall ~ AA + region')")
-    parser.add_argument("--design_matrix_file", type=str, default=None,
+    parser.add_argument("--design_matrix_file", type=str, default=argparse.SUPPRESS,
                         help="Output path for combined design matrix CSV (default: sibling of --outdir/residue_dataframes_workflow4.csv)")
 
     # --- logging ---
-    parser.add_argument("--log_level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+    parser.add_argument("--log_level", default=argparse.SUPPRESS, choices=["DEBUG", "INFO", "WARNING", "ERROR"],
                         help="Logging verbosity (default: INFO)")
-    parser.add_argument("--logdir", type=str, default=None,
+    parser.add_argument("--logdir", type=str, default=argparse.SUPPRESS,
                         help="Directory for run log files (default: <outdir>/logs)")
 
-    args = parser.parse_args(argv)
+    # --- unified-schema aliases (used by run_population_modeling integrated config) ---
+    parser.add_argument("--batch_pdb_dir", type=str, required=False, default=argparse.SUPPRESS,
+                        help="Alias for --pdb_dir when sharing one config with run_population_modeling.py")
+    parser.add_argument("--batch_outdir", type=str, required=False, default=argparse.SUPPRESS,
+                        help="Alias for --outdir when sharing one config with run_population_modeling.py")
+    parser.add_argument("--batch_nproc", type=int, default=argparse.SUPPRESS,
+                        help="Alias for --nproc")
+    parser.add_argument("--batch_allow_prefix_match", action="store_true", default=argparse.SUPPRESS,
+                        help="Alias for --allow_prefix_match")
+    parser.add_argument("--batch_dry_run", action="store_true", default=argparse.SUPPRESS,
+                        help="Alias for --dry_run")
+    parser.add_argument("--batch_chain", type=str, default=argparse.SUPPRESS,
+                        help="Alias for --chain")
+    parser.add_argument("--batch_organism", type=str, default=argparse.SUPPRESS,
+                        help="Alias for --organism")
+    parser.add_argument("--batch_gene", type=str, default=argparse.SUPPRESS,
+                        help="Alias for --gene")
+    parser.add_argument("--batch_CG", action="store_true", default=argparse.SUPPRESS,
+                        help="Alias for --CG")
+    parser.add_argument("--batch_Calpha", action="store_true", default=argparse.SUPPRESS,
+                        help="Alias for --Calpha")
+    parser.add_argument("--batch_g_threshold", type=float, default=argparse.SUPPRESS,
+                        help="Alias for --g_threshold")
+    parser.add_argument("--batch_density", type=float, default=argparse.SUPPRESS,
+                        help="Alias for --density")
+    parser.add_argument("--batch_cut_off", type=float, default=argparse.SUPPRESS,
+                        help="Alias for --cut_off")
+    parser.add_argument("--batch_model", type=str, default=argparse.SUPPRESS,
+                        help="Alias for --model")
+    parser.add_argument("--batch_ent_detection_method", type=int, default=argparse.SUPPRESS,
+                        help="Alias for --ent_detection_method")
+    parser.add_argument("--batch_residue_features_file", type=str, default=argparse.SUPPRESS,
+                        help="Alias for --residue_features_file")
+    parser.add_argument("--batch_design_matrix_file", type=str, default=argparse.SUPPRESS,
+                        help="Alias for --design_matrix_file")
+    parser.add_argument("--batch_logdir", type=str, default=argparse.SUPPRESS,
+                        help="Alias for --logdir")
+
+    args = parse_args_with_config(
+        parser,
+        argv,
+        defaults={
+            "nproc": 8,
+            "allow_prefix_match": False,
+            "dry_run": False,
+            "chain": None,
+            "organism": "Ecoli",
+            "gene": None,
+            "CG": False,
+            "Calpha": False,
+            "g_threshold": 0.6,
+            "density": 1.0,
+            "cut_off": None,
+            "model": "AF",
+            "ent_detection_method": 3,
+            "residue_features_file": None,
+            "reg_formula": None,
+            "design_matrix_file": None,
+            "log_level": "INFO",
+            "logdir": None,
+        },
+        aliases={"cg": "CG", "calpha": "Calpha"},
+    )
+
+    # Prefer unified batch_* keys when both prefixed and unprefixed entries exist.
+    preferred_aliases = {
+        "batch_pdb_dir": "pdb_dir",
+        "batch_outdir": "outdir",
+        "batch_nproc": "nproc",
+        "batch_allow_prefix_match": "allow_prefix_match",
+        "batch_dry_run": "dry_run",
+        "batch_chain": "chain",
+        "batch_organism": "organism",
+        "batch_gene": "gene",
+        "batch_CG": "CG",
+        "batch_Calpha": "Calpha",
+        "batch_g_threshold": "g_threshold",
+        "batch_density": "density",
+        "batch_cut_off": "cut_off",
+        "batch_model": "model",
+        "batch_ent_detection_method": "ent_detection_method",
+        "batch_residue_features_file": "residue_features_file",
+        "batch_design_matrix_file": "design_matrix_file",
+        "batch_logdir": "logdir",
+    }
+    for batch_key, native_key in preferred_aliases.items():
+        if hasattr(args, batch_key) and getattr(args, batch_key) is not None:
+            setattr(args, native_key, getattr(args, batch_key))
+
+    for field in ["pdb_dir", "gene_list", "outdir"]:
+        if not hasattr(args, field) or getattr(args, field) is None:
+            parser.error(f"Missing required argument: --{field} (or provide it in --config)")
 
     log_level = getattr(logging, args.log_level.upper(), logging.INFO)
     logdir = args.logdir if args.logdir is not None else os.path.join(args.outdir, "logs")
@@ -400,7 +501,7 @@ def main(argv=None):
 
     logger.info(f"All {len(jobs)} jobs completed successfully")
 
-    # Optional Step 4: design matrix build
+    # Build the downstream design matrix from the completed per-protein outputs.
     selected_gene_ids = [job[0] for job in jobs]
     _build_design_matrices(args, selected_gene_ids, logger)
 

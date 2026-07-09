@@ -20,6 +20,7 @@ class MassSpec:
     def __init__(self, msm_data_file:str, meta_dist_file:str, LiPMS_exp_file:str, sasa_data_file:str, XLMS_exp_file:str, dist_data_file:str,
                  cluster_data_file:str, OPpath:str, AAdcd_dir:str, native_AA_pdb:str, native_state_idx:int, state_idx_list:list, prot_len:int, last_num_frames:int,
                  rm_traj_list:list=[], outdir:str='./', ID:str='', xp_dir:str=None, resid2residueidx_map:dict={},
+                 sasa_dir:str=None, n_traj:int=None, n_frames:int=None, collect_jwalk_npy:bool=False,
                  start:int=0, end:int=999999999999, stride:int=1, verbose:bool=False, num_perm:int=10000, n_boot:int=10000, lag_frame:int=1, nproc:int=1, log_level:int=logging.INFO, logdir:str=None):
 
 
@@ -68,6 +69,52 @@ class MassSpec:
         if not os.path.exists(self.outdir):
             os.makedirs(self.outdir)
             self.logger.debug(f'Creating directory: {self.outdir}')
+
+        # Optionally collect per-trajectory OP files into the dense arrays
+        # (SASA.npy / Jwalk.npy) that the consistency test consumes.
+        self._maybe_collect_op_arrays(sasa_dir=sasa_dir, n_traj=n_traj,
+                                      n_frames=n_frames, collect_jwalk_npy=collect_jwalk_npy)
+    ##############################################################################
+
+    ##############################################################################
+    def _maybe_collect_op_arrays(self, sasa_dir, n_traj, n_frames, collect_jwalk_npy):
+        """Build SASA.npy (and optionally Jwalk.npy) from per-trajectory OP files.
+
+        Runs only when the corresponding cached array is not already available.
+        SASA is required as a dense array; XL-MS scoring can stream from
+        ``xp_dir`` directly, so Jwalk.npy is only built when explicitly requested
+        via ``collect_jwalk_npy``.
+        """
+        need_sasa = self.sasa_data_file is None or not os.path.exists(self.sasa_data_file)
+        if need_sasa and sasa_dir is not None:
+            cached = os.path.join(self.outdir, 'SASA.npy')
+            if os.path.exists(cached):
+                self.sasa_data_file = cached
+                self.logger.info(f'Using cached SASA array: {cached}')
+            else:
+                if n_traj is None or n_frames is None:
+                    raise ValueError('n_traj and n_frames are required to collect SASA from sasa_dir')
+                from EntDetect.order_params import CollectOP
+                self.logger.info(f'Collecting SASA from {sasa_dir} into {self.outdir}/SASA.npy')
+                collector = CollectOP(sasa_dir=sasa_dir, xp_dir=self.xp_dir, outdir=self.outdir,
+                                      ID=self.ID, n_traj=n_traj, n_frames=n_frames, prot_len=self.prot_len)
+                self.sasa_data_file = collector.collect_SASA()
+
+        if collect_jwalk_npy:
+            need_dist = self.dist_data_file is None or not os.path.exists(self.dist_data_file)
+            if need_dist and self.xp_dir is not None:
+                cached = os.path.join(self.outdir, 'Jwalk.npy')
+                if os.path.exists(cached):
+                    self.dist_data_file = cached
+                    self.logger.info(f'Using cached Jwalk array: {cached}')
+                else:
+                    if n_traj is None or n_frames is None:
+                        raise ValueError('n_traj and n_frames are required to collect Jwalk from xp_dir')
+                    from EntDetect.order_params import CollectOP
+                    self.logger.info(f'Collecting Jwalk from {self.xp_dir} into {self.outdir}/Jwalk.npy')
+                    collector = CollectOP(sasa_dir=sasa_dir, xp_dir=self.xp_dir, outdir=self.outdir,
+                                          ID=self.ID, n_traj=n_traj, n_frames=n_frames, prot_len=self.prot_len)
+                    self.dist_data_file = collector.collect_Jwalk()
     ##############################################################################
 
     ##############################################################################
@@ -371,9 +418,19 @@ class MassSpec:
                 new_idx: int(traj_idx_to_trajnum[old_idx])
                 for new_idx, old_idx in enumerate(keep_traj_idx)
             }
+            # Row indices into the SASA/Jwalk OP arrays. CollectOP stores row
+            # (traj_number - 1) for every trajectory 1..n_traj, so OP rows must be
+            # selected by trajectory NUMBER rather than by MSM position: the MSM
+            # mapping may already exclude mirror trajectories, which would otherwise
+            # shift the positional alignment between MSM states and OP values.
+            op_row_idx = np.array(
+                [traj_idx_to_trajnum[i] - 1 for i in range(meta_dtrajs_last.shape[0])],
+                dtype=int,
+            )
             self.logger.info(
                 f'meta_dtrajs_last.shape after mirror-image removal: {meta_dtrajs_last.shape}'
             )
+            self.logger.info(f'op_row_idx n={len(op_row_idx)} first5={op_row_idx[:5]} last5={op_row_idx[-5:]}')
             #################################################################
 
 
@@ -423,9 +480,14 @@ class MassSpec:
             sasa_traj_list = np.load(self.sasa_data_file, allow_pickle=True)[:,-self.last_num_frames:,:]
             self.logger.info(f'sasa_traj_list.shape: {sasa_traj_list.shape}')
 
-            # Apply the same trajectory filtering used for MSM indexing.
-            sasa_traj_list = sasa_traj_list[keep_traj_idx, :, :]
-            self.logger.info(f'sasa_traj_list.shape after mirror-image removal: {sasa_traj_list.shape}')
+            # Align OP rows to the MSM trajectory order by trajectory number.
+            if len(op_row_idx) and op_row_idx.max() >= sasa_traj_list.shape[0]:
+                raise IndexError(
+                    f'SASA array has {sasa_traj_list.shape[0]} trajectories but the MSM references '
+                    f'trajectory number {int(op_row_idx.max()) + 1}. Ensure --n_traj covers all MSM trajectories.'
+                )
+            sasa_traj_list = sasa_traj_list[op_row_idx, :, :]
+            self.logger.info(f'sasa_traj_list.shape after trajectory alignment: {sasa_traj_list.shape}')
             #################################################################
 
 
@@ -486,9 +548,14 @@ class MassSpec:
                     dist_traj_list = np.load(self.dist_data_file, allow_pickle=True)[:,-self.last_num_frames:]
                     self.logger.info(f'dist_traj_list.shape: {dist_traj_list.shape}')
 
-                    # Apply the same trajectory filtering used for MSM indexing.
-                    dist_traj_list = dist_traj_list[keep_traj_idx, :]
-                    self.logger.info(f'dist_traj_list.shape after mirror-image removal: {dist_traj_list.shape}')
+                    # Align OP rows to the MSM trajectory order by trajectory number.
+                    if len(op_row_idx) and op_row_idx.max() >= dist_traj_list.shape[0]:
+                        raise IndexError(
+                            f'Jwalk array has {dist_traj_list.shape[0]} trajectories but the MSM references '
+                            f'trajectory number {int(op_row_idx.max()) + 1}. Ensure --n_traj covers all MSM trajectories.'
+                        )
+                    dist_traj_list = dist_traj_list[op_row_idx, :]
+                    self.logger.info(f'dist_traj_list.shape after trajectory alignment: {dist_traj_list.shape}')
 
                     n_traj = min(meta_dtrajs_last.shape[0], dist_traj_list.shape[0])
                     n_frame = min(meta_dtrajs_last.shape[1], dist_traj_list.shape[1])
@@ -902,10 +969,14 @@ class MassSpec:
         num_meta_states = len(meta_states)
         self.logger.debug(f'num_meta_states: {num_meta_states}')
 
+        rm_traj_set = set(int(t) for t in self.rm_traj_list)
         meta_dtrajs_last = []
         micro_dtrajs_last = []
-        MSM_traj_idx_to_trajnum = {} # mapping traj_idx to traj number
-        for traj_idx, (traj, traj_df) in enumerate(MSM_data.groupby('traj')):
+        MSM_traj_idx_to_trajnum = {} # mapping traj_idx to traj number (after rm_traj_list filtering)
+        for traj, traj_df in MSM_data.groupby('traj'):
+            traj = int(traj)
+            if traj in rm_traj_set:
+                continue
             traj_len = len(traj_df)
             #print(f'traj: {traj}, traj_len: {traj_len}\n{traj_df.head()}')
 
@@ -917,7 +988,7 @@ class MassSpec:
             meta_dtrajs_last.append(meta_last)
             micro_dtrajs_last.append(micro_last)
 
-            MSM_traj_idx_to_trajnum[traj_idx] = traj
+            MSM_traj_idx_to_trajnum[len(MSM_traj_idx_to_trajnum)] = traj
 
         meta_dtrajs_last = np.array(meta_dtrajs_last)
         micro_dtrajs_last = np.array(micro_dtrajs_last)
@@ -1458,7 +1529,15 @@ class MassSpec:
         os.system('mkdir viz_rep_struct/')
         os.chdir('viz_rep_struct/')
 
-        AAtraj_files = glob.glob(self.AAdcd_dir)
+        if os.path.isdir(self.AAdcd_dir):
+            AAtraj_files = glob.glob(os.path.join(self.AAdcd_dir, '*.dcd'))
+        else:
+            AAtraj_files = glob.glob(self.AAdcd_dir)
+        if len(AAtraj_files) == 0:
+            raise ValueError(
+                f'No AA trajectory files found. AAdcd_dir={self.AAdcd_dir} '
+                f'(resolved count={len(AAtraj_files)})'
+            )
         self.logger.info(f'AAtraj_files:\n{AAtraj_files[:10]}')
         
         wd = os.getcwd()
@@ -1471,7 +1550,7 @@ class MassSpec:
             args_list = [
                 (state_dir, state_id, k, rep_group_dict, sorted_chg_ent_structure_keyword_list, last_num_frames, total_traj_num_frames,
                 idx2traj, AAtraj_files, self.native_AA_pdb, rep_chg_ent_dtrajs, Q_list, G_list,
-                LIPMS_consist_data, M_LiPMS, XLMS_consist_data, M_XLMS, dist_traj_list, if_backmap, pulchra_only)
+                LIPMS_consist_data, M_LiPMS, XLMS_consist_data, M_XLMS, dist_traj_list, if_backmap, pulchra_only, self.logger.name)
                 for k in rep_group_dict[state_id].keys()
             ]
             self.logger.info(f'Processing {len(args_list)} consistent signal groups for state {state_id}...')
@@ -1493,13 +1572,15 @@ import mdtraj as mdt  # at the top of your file
 def process_k(args):
     (state_dir, state_id, k, rep_group_dict, sorted_chg_ent_structure_keyword_list, last_num_frames, total_traj_num_frames,
      idx2traj, AAtraj_files, native_AA_pdb, rep_chg_ent_dtrajs, Q_list, G_list,
-     LIPMS_consist_data, M_LiPMS, XLMS_consist_data, M_XLMS, dist_traj_list, if_backmap, pulchra_only) = args
+     LIPMS_consist_data, M_LiPMS, XLMS_consist_data, M_XLMS, dist_traj_list, if_backmap, pulchra_only, logger_name) = args
+
+    logger = logging.getLogger(logger_name)
 
     k_list = eval(k)
     k_str = '_'.join(k_list)
     k_str_dir = os.path.join(state_dir, k_str)
     os.makedirs(k_str_dir, exist_ok=True)
-    self.logger.info(f'Made {k_str_dir}')
+    logger.info(f'Made {k_str_dir}')
     key_order = ['type', 'code', 'native_contact', 'native_contact_residx',  'linking_value', 'crossing_resid', 'crossing_residx', 'crossing_pattern', 'gauss_linking_number', 'topoly_linking_number', 
                  'ref_native_contact', 'ref_native_contact_residx', 'ref_linking_value', 'ref_crossing_resid', 'ref_crossing_residx', 'ref_crossing_pattern', 'ref_gauss_linking_number', 'ref_topoly_linking_number']
     # os.system('mkdir %s/' % k_str)
@@ -1513,7 +1594,7 @@ def process_k(args):
         kk_str = '_'.join([str(i+1) for i in kk_list])
         kk_str_dir = os.path.join(k_str_dir, kk_str)
         os.makedirs(kk_str_dir, exist_ok=True)
-        self.logger.info(f'Made {kk_str_dir}')
+        logger.info(f'Made {kk_str_dir}')
         # os.system('mkdir %s/' % kk_str)
         # os.chdir(kk_str)
 
@@ -1533,6 +1614,7 @@ def process_k(args):
             v['chg_index'] = kkk
             rep_ent_dict[tuple(v['code'])].append(v)
         gen_state_visualizion(state_id, kk_str, kk_str_dir, native_AA_pdb, state_cor, native_AA_pdb, rep_ent_dict,
+                      logger,
                               if_backmap=if_backmap, pulchra_only=pulchra_only, exp_signal_str=k_str)
 
         Q = Q_list[traj_idx, frame_idx]
@@ -1553,8 +1635,21 @@ def process_k(args):
                     f.write('%s: M: %.4f\n' % (signal, M))
                 elif signal in XLMS_consist_data.keys():
                     M = M_XLMS[traj_idx, frame_idx, XLMS_consist_data[signal][4]]
-                    d_data = dist_traj_list[traj_idx, frame_idx]['%s|A-%s|A' % (signal.split('-')[0][1:], signal.split('-')[1][1:])]
-                    f.write('%s: M: %.4f Jwalk: %.4f Euclidean: %.4f\n' % (signal, M, d_data['Jwalk'], d_data['Euclidean']))
+                    requested_key = '%s|A-%s|A' % (signal.split('-')[0][1:], signal.split('-')[1][1:])
+                    frame_data = dist_traj_list[traj_idx, frame_idx]
+                    if frame_data is None or requested_key not in frame_data:
+                        logger.warning(
+                            f'Missing XL-MS key for signal {signal}. '
+                            f'Traj {idx2traj[traj_idx]}, frame {frame_idx}, '
+                            f'MSM indices [{traj_idx}, {frame_idx}]. '
+                            f'Requested key: {requested_key}. '
+                            f'Available keys in frame_dict: {list(frame_data.keys()) if frame_data is not None else "None"}. '
+                            f'Skipping this signal in info file.'
+                        )
+                        f.write('%s: M: %.4f Jwalk: N/A Euclidean: N/A (key not in XP data)\n' % (signal, M))
+                    else:
+                        d_data = frame_data[requested_key]
+                        f.write('%s: M: %.4f Jwalk: %.4f Euclidean: %.4f\n' % (signal, M, d_data['Jwalk'], d_data['Euclidean']))
             f.write('%s\n' % ('-' * 64))
             for kkk, v in rep_chg_ent_dict.items():
                 f.write('%d:\n' % (kkk + 1))
@@ -1563,7 +1658,7 @@ def process_k(args):
                 for kkkk in key_order:
                     f.write(' ' * 4 + '%s: %s\n' % (kkkk, v[kkkk]))
                     # f.write(' ' * 4 + 'ref_%s: %s\n' % (kkkk, v['ref_' + kkkk]))
-        self.logger.debug(f'SAVED: {info_file}')
+        logger.debug(f'SAVED: {info_file}')
 ##############################################################################
 
 ##############################################################################
@@ -1577,7 +1672,7 @@ def match_pattern(strings, user_substring):
 ##############################################################################
 
 ##############################################################################
-def gen_state_visualizion(state_id, ent_id, kk_str_dir, psf, state_cor, native_AA_pdb, rep_ent_dict, if_backmap=True, pulchra_only=False, exp_signal_str=''):
+def gen_state_visualizion(state_id, ent_id, kk_str_dir, psf, state_cor, native_AA_pdb, rep_ent_dict, logger, if_backmap=True, pulchra_only=False, exp_signal_str=''):
     def idx2sel(idx_list):
         if len(idx_list) == 0:
             return ''
@@ -1614,19 +1709,19 @@ def gen_state_visualizion(state_id, ent_id, kk_str_dir, psf, state_cor, native_A
     thread_cutoff=3
     terminal_cutoff=3
     
-    self.logger.info('Generate visualization of state %d'%(state_id + 1))
-    self.logger.debug(f'ent_id: {ent_id}')
-    self.logger.debug(f'kk_str_dir: {kk_str_dir}')
-    self.logger.debug(f'psf: {psf}')
-    self.logger.debug(f'state_cor: {state_cor}')
-    self.logger.debug(f'native_AA_pdb: {native_AA_pdb}')
-    self.logger.debug(f'if_backmap: {if_backmap}')
-    self.logger.debug(f'pulchra_only: {pulchra_only}')
-    self.logger.debug(f'exp_signal_str: {exp_signal_str}')
-    self.logger.info(f'rep_ent_dict:')
+    logger.info('Generate visualization of state %d'%(state_id + 1))
+    logger.debug(f'ent_id: {ent_id}')
+    logger.debug(f'kk_str_dir: {kk_str_dir}')
+    logger.debug(f'psf: {psf}')
+    logger.debug(f'state_cor: {state_cor}')
+    logger.debug(f'native_AA_pdb: {native_AA_pdb}')
+    logger.debug(f'if_backmap: {if_backmap}')
+    logger.debug(f'pulchra_only: {pulchra_only}')
+    logger.debug(f'exp_signal_str: {exp_signal_str}')
+    logger.info(f'rep_ent_dict:')
     for k, v in rep_ent_dict.items():
-        self.logger.info(f'k:\n{k}')
-        self.logger.info(f'v:\n{v} {len(v)}')
+        logger.info(f'k:\n{k}')
+        logger.info(f'v:\n{v} {len(v)}')
 
     struct = pmd.load_file(psf)
     struct.coordinates = state_cor
@@ -1679,7 +1774,7 @@ mol material AOChalky
 mol addrep top
 ''')
         f.close()
-        self.logger.debug(f'SAVED: {vmd_outfile}')
+        logger.debug(f'SAVED: {vmd_outfile}')
 
     ##############################################
     ## Create vmd script for each type of change
@@ -1894,6 +1989,6 @@ $move_sel move $trans_mat
             f = open(vmd_outfile, 'w')
             f.write(vmd_script)
             f.close()
-            self.logger.debug(f'SAVED: {vmd_outfile}')
+            logger.debug(f'SAVED: {vmd_outfile}')
            
 ##############################################################################

@@ -1,0 +1,15 @@
+{
+  "Traj": "420",
+  "ID": "1ZMR",
+  "PSF": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean.pdb",
+  "DCD": "/scratch/ims86/EntDetect_Datastore/user_input/aa_trajectories/420_prod_aa.dcd",
+  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA_last67",
+  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA_last67/logs",
+  "start": 268,
+  "ops": ["SASA", "XP"],
+  "CG": false,
+  "Calpha": false,
+  "pdb_file": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean.pdb",
+  "nproc": 10,
+  "log_level": "INFO"
+}

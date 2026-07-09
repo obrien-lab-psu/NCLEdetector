@@ -582,7 +582,7 @@ class GaussianEntanglement:
 
 
     ##########################################################################################################################################################
-    def calculate_native_entanglements(self, pdb_file: str, outdir: str, ID: str='', chain: str=None, topoly: bool = True) -> dict:
+    def calculate_native_entanglements(self, pdb_file: str='', outdir: str='', ID: str='', chain: str=None, topoly: bool = True) -> dict:
 
         """
         Driver function that outputs native lasso-like self entanglements and missing residues for pdb and all of its chains if any
@@ -1585,7 +1585,7 @@ class GaussianEntanglement:
     ##########################################################################################################################################################
 
     ##########################################################################################################################################################
-    def select_high_quality_entanglements(self, GE_filepath: str, pdb: str, outdir: str='./', ID: str='', model: str='EXP', mapping: str='None', chain: str=None) -> dict:
+    def select_high_quality_entanglements(self, rawNCLE_file: str='', pdb_file: str='', outdir: str='./', ID: str='', model: str='EXP', mapping: str='None', chain: str=None) -> dict:
         """
         This function takes the GE file and selects the high quality entanglements based on the following criteria:
         1. Remove any native NCLE's that are predicted to be pure slipknots (crossings with a net sign that cancels out)
@@ -1599,9 +1599,9 @@ class GaussianEntanglement:
             self.logger.info(f"Creating directory: {outdir}")
 
         ## load the dataframe
-        GE_data = pd.read_csv(GE_filepath, sep='|', dtype={'crossingsN': str, 'crossingsC': str})
+        GE_data = pd.read_csv(rawNCLE_file, sep='|', dtype={'crossingsN': str, 'crossingsC': str})
         GE_data = GE_data[GE_data['ENT'] == True].reset_index(drop=True)
-        self.logger.info(f'GE FILE: {GE_filepath}')
+        self.logger.info(f'GE FILE: {rawNCLE_file}')
         # print(f'RAW GE_data:\n{GE_data}')
 
         ## select only those entanglements that are mapped for the EXP model
@@ -1621,7 +1621,7 @@ class GaussianEntanglement:
         if model == 'AF':
             #GE_data = self.remove_slipknots(GE_data)
             #print(f'No Slipknot GE_data:\n{GE_data}')
-            GE_data = self.remove_low_quality_AF_entanglements(GE_data, pdb)
+            GE_data = self.remove_low_quality_AF_entanglements(GE_data, pdb_file)
             #print(f'No Slipknot GE_data:\n{GE_data}')
 
 

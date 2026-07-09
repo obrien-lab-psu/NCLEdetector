@@ -104,7 +104,7 @@ class ClusterNativeEntanglements:
 
     ##########################################################################################################################################################
     #@cache
-    def Cluster_NativeEntanglements(self, GE_filepath: str, outdir: str='./', outfile: str='Cluster_NativeEntanglements.txt', chain: str=None):
+    def Cluster_NativeEntanglements(self, HQ_NCLE_file: str='', outdir: str='./', ID: str='', chain: str=None):
         
         """
         PARAMS:
@@ -151,7 +151,7 @@ class ClusterNativeEntanglements:
 
         """
         self.logger.info(f'Clustering {self.organism} Native Entanglements with dist_cutoff: {self.cut_off}')
-        GE_file = GE_filepath.split('/')[-1]
+        GE_file = HQ_NCLE_file.split('/')[-1]
         self.logger.debug(f'{GE_file} cut_off={self.cut_off} outdir={outdir}')
 
         full_entanglement_data = defaultdict(list)
@@ -169,14 +169,15 @@ class ClusterNativeEntanglements:
         entanglement_partial_g_data = {}
         
         ## Check if the clustering file is already made and if so use it
+        outfile = f'{ID}.csv'
         outfilepath = os.path.join(f'{outdir}', f'{outfile}')
         if os.path.exists(outfilepath):
             self.logger.info(f'{outfilepath} ALREADY EXISTS AND WILL BE LOADED')
             outdf = pd.read_csv(outfilepath, sep='|')
             return {'outfile':outfilepath, 'ent_result':outdf}
 
-        self.logger.info(f'Loading {GE_filepath}')
-        GE_data = pd.read_csv(GE_filepath, sep='|', dtype={'crossingsN': str, 'crossingsC': str})
+        self.logger.info(f'Loading {HQ_NCLE_file}')
+        GE_data = pd.read_csv(HQ_NCLE_file, sep='|', dtype={'crossingsN': str, 'crossingsC': str})
         GE_data = GE_data[GE_data['ENT'] == True].reset_index(drop=True)
         # if Quality is a column name then only get the High Quality raw entanglements
         if 'Quality' in GE_data.keys():

@@ -86,3 +86,5 @@ This table tracks default parameters used in EntDetect tutorials and their imple
 - Default precedence policy used here: `scripts/run_*.py` defaults first, class/function constructor defaults second when scripts do not provide defaults.
 - If a run script marks a parameter as required (no script default), the table lists it as `required in <script>` and then reports constructor fallback defaults when available.
 - Where script defaults differ from class defaults, both are noted in `default_value`.
+
+

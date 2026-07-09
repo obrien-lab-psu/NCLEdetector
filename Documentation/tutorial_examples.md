@@ -727,7 +727,7 @@ CalcOP = CalculateOP(
 
 CalcOP.SASA()
 CalcOP.runJwalk('/path/to/backmapped/pdb')
-XPdata_dict = CalcOP.XP(pdb='/path/to/AA/ref/PDBfile')
+XPdata_dict = CalcOP.XP(pdb_file='/path/to/AA/ref/PDBfile')
 ```
 
 ### What this step does

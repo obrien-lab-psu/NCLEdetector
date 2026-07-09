@@ -39,6 +39,7 @@ def main(argv=None):
     ###---------------------------------------------------------------------------------------------------------
     import sys, os
     import argparse
+    import json
     import time
     import logging
     start_time = time.time()
@@ -48,23 +49,74 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Cluster non-native entanglement changes across simulation trajectories.")
 
+    parser.add_argument("--config", type=str, required=False, default=argparse.SUPPRESS,
+                        help="Optional path to JSON or YAML config file. CLI flags override config values.")
+
     # --- identity / IO ---
-    parser.add_argument("--outdir",               type=str, required=True,  help="Output directory for clustering results")
-    parser.add_argument("--trajnum2pklfile_path",  type=str, required=True,  help="CSV file mapping trajectory numbers to pkl file paths (source of truth for which files to analyze)")
-    parser.add_argument("--traj_dir_prefix",       type=str, required=True,  help="Path prefix to the directory containing trajectory DCD files")
+    parser.add_argument("--outdir",               type=str, default=argparse.SUPPRESS, help="Output directory for clustering results")
+    parser.add_argument("--trajnum2pklfile_path",  type=str, default=argparse.SUPPRESS, help="CSV file mapping trajectory numbers to pkl file paths (source of truth for which files to analyze)")
+    parser.add_argument("--traj_dir_prefix",       type=str, default=argparse.SUPPRESS, help="Path prefix to the directory containing trajectory DCD files")
 
     # --- frame selection ---
-    parser.add_argument("--start_frame", type=int, default=0,           help="First frame index to include, 0-based (default: 0)")
-    parser.add_argument("--end_frame",   type=int, default=9999999,     help="Last frame index to include, 0-based (default: all frames)")
+    parser.add_argument("--start_frame", type=int, default=argparse.SUPPRESS, help="First frame index to include, 0-based (default: 0)")
+    parser.add_argument("--end_frame",   type=int, default=argparse.SUPPRESS, help="Last frame index to include, 0-based (default: all frames)")
 
     # --- parallelism ---
-    parser.add_argument("--nproc",       type=int, default=1,           help="Number of parallel worker threads (default: 1)")
+    parser.add_argument("--nproc",       type=int, default=argparse.SUPPRESS, help="Number of parallel worker threads (default: 1)")
 
     # --- logging ---
-    parser.add_argument("--log_level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging verbosity (default: INFO)")
-    parser.add_argument("--logdir",    type=str, default=None, help="Directory for log file (default: same as --outdir)")
+    parser.add_argument("--log_level", default=argparse.SUPPRESS, choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging verbosity (default: INFO)")
+    parser.add_argument("--logdir",    type=str, default=argparse.SUPPRESS, help="Directory for log file (default: same as --outdir)")
 
-    args = parser.parse_args(argv)
+    def _load_config_file(cfg_path):
+        if not os.path.isfile(cfg_path):
+            parser.error(f"--config file does not exist: {cfg_path}")
+        ext = os.path.splitext(cfg_path)[1].lower()
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as fh:
+                if ext == ".json":
+                    cfg = json.load(fh)
+                elif ext in {".yml", ".yaml"}:
+                    try:
+                        import yaml
+                    except ImportError:
+                        parser.error("YAML config requested but PyYAML is not installed. Use JSON or install PyYAML.")
+                    cfg = yaml.safe_load(fh)
+                else:
+                    parser.error(f"Unsupported config extension '{ext}'. Use .json, .yml, or .yaml.")
+        except Exception as exc:
+            parser.error(f"Failed to load config file {cfg_path}: {exc}")
+        if cfg is None:
+            cfg = {}
+        if not isinstance(cfg, dict):
+            parser.error("Config file must define a top-level object/dictionary of key-value pairs.")
+        return cfg
+
+    cli_args = vars(parser.parse_args(argv))
+    config_path = cli_args.pop("config", None)
+    config_args = _load_config_file(config_path) if config_path else {}
+
+    merged = {
+        "outdir": None,
+        "trajnum2pklfile_path": None,
+        "traj_dir_prefix": None,
+        "start_frame": 0,
+        "end_frame": 9999999,
+        "nproc": 1,
+        "log_level": "INFO",
+        "logdir": None,
+    }
+    merged.update(config_args)
+    merged.update(cli_args)
+
+    if merged["outdir"] is None:
+        parser.error("Missing required argument: --outdir (or provide 'outdir' in --config)")
+    if merged["trajnum2pklfile_path"] is None:
+        parser.error("Missing required argument: --trajnum2pklfile_path (or provide it in --config)")
+    if merged["traj_dir_prefix"] is None:
+        parser.error("Missing required argument: --traj_dir_prefix (or provide it in --config)")
+
+    args = argparse.Namespace(**merged)
 
     outdir = args.outdir
     ###---------------------------------------------------------------------------------------------------------

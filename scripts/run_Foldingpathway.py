@@ -54,6 +54,7 @@ def main(argv=None):
     ###---------------------------------------------------------------------------------------------------------
     import sys, os
     import argparse
+    import json
     import time
     import logging
     start_time = time.time()
@@ -63,29 +64,85 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Compute folding pathway statistics and Jensen-Shannon divergence from MSM output.")
 
+    parser.add_argument("--config", type=str, required=False, default=argparse.SUPPRESS,
+                        help="Optional path to JSON or YAML config file. CLI flags override config values.")
+
     # --- IO ---
-    parser.add_argument("--msm_data_file", type=str, required=True,  help="CSV produced by run_MSM.py, annotated with a trajectory-type column")
-    parser.add_argument("--meta_set_file", type=str, required=True,  help="meta_set CSV produced by run_MSM.py")
-    parser.add_argument("--outdir",        type=str, required=True,  help="Output directory for folding pathway and JS-divergence results")
+    parser.add_argument("--msm_data_file", type=str, default=argparse.SUPPRESS, help="CSV produced by run_MSM.py, annotated with a trajectory-type column")
+    parser.add_argument("--meta_set_file", type=str, default=argparse.SUPPRESS, help="meta_set CSV produced by run_MSM.py")
+    parser.add_argument("--outdir",        type=str, default=argparse.SUPPRESS, help="Output directory for folding pathway and JS-divergence results")
 
     # --- trajectory classification ---
-    parser.add_argument("--traj_type_col",  type=str,          required=True,        help="Column name in msm_data_file containing trajectory-type labels")
-    parser.add_argument("--traj_type_list", type=str, nargs='+', default=['A', 'B'], help="Trajectory-type labels to compare (default: A B)")
+    parser.add_argument("--traj_type_col",  type=str,           default=argparse.SUPPRESS, help="Column name in msm_data_file containing trajectory-type labels")
+    parser.add_argument("--traj_type_list", type=str, nargs='+', default=argparse.SUPPRESS, help="Trajectory-type labels to compare (default: A B)")
 
     # --- trajectory filtering ---
-    parser.add_argument("--rm_traj_list", type=int, nargs='+', default=[], help="Trajectory numbers to exclude (e.g. confirmed mirror conformations)")
+    parser.add_argument("--rm_traj_list", type=int, nargs='+', default=argparse.SUPPRESS, help="Trajectory numbers to exclude (e.g. confirmed mirror conformations)")
 
     # --- analysis settings ---
-    parser.add_argument("--n_window",   type=int, default=200,              help="Rolling window size for state probability smoothing (default: 200)")
-    parser.add_argument("--n_traj",     type=int, default=1000,             help="Total number of trajectories in the ensemble (default: 1000)")
-    parser.add_argument("--state_type", type=str, default='metastablestate',
+    parser.add_argument("--n_window",   type=int, default=argparse.SUPPRESS, help="Rolling window size for state probability smoothing (default: 200)")
+    parser.add_argument("--n_traj",     type=int, default=argparse.SUPPRESS, help="Total number of trajectories in the ensemble (default: 1000)")
+    parser.add_argument("--state_type", type=str, default=argparse.SUPPRESS,
                         choices=['metastablestate', 'microstate'],          help="State level to analyse (default: metastablestate)")
 
     # --- logging ---
-    parser.add_argument("--log_level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging verbosity (default: INFO)")
-    parser.add_argument("--logdir",    type=str, default=None, help="Directory for log file (default: same as --outdir)")
+    parser.add_argument("--log_level", default=argparse.SUPPRESS, choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging verbosity (default: INFO)")
+    parser.add_argument("--logdir",    type=str, default=argparse.SUPPRESS, help="Directory for log file (default: same as --outdir)")
 
-    args = parser.parse_args(argv)
+    def _load_config_file(cfg_path):
+        if not os.path.isfile(cfg_path):
+            parser.error(f"--config file does not exist: {cfg_path}")
+        ext = os.path.splitext(cfg_path)[1].lower()
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as fh:
+                if ext == ".json":
+                    cfg = json.load(fh)
+                elif ext in {".yml", ".yaml"}:
+                    try:
+                        import yaml
+                    except ImportError:
+                        parser.error("YAML config requested but PyYAML is not installed.")
+                    cfg = yaml.safe_load(fh)
+                else:
+                    parser.error(f"Unsupported config extension '{ext}'. Use .json, .yml, or .yaml.")
+        except Exception as exc:
+            parser.error(f"Failed to load config file {cfg_path}: {exc}")
+        if cfg is None:
+            cfg = {}
+        if not isinstance(cfg, dict):
+            parser.error("Config file must define a top-level object/dictionary.")
+        return cfg
+
+    cli_args = vars(parser.parse_args(argv))
+    config_path = cli_args.pop("config", None)
+    config_args = _load_config_file(config_path) if config_path else {}
+
+    merged = {
+        "msm_data_file": None,
+        "meta_set_file": None,
+        "outdir": None,
+        "traj_type_col": None,
+        "traj_type_list": ["A", "B"],
+        "rm_traj_list": [],
+        "n_window": 200,
+        "n_traj": 1000,
+        "state_type": "metastablestate",
+        "log_level": "INFO",
+        "logdir": None,
+    }
+    merged.update(config_args)
+    merged.update(cli_args)
+
+    if merged["msm_data_file"] is None:
+        parser.error("Missing required argument: --msm_data_file (or provide it in --config)")
+    if merged["meta_set_file"] is None:
+        parser.error("Missing required argument: --meta_set_file (or provide it in --config)")
+    if merged["outdir"] is None:
+        parser.error("Missing required argument: --outdir (or provide it in --config)")
+    if merged["traj_type_col"] is None:
+        parser.error("Missing required argument: --traj_type_col (or provide it in --config)")
+
+    args = argparse.Namespace(**merged)
 
     outdir = args.outdir
     ###---------------------------------------------------------------------------------------------------------
@@ -111,7 +168,7 @@ def main(argv=None):
     ###---------------------------------------------------------------------------------------------------------
 
     ###---------------------------------------------------------------------------------------------------------
-    # Load MSM data and validate the trajectory-type column
+    # Load MSM data once for input validation.
     logger.info(f'Loading MSM data from {args.msm_data_file}')
     msm_data = pd.read_csv(args.msm_data_file)
     logger.info(f'msm_data shape: {msm_data.shape}, columns: {msm_data.columns.tolist()}')
@@ -133,10 +190,6 @@ def main(argv=None):
 
     ###---------------------------------------------------------------------------------------------------------
     FP = FoldingPathwayStats(
-        msm_data=msm_data,
-        meta_set_file=args.meta_set_file,
-        tarj_type_col=args.traj_type_col,
-        traj_type_list=args.traj_type_list,
         outdir=outdir,
         n_window=args.n_window,
         n_traj=args.n_traj,
@@ -147,10 +200,19 @@ def main(argv=None):
     )
     logger.info(f'FoldingPathwayStats: {FP}')
 
-    folding_pathways = FP.post_trans()
+    folding_pathways = FP.post_trans(
+        msm_data_file=args.msm_data_file,
+        traj_type_col=args.traj_type_col,
+        traj_type_list=args.traj_type_list,
+    )
     logger.info(f'folding_pathways:\n{folding_pathways}')
 
-    JS_divergence = FP.JS_divergence()
+    JS_divergence = FP.JS_divergence(
+        msm_data_file=args.msm_data_file,
+        traj_type_col=args.traj_type_col,
+        traj_type_list=args.traj_type_list,
+        meta_set_file=args.meta_set_file,
+    )
     logger.info(f'JS_divergence:\n{JS_divergence}')
     ###---------------------------------------------------------------------------------------------------------
 

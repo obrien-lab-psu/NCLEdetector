@@ -1,0 +1,24 @@
+{
+  "ID": "P0AD61",
+  "PSF": "/storage/group/epo2/default/ims86/git_slugs/Failure-to-Form_Native_Entanglements_slug/Simulations_of_Native_Entanglement_Misfolding/Temp_Quench_Dynamics/P0AD61_4YNG_C/setup/P0AD61_4YNG_C_rebuilt_clean_ca.psf",
+  "COR": "/storage/group/epo2/default/ims86/git_slugs/Failure-to-Form_Native_Entanglements_slug/Simulations_of_Native_Entanglement_Misfolding/Temp_Quench_Dynamics/P0AD61_4YNG_C/setup/P0AD61_4YNG_C_rebuilt_clean_ca.cor",
+  "sec_elements": "/scratch/ims86/EntDetect_Datastore/user_input/benchmarks/P0AD61_4YNG_C/secondary_struc_defs.txt",
+  "domain": "/scratch/ims86/EntDetect_Datastore/user_input/benchmarks/P0AD61_4YNG_C/domain_def.dat",
+  "ops": [
+    "Q",
+    "G",
+    "K"
+  ],
+  "CG": true,
+  "Calpha": true,
+  "nproc": 8,
+  "log_level": "INFO",
+  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/benchmarks/P0AD61_4YNG_C/OP",
+  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/benchmarks/P0AD61_4YNG_C/OP/logs",
+  "start": 0,
+  "end": 6667,
+  "ent_detection_method": 1,
+  "no_topoly": true,
+  "chunk_frames": 100,
+  "chunk_suffix": "_chunk"
+}

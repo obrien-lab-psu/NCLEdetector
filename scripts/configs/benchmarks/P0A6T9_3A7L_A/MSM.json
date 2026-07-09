@@ -1,0 +1,11 @@
+{
+  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/benchmarks/P0A6T9_3A7L_A/MSM",
+  "ID": "P0A6T9_prod",
+  "OPpath": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/benchmarks/P0A6T9_3A7L_A/OP/",
+  "start": 0,
+  "n_large_states": 10,
+  "lagtime": 20,
+  "rm_traj_list": [],
+  "log_level": "INFO",
+  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/benchmarks/P0A6T9_3A7L_A/MSM/logs"
+}

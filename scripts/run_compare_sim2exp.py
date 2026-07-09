@@ -1,26 +1,38 @@
 from EntDetect.gaussian_entanglement import GaussianEntanglement
 from EntDetect.clustering import ClusterNativeEntanglements, MSMNonNativeEntanglementClustering
-from EntDetect.order_params import CalculateOP, CollectOP
 from EntDetect.compare_sim2exp import MassSpec
 
+if __package__ in {None, ""}:
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from scripts._cli_config import parse_args_with_config
+else:
+    from ._cli_config import parse_args_with_config
+
 """
-Collect per-trajectory SASA/XP outputs (optional) and run the LiP-MS / XL-MS
-consistency test.
+Run the LiP-MS / XL-MS consistency test with automatic collection of SASA/XP files.
+
+Provide parameters directly as CLI flags, through `--config` JSON/YAML, or both.
+When both are provided, CLI flags override config values.
 
 Two usage modes:
 
-  1. Collect + run  (provide --sasa_dir and --xp_dir):
+  1. Collection mode (provide --sasa_dir):
+     MassSpec will check for cached SASA.npy and collect if missing.
      python scripts/run_compare_sim2exp.py
-         --sasa_dir   /path/to/OP_AA/SASA
-         --xp_dir     /path/to/OP_AA/XP
-         --n_traj     1000
-         --n_frames   335
+         --sasa_dir    /path/to/OP_AA/SASA
+         --xp_dir      /path/to/OP_AA/XP
+         --n_traj      1000
+         --n_frames    67
          --msm_data_file ...  (remaining args as below)
 
-  2. Skip collection (provide --sasa_data_file and --dist_data_file directly):
+  2. Pre-built mode (provide --sasa_data_file):
+     Use pre-built SASA.npy directly (skip internal collection).
      python scripts/run_compare_sim2exp.py
          --sasa_data_file /path/to/SASA.npy
-         --dist_data_file /path/to/Jwalk.npy
+         --dist_data_file /path/to/Jwalk.npy (optional)
          --msm_data_file ...
 
 Full example (mode 1):
@@ -28,7 +40,7 @@ python scripts/run_compare_sim2exp.py
 --sasa_dir        /path/to/OP_AA/SASA
 --xp_dir          /path/to/OP_AA/XP
 --n_traj          1000
---n_frames        335
+--n_frames        67
 --msm_data_file   /path/to/msm_data.csv
 --meta_dist_file  /path/to/meta_dist.npy
 --LiPMS_exp_file  /path/to/LiPMS_exp.xlsx
@@ -39,14 +51,11 @@ python scripts/run_compare_sim2exp.py
 --native_AA_pdb   /path/to/native.pdb
 --state_idx_list  4 6 8
 --prot_len        387
---last_num_frames 335
+--last_num_frames 67
 --rm_traj_list    65 75 155
 --native_state_idx 9
 --outdir          /path/to/outdir/
 --ID              1ZMR
---start           6600
---end             -1
---stride          1
 --num_perm        1000
 --n_boot          100
 --lag_frame       20
@@ -56,57 +65,86 @@ python scripts/run_compare_sim2exp.py
 def main(argv=None):
 
     import multiprocessing as mp
-    import sys, os
     import argparse
     import time
 
     start_time = time.time()
     
     parser = argparse.ArgumentParser(description="Process user specified arguments")
-    parser.add_argument("--msm_data_file", type=str, required=True, help="Path to MSM mapping file")
-    parser.add_argument("--meta_dist_file", type=str, required=True, help="Path to meta-distance file")
-    parser.add_argument("--LiPMS_exp_file", type=str, required=True, help="Path to LiP-MS experimental data file")
-    parser.add_argument("--XLMS_exp_file", type=str, required=True, help="Path to XL-MS experimental data file")
-    parser.add_argument("--cluster_data_file", type=str, required=True, help="Path to clustering data file")
-    parser.add_argument("--OPpath", type=str, required=True, help="Path to order parameters directory")
-    parser.add_argument("--AAdcd_dir", type=str, required=True, help="Path to all-atom DCD files directory")
-    parser.add_argument("--native_AA_pdb", type=str, required=True, help="Path to native all-atom PDB file")
-    parser.add_argument("--state_idx_list", type=int, nargs='+', required=True, help="List of state indices to analyze")
-    parser.add_argument("--prot_len", type=int, required=True, help="Length of the protein")
-    parser.add_argument("--last_num_frames", type=int, required=True, help="Number of last frames to consider")
-    parser.add_argument("--rm_traj_list", type=int, nargs='+', required=True, help="List of trajectory indices to remove")
-    parser.add_argument("--native_state_idx", type=int, required=True, help="Index of the native state")
-    parser.add_argument("--outdir", type=str, required=True, help="Output directory for results")
-    parser.add_argument("--ID", type=str, required=True, help="An ID for the analysis")
-    parser.add_argument("--start", type=int, required=True, help="Start frame index")
-    parser.add_argument("--end", type=int, required=True, help="End frame index")
-    parser.add_argument("--stride", type=int, required=True, help="Stride for frame selection")
-    parser.add_argument("--verbose", action='store_true', help="Enable verbose output")
-    parser.add_argument("--num_perm", type=int, required=True, help="Number of permutations for statistical tests")
-    parser.add_argument("--n_boot", type=int, required=True, help="Number of bootstrap samples")
-    parser.add_argument("--lag_frame", type=int, required=True, help="Lag time in frames")
-    parser.add_argument("--nproc", type=int, required=True, help="Number of processes for parallel computation")
+    parser.add_argument("--config", type=str, required=False, default=argparse.SUPPRESS,
+                        help="Optional path to JSON/YAML config file. CLI flags override config values.")
+    parser.add_argument("--msm_data_file", type=str, required=False, default=argparse.SUPPRESS, help="Path to MSM mapping file")
+    parser.add_argument("--meta_dist_file", type=str, required=False, default=argparse.SUPPRESS, help="Path to meta-distance file")
+    parser.add_argument("--LiPMS_exp_file", type=str, required=False, default=argparse.SUPPRESS, help="Path to LiP-MS experimental data file")
+    parser.add_argument("--XLMS_exp_file", type=str, required=False, default=argparse.SUPPRESS, help="Path to XL-MS experimental data file")
+    parser.add_argument("--cluster_data_file", type=str, required=False, default=argparse.SUPPRESS, help="Path to clustering data file")
+    parser.add_argument("--OPpath", type=str, required=False, default=argparse.SUPPRESS, help="Path to order parameters directory")
+    parser.add_argument("--AAdcd_dir", type=str, required=False, default=argparse.SUPPRESS, help="Path to all-atom DCD files directory")
+    parser.add_argument("--native_AA_pdb", type=str, required=False, default=argparse.SUPPRESS, help="Path to native all-atom PDB file")
+    parser.add_argument("--state_idx_list", type=int, nargs='+', required=False, default=argparse.SUPPRESS, help="List of state indices to analyze")
+    parser.add_argument("--prot_len", type=int, required=False, default=argparse.SUPPRESS, help="Length of the protein")
+    parser.add_argument("--last_num_frames", type=int, required=False, default=argparse.SUPPRESS, help="Number of last frames to consider")
+    parser.add_argument("--rm_traj_list", type=int, nargs='+', required=False, default=argparse.SUPPRESS, help="List of trajectory indices to remove")
+    parser.add_argument("--native_state_idx", type=int, required=False, default=argparse.SUPPRESS, help="Index of the native state")
+    parser.add_argument("--outdir", type=str, required=False, default=argparse.SUPPRESS, help="Output directory for results")
+    parser.add_argument("--ID", type=str, required=False, default=argparse.SUPPRESS, help="An ID for the analysis")
+    parser.add_argument("--verbose", action='store_true', default=argparse.SUPPRESS, help="Enable verbose output")
+    parser.add_argument("--num_perm", type=int, required=False, default=argparse.SUPPRESS, help="Number of permutations for statistical tests")
+    parser.add_argument("--n_boot", type=int, required=False, default=argparse.SUPPRESS, help="Number of bootstrap samples")
+    parser.add_argument("--lag_frame", type=int, required=False, default=argparse.SUPPRESS, help="Lag time in frames")
+    parser.add_argument("--nproc", type=int, required=False, default=argparse.SUPPRESS, help="Number of processes for parallel computation")
     # --- CollectOP arguments (optional: collect from per-traj files) ---
-    parser.add_argument("--sasa_dir", type=str, default=None,
+    parser.add_argument("--sasa_dir", type=str, default=argparse.SUPPRESS,
                         help="Directory of per-traj {ID}_Traj{N}.SASA files. "
                              "If provided together with --xp_dir, CollectOP is run "
                              "before MassSpec and --sasa_data_file / --dist_data_file "
                              "are set automatically.")
-    parser.add_argument("--xp_dir", type=str, default=None,
+    parser.add_argument("--xp_dir", type=str, default=argparse.SUPPRESS,
                         help="Directory of per-traj {ID}_Traj{N}.XP files (used with --sasa_dir).")
-    parser.add_argument("--n_traj", type=int, default=None,
+    parser.add_argument("--n_traj", type=int, default=argparse.SUPPRESS,
                         help="Total number of trajectories for CollectOP (required with --sasa_dir).")
-    parser.add_argument("--n_frames", type=int, default=None,
+    parser.add_argument("--n_frames", type=int, default=argparse.SUPPRESS,
                         help="Frames per trajectory stored in each file (required with --sasa_dir).")
-    parser.add_argument("--collect_jwalk_npy", action='store_true',
+    parser.add_argument("--collect_jwalk_npy", action='store_true', default=argparse.SUPPRESS,
                         help="Also build Jwalk.npy with CollectOP (legacy path). "
                              "By default, XL-MS scoring streams directly from XP files to reduce memory use.")
     # --- Direct array paths (used when skipping collection) ---
-    parser.add_argument("--sasa_data_file", type=str, default=None,
+    parser.add_argument("--sasa_data_file", type=str, default=argparse.SUPPRESS,
                         help="Path to pre-built SASA.npy. Required if --sasa_dir is not provided.")
-    parser.add_argument("--dist_data_file", type=str, default=None,
+    parser.add_argument("--dist_data_file", type=str, default=argparse.SUPPRESS,
                         help="Path to pre-built Jwalk.npy. Required if --xp_dir is not provided.")
-    args = parser.parse_args(argv)
+    args = parse_args_with_config(
+        parser,
+        argv,
+        defaults={
+            "sasa_dir": None,
+            "xp_dir": None,
+            "n_traj": None,
+            "n_frames": None,
+            "collect_jwalk_npy": False,
+            "sasa_data_file": None,
+            "dist_data_file": None,
+            "verbose": False,
+        },
+        aliases={"id": "ID"},
+    )
+
+    required_fields = [
+        "msm_data_file", "meta_dist_file", "LiPMS_exp_file", "XLMS_exp_file",
+        "cluster_data_file", "OPpath", "AAdcd_dir", "native_AA_pdb",
+        "state_idx_list", "prot_len", "last_num_frames", "rm_traj_list",
+        "native_state_idx", "outdir", "ID",
+        "num_perm", "n_boot", "lag_frame", "nproc",
+    ]
+    for field in required_fields:
+        if not hasattr(args, field) or getattr(args, field) is None:
+            parser.error(f"Missing required argument: --{field} (or provide it in --config)")
+
+    if isinstance(args.state_idx_list, int):
+        args.state_idx_list = [args.state_idx_list]
+    if isinstance(args.rm_traj_list, int):
+        args.rm_traj_list = [args.rm_traj_list]
+
     print(args)
     msm_data_file = args.msm_data_file
     meta_dist_file = args.meta_dist_file
@@ -125,9 +163,6 @@ def main(argv=None):
     native_state_idx = args.native_state_idx
     outdir = args.outdir
     ID = args.ID
-    start = args.start
-    end = args.end
-    stride = args.stride
     verbose = args.verbose
     num_perm = args.num_perm
     n_boot = args.n_boot
@@ -135,53 +170,34 @@ def main(argv=None):
     nproc = args.nproc
 
     # ── validate input mode ────────────────────────────────────────────────
-    collect_mode = args.sasa_dir is not None and args.xp_dir is not None
-    direct_mode  = args.sasa_data_file is not None and args.dist_data_file is not None
+    collect_mode = args.sasa_dir is not None
+    direct_mode  = args.sasa_data_file is not None
 
     if not collect_mode and not direct_mode:
         parser.error(
-            "Provide either (--sasa_dir + --xp_dir + --n_traj + --n_frames) "
-            "to collect from per-trajectory files, or "
-            "(--sasa_data_file + --dist_data_file) to use pre-built arrays."
+            "Provide either --sasa_dir (for automatic collection) or "
+            "--sasa_data_file (for pre-built array)."
         )
+    if collect_mode and args.n_traj is None:
+        parser.error("--n_traj is required when using --sasa_dir (or provide it in --config)")
+    if collect_mode and args.n_frames is None:
+        parser.error("--n_frames is required when using --sasa_dir (or provide it in --config)")
 
-    # ── Step 1: collect per-trajectory outputs if requested ───────────────
-    if collect_mode:
-        if args.n_traj is None or args.n_frames is None:
-            parser.error("--n_traj and --n_frames are required when using --sasa_dir / --xp_dir")
-
-        os.makedirs(outdir, exist_ok=True)
-        collector = CollectOP(
-            sasa_dir  = args.sasa_dir,
-            xp_dir    = args.xp_dir,
-            outdir    = outdir,
-            ID        = ID,
-            n_traj    = args.n_traj,
-            n_frames  = args.n_frames,
-            prot_len  = prot_len,
-        )
-        sasa_data_file = collector.collect_SASA()
-        if args.collect_jwalk_npy:
-            dist_data_file = collector.collect_Jwalk()
-        else:
-            dist_data_file = None
-        print(f'CollectOP SASA:  {sasa_data_file}')
-        if dist_data_file is not None:
-            print(f'CollectOP Jwalk: {dist_data_file}')
-        else:
-            print('CollectOP Jwalk: skipped (streaming XP mode enabled)')
-
-    # ── Step 2: run the consistency test ──────────────────────────────────
+    # ── Step 1: Initialize MassSpec (it handles collection internally if needed)
     MS = MassSpec(msm_data_file=msm_data_file,
                     meta_dist_file=meta_dist_file,
                     LiPMS_exp_file=LiPMS_exp_file,
-                    sasa_data_file=sasa_data_file,
                     XLMS_exp_file=XLMS_exp_file,
-                    dist_data_file=dist_data_file,
                     cluster_data_file=cluster_data_file,
                     OPpath=OPpath,
                     AAdcd_dir=AAdcd_dir,
                     native_AA_pdb=native_AA_pdb,
+                    sasa_data_file=sasa_data_file,
+                    dist_data_file=dist_data_file,
+                    sasa_dir=args.sasa_dir,
+                    n_traj=args.n_traj,
+                    n_frames=args.n_frames,
+                    collect_jwalk_npy=args.collect_jwalk_npy,
                     xp_dir=args.xp_dir,
                     state_idx_list=state_idx_list,
                     prot_len=prot_len,
@@ -190,9 +206,6 @@ def main(argv=None):
                     native_state_idx=native_state_idx,
                     outdir=outdir,
                     ID=ID,
-                    start=start,
-                    end=end,
-                    stride=stride,
                     verbose=verbose,
                     num_perm=num_perm,
                     n_boot=n_boot,
