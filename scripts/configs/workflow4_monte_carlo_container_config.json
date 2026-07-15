@@ -1,0 +1,22 @@
+{
+  "dataframe_files": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/container/residue_dataframes_workflow4.csv",
+  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/monte_carlo/container",
+  "gene_list": "/scratch/ims86/EntDetect_Datastore/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_ent_genes.txt",
+  "ID": "Ecoli_population_mc",
+  "reg_formula": "cut_C_Rall ~ region + AA",
+  "response_var": "cut_C_Rall",
+  "sep": "|",
+  "reg_var": ["AA", "region"],
+  "var2binarize": ["cut_C_Rall", "region"],
+  "mask_column": "mapped_resid",
+  "ID_column": "gene",
+  "Length_column": "uniprot_length",
+  "test_var": "region",
+  "n_groups": 4,
+  "steps": 100000,
+  "C1": 1.0,
+  "C2": 2.5,
+  "beta": 0.05,
+  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/container/logs",
+  "log_level": "INFO"
+}

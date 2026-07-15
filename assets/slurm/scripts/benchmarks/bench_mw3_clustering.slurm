@@ -45,6 +45,12 @@ for t in $(seq 0 49); do
 done
 echo "map rows: $(( $(wc -l < "$MAP") - 1 ))"
 
+# Safety guard: benchmark clustering for ent_detection_method=2 must use last-67 OP outputs.
+if ! grep -q '/OP_last67/G/Combined_GE/' "$MAP"; then
+    echo "ERROR: $MAP does not point to OP_last67 Combined_GE files. Aborting." >&2
+    exit 2
+fi
+
 python scripts/run_nonnative_entanglement_clustering.py \
     --config "scripts/configs/benchmarks/$P/nonnative_clustering.json"
 echo "=== done $P | $(date) ==="

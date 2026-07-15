@@ -23,6 +23,10 @@ EntDetect provides a complete toolkit for analyzing protein entanglements across
 
 ## Installation
 
+Container-first setup (recommended for reproducible HPC usage):
+
+- See [Documentation/container_usage.md](Documentation/container_usage.md) for pulling and running the EntDetect container with Apptainer/Singularity.
+
 Create a new conda environment and install EntDetect (from this repo checkout):
 
 ```bash
@@ -102,6 +106,7 @@ Detailed documentation for each module:
 - [Workflow 2: Trajectory analysis](Documentation/workflow2_trajectory_analysis.md)
 - [Workflow 3: Sim-to-experiment comparison](Documentation/workflow3_sim2exp.md)
 - [Workflow 4: Population-level analysis](Documentation/workflow4_population.md)
+- [Container usage (Apptainer/Singularity)](Documentation/container_usage.md)
 - [Gaussian Entanglement](Documentation/gaussian_entanglement.md)
 - [Clustering](Documentation/clustering.md)
 - [Order Parameters](Documentation/order_params.md)

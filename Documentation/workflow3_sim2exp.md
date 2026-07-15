@@ -323,6 +323,22 @@ python scripts/run_compare_sim2exp.py \
     --state_idx_list 5 7
 ```
 
+Container equivalent (same config and optional CLI override):
+
+```bash
+CONFIG=scripts/configs/workflow3_consistency_config.json
+DATASTORE=/scratch/ims86/EntDetect_Datastore
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_compare_sim2exp.py \
+        --config "$CONFIG" \
+        --state_idx_list 5 7
+```
+
 ### Config file example (matches `scripts/configs/workflow3_consistency_config.json`):
 
 ```json

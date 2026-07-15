@@ -263,6 +263,22 @@ python scripts/run_population_modeling.py \
     --batch_nproc 32
 ```
 
+Container equivalent (same config and optional CLI override):
+
+```bash
+CONFIG=scripts/configs/workflow4_population_modeling_config.json
+DATASTORE=/scratch/ims86/EntDetect_Datastore
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_population_modeling.py \
+        --config "$CONFIG" \
+        --batch_nproc 32
+```
+
 Config file example (matches `scripts/configs/workflow4_population_modeling_config.json`):
 
 ```json
@@ -597,6 +613,22 @@ CONFIG=scripts/configs/workflow4_monte_carlo_config.json
 python scripts/run_montecarlo.py \
     --config $CONFIG \
     --n_groups 6
+```
+
+Container equivalent (same config and optional CLI override):
+
+```bash
+CONFIG=scripts/configs/workflow4_monte_carlo_config.json
+DATASTORE=/scratch/ims86/EntDetect_Datastore
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_montecarlo.py \
+        --config "$CONFIG" \
+        --n_groups 6
 ```
 
 Config file example (matches `scripts/configs/workflow4_monte_carlo_config.json`):

@@ -287,6 +287,23 @@ python scripts/run_nativeNCLE.py \
     --ent_detection_method 2
 ```
 
+Container equivalent (same config and override):
+
+```bash
+CONFIG=scripts/configs/workflow1_nativeNCLE_config.json
+DATASTORE=/Path/to/EntDetect_Datastore
+
+# Here, --ent_detection_method 2 overrides ent_detection_method=3 from the config file.
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_nativeNCLE.py \
+        --config "$CONFIG" \
+        --ent_detection_method 2
+```
+
 Config file example (matches `scripts/configs/workflow1_nativeNCLE_config.json`):
 
 ```json

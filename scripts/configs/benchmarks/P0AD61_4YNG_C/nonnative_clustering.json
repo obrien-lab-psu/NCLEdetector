@@ -2,8 +2,8 @@
   "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/benchmarks/P0AD61_4YNG_C/nonnative_clustering",
   "trajnum2pklfile_path": "/scratch/ims86/EntDetect_Datastore/user_input/benchmarks/P0AD61_4YNG_C/OP_last67_trajnum2file.txt",
   "traj_dir_prefix": "/storage/group/epo2/default/ims86/git_slugs/Failure-to-Form_Native_Entanglements_slug/Simulations_of_Native_Entanglement_Misfolding/Temp_Quench_Dynamics/P0AD61_4YNG_C/Quenching",
-  "start_frame": 0,
-  "end_frame": 9999999,
+  "start_frame": 6600,
+  "end_frame": 6667,
   "nproc": 4,
   "log_level": "INFO",
   "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/benchmarks/P0AD61_4YNG_C/nonnative_clustering/logs"

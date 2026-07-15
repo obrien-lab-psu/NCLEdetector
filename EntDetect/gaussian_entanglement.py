@@ -591,7 +591,7 @@ class GaussianEntanglement:
         ## set up the outdir for this calculation
         #outdir = f"{os.getcwd()}/{outdir}"
         if not os.path.isdir(outdir):
-            os.mkdir(f"{outdir}") 
+            os.makedirs(outdir, exist_ok=True)
             self.logger.info(f"Creating directory: {outdir}")
 
         if not os.path.isdir(f"{outdir}/unmapped_missing_residues"):
@@ -1205,7 +1205,7 @@ class GaussianEntanglement:
         """
         ## set up the outdir for this calculation
         if not os.path.isdir(outdir):
-            os.mkdir(f"{outdir}") 
+            os.makedirs(outdir, exist_ok=True)
             self.logger.info(f"Creating directory: {outdir}")
 
         ## Load reference and trajectory data

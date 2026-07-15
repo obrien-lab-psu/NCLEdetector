@@ -256,6 +256,46 @@ python scripts/run_OP_on_simulation_traj.py \
         --DCD /scratch/ims86/EntDetect_Datastore/user_input/cg_trajectories/421_prod.dcd
 ```
 
+Container equivalent (same configs and optional CLI override):
+
+```bash
+DATASTORE=/scratch/ims86/EntDetect_Datastore
+CFG_OP=scripts/configs/workflow2_OP_config.json
+CFG_OP_LAST67=scripts/configs/workflow2_OP_last67_config.json
+CFG_OP_AA_LAST67=scripts/configs/workflow2_OP_AA_last67_config.json
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_OP_on_simulation_traj.py --config "$CFG_OP"
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_OP_on_simulation_traj.py --config "$CFG_OP_LAST67"
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_OP_on_simulation_traj.py --config "$CFG_OP_AA_LAST67"
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_OP_on_simulation_traj.py \
+        --config "$CFG_OP_LAST67" \
+        --Traj 421 \
+        --DCD /scratch/ims86/EntDetect_Datastore/user_input/cg_trajectories/421_prod.dcd
+```
+
 Config file example 1 (matches `scripts/configs/workflow2_OP_config.json`):
 
 ```json
@@ -637,6 +677,29 @@ python scripts/run_nonnative_entanglement_clustering.py \
     --trajnum2pklfile_path /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last67/trajnum2file.txt
 ```
 
+Container equivalent (same config and optional CLI override):
+
+```bash
+DATASTORE=/scratch/ims86/EntDetect_Datastore
+CFG=scripts/configs/workflow2_nonnative_clustering_config.json
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_nonnative_entanglement_clustering.py --config "$CFG"
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_nonnative_entanglement_clustering.py \
+        --config "$CFG" \
+        --trajnum2pklfile_path /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last67/trajnum2file.txt
+```
+
 Config file (matches `scripts/configs/workflow2_nonnative_clustering_config.json`):
 
 ```json
@@ -881,6 +944,27 @@ python scripts/run_MSM.py --config $CFG
 
 # Example CLI override (try a different number of metastable states):
 python scripts/run_MSM.py --config $CFG --n_large_states 15
+```
+
+Container equivalent (same config and optional CLI override):
+
+```bash
+DATASTORE=/scratch/ims86/EntDetect_Datastore
+CFG=scripts/configs/workflow2_MSM_config.json
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_MSM.py --config "$CFG"
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_MSM.py --config "$CFG" --n_large_states 15
 ```
 
 Config file (matches `scripts/configs/workflow2_MSM_config.json`):
@@ -1135,6 +1219,28 @@ python scripts/run_MSMStats.py --config $CFG_CASE1
 python scripts/run_MSMStats.py --config $CFG_CASE2
 ```
 
+Container equivalent (same configs):
+
+```bash
+DATASTORE=/scratch/ims86/EntDetect_Datastore
+CFG_CASE1=scripts/configs/workflow2_MSMStats_case1_config.json
+CFG_CASE2=scripts/configs/workflow2_MSMStats_case2_config.json
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_MSMStats.py --config "$CFG_CASE1"
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_MSMStats.py --config "$CFG_CASE2"
+```
+
 Config file example 1 (matches `scripts/configs/workflow2_MSMStats_case1_config.json`):
 
 ```json
@@ -1327,6 +1433,28 @@ python scripts/run_Foldingpathway.py --config $CFG_CASE1
 
 # Case 2 — random split (negative control)
 python scripts/run_Foldingpathway.py --config $CFG_CASE2
+```
+
+Container equivalent (same configs):
+
+```bash
+DATASTORE=/scratch/ims86/EntDetect_Datastore
+CFG_CASE1=scripts/configs/workflow2_FoldingPathway_case1_config.json
+CFG_CASE2=scripts/configs/workflow2_FoldingPathway_case2_config.json
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_Foldingpathway.py --config "$CFG_CASE1"
+
+apptainer exec \
+    --bind "$DATASTORE:$DATASTORE" \
+    --bind "$PWD:$PWD" \
+    --pwd "$PWD" \
+    entdetect-latest.sif \
+    python scripts/run_Foldingpathway.py --config "$CFG_CASE2"
 ```
 
 Config file example 1 (matches `scripts/configs/workflow2_FoldingPathway_case1_config.json`):
