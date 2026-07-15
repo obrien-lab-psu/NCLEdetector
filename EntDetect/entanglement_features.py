@@ -367,7 +367,8 @@ class FeatureGen:
             
             if num_C_term_thread != 0:
                 min_C_thread_slippage_right = self.prot_size - max(C_term_thread)
-                min_C_thread_depth_right = min_C_thread_slippage_right / (self.prot_size - pdb_NCj_core)
+                denom = self.prot_size - pdb_NCj_core
+                min_C_thread_depth_right = min_C_thread_slippage_right / denom if denom != 0 else np.nan
                 min_C_prot_depth_right = min_C_thread_slippage_right / self.prot_size
             else:
                 min_C_thread_slippage_right = np.nan
