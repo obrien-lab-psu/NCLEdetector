@@ -1,4 +1,4 @@
-# Using NCLEdetector via Container (Apptainer/Singularity)
+# Using NCLEdetector via Containers (Docker and Apptainer/Singularity)
 
 This guide shows how to run NCLEdetector without creating a local Conda environment.
 Instead, pull the published container image from GHCR and run commands inside it.
@@ -15,12 +15,16 @@ Instead, pull the published container image from GHCR and run commands inside it
 
 ## Prerequisites
 
-1. Apptainer or Singularity is installed.
+1. One container runtime is installed:
+   - Docker, or
+   - Apptainer/Singularity.
 2. You can access GHCR (public image pull, or authenticated pull if required by your site policy).
 
 Check your runtime:
 
 ```bash
+docker --version
+# or
 apptainer version
 # or
 singularity version
@@ -28,7 +32,24 @@ singularity version
 
 ---
 
-## Pull the image
+## Pull the image (Docker)
+
+From your project directory:
+
+```bash
+cd /path/to/NCLEdetector
+docker pull ghcr.io/obrien-lab-psu/ncledetector:latest
+```
+
+If you want a specific released tag:
+
+```bash
+docker pull ghcr.io/obrien-lab-psu/ncledetector:vX.Y.Z
+```
+
+---
+
+## Pull the image (Apptainer/Singularity)
 
 From your project directory:
 
@@ -49,7 +70,13 @@ If you see "manifest unknown", the tag has not been published yet. Use latest or
 
 ## Optional GHCR login
 
-If your site requires authenticated pulls:
+For Docker, only needed if your organization/site policy requires authentication:
+
+```bash
+echo "YOUR_GITHUB_PAT" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+```
+
+For Apptainer/Singularity:
 
 ```bash
 apptainer registry login --username YOUR_GITHUB_USERNAME docker://ghcr.io
@@ -61,7 +88,14 @@ Enter your GitHub PAT (with package read scope) when prompted.
 
 ## Validate the container
 
-Run the built-in smoke test:
+Docker:
+
+```bash
+docker run --rm ghcr.io/obrien-lab-psu/ncledetector:latest \
+   bash /opt/NCLEdetector/container/smoke_test.sh
+```
+
+Apptainer/Singularity:
 
 ```bash
 apptainer exec ncledetector-latest.sif bash /opt/NCLEdetector/container/smoke_test.sh
@@ -75,7 +109,19 @@ You should see: SMOKE TEST PASSED
 
 Use bind mounts so your input/output paths are visible in the container.
 
-Example using an HPC datastore:
+Example using an HPC datastore with Docker:
+
+```bash
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
+docker run --rm \
+   -v "$DATASTORE:$DATASTORE" \
+   -v "$PWD:$PWD" \
+   -w "$PWD" \
+   ghcr.io/obrien-lab-psu/ncledetector:latest \
+   python scripts/run_nativeNCLE.py --help
+```
+
+Example using an HPC datastore with Apptainer/Singularity:
 
 ```bash
 DATASTORE=/scratch/ims86/NCLEdetector_Datastore
@@ -87,7 +133,7 @@ apptainer exec \
   python scripts/run_nativeNCLE.py --help
 ```
 
-Run a workflow command from the repo root:
+Run a workflow command from the repo root (Apptainer/Singularity):
 
 ```bash
 apptainer exec \
@@ -107,10 +153,14 @@ apptainer exec \
    - Pull latest or confirm the GitHub Actions build-container workflow completed successfully.
 
 2. 403 Forbidden on pull
-   - Log in to GHCR with apptainer registry login.
+   - Log in to GHCR with docker login or apptainer registry login.
    - Verify token scope and organization package permissions.
 
-3. File not found inside container
+3. permission denied while trying to connect to the docker API
+   - Your user may not have permission to access /var/run/docker.sock.
+   - Use a system where Docker daemon access is enabled for your account.
+
+4. File not found inside container
    - Add the correct --bind arguments.
    - Ensure your command paths are valid from the container working directory.
 

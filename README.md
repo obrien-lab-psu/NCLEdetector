@@ -23,11 +23,13 @@ NCLEdetector provides a complete toolkit for analyzing protein entanglements acr
 
 ## Installation
 
-Container-first setup (recommended for reproducible HPC usage):
+NCLEdetector supports two installation methods. Choose the one that best matches your workflow.
 
-- See [Documentation/container_usage.md](Documentation/container_usage.md) for pulling and running the NCLEdetector container with Apptainer/Singularity.
+### Method 1: Conda environment install (Linux and macOS)
 
-Create a new conda environment and install NCLEdetector (from this repo checkout):
+Use this when you want a local Python environment and direct script/package development.
+
+From the repo root:
 
 ```bash
 conda env create -f environment.yml
@@ -39,7 +41,7 @@ Notes:
 - Run `conda env create` from the NCLEdetector repo root (the environment file uses `pip -e .`).
 - If you prefer installing into an existing env, use `pip install -e .` from the repo root.
 
-macOS (Miniconda) notes:
+macOS notes:
 - The default `environment.yml` is intended to work on both Linux and macOS via conda-forge.
 - If you hit solver/build issues on macOS, try:
 
@@ -54,6 +56,22 @@ conda activate ncledetector
 CONDA_SUBDIR=osx-64 conda env create -f environment-mac.yml
 conda activate ncledetector
 ```
+
+### Method 2: Container install (Docker and Apptainer/Singularity)
+
+Use this for reproducible runs, HPC workflows, or when you do not want to manage local dependencies.
+
+Pull prebuilt images:
+
+```bash
+# Docker
+docker pull ghcr.io/obrien-lab-psu/ncledetector:latest
+
+# Apptainer/Singularity
+apptainer pull ncledetector.sif docker://ghcr.io/obrien-lab-psu/ncledetector:latest
+```
+
+For full run examples and bind-mount guidance, see [Documentation/container_usage.md](Documentation/container_usage.md).
 
 ## Tutorials
 
@@ -106,7 +124,7 @@ Detailed documentation for each module:
 - [Workflow 2: Trajectory analysis](Documentation/workflow2_trajectory_analysis.md)
 - [Workflow 3: Sim-to-experiment comparison](Documentation/workflow3_sim2exp.md)
 - [Workflow 4: Population-level analysis](Documentation/workflow4_population.md)
-- [Container usage (Apptainer/Singularity)](Documentation/container_usage.md)
+- [Container usage (Docker and Apptainer/Singularity)](Documentation/container_usage.md)
 - [Gaussian Entanglement](Documentation/gaussian_entanglement.md)
 - [Clustering](Documentation/clustering.md)
 - [Order Parameters](Documentation/order_params.md)

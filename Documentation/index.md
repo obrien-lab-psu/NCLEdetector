@@ -9,7 +9,7 @@ A beginner-friendly guide to the **NCLEdetector** Python package for studying no
 1. [What NCLEdetector is for](#what-ncledetector-is-for)
 2. [Who this tutorial is for](#who-this-tutorial-is-for)
 3. [Before you begin](#before-you-begin)
-4. [Container-based setup (Apptainer/Singularity)](#container-based-setup-apptainersingularity)
+4. [Container-based setup (Docker and Apptainer/Singularity)](#container-based-setup-docker-and-apptainersingularity)
 5. [Recommended project layout](#recommended-project-layout)
 6. [Workflow overview](#workflow-overview)
 7. [Workflow tutorials](#workflow-tutorials)
@@ -52,7 +52,7 @@ conda activate ncledetector
 
 If you prefer not to create a local Conda environment, use the container workflow instead:
 
-- [Container usage (Apptainer/Singularity)](container_usage.md)
+- [Container usage (Docker and Apptainer/Singularity)](container_usage.md)
 
 ### 2. Fetch and set the datastore path
 
@@ -121,7 +121,7 @@ For structure-based analyses, ensure your input structure has been preprocessed:
 
 The reference structure `1zmr_model_clean.pdb` in `$DATASTORE/user_input/reference_structures/` is already cleaned and ready to use.
 
-## Container-based setup (Apptainer/Singularity)
+## Container-based setup (Docker and Apptainer/Singularity)
 
 NCLEdetector can be run directly from the published container image, which is often simpler and more reproducible on HPC systems.
 
