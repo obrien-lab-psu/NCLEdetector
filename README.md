@@ -23,9 +23,19 @@ NCLEdetector provides a complete toolkit for analyzing protein entanglements acr
 
 ## Installation
 
-NCLEdetector supports two installation methods. Choose the one that best matches your workflow.
+NCLEdetector supports three installation methods. Choose the one that best matches your workflow.
 
-### Method 1: Conda environment install (Linux and macOS)
+### Method 1: pip install from PyPI
+
+Use this when you want the quickest standard Python install.
+
+```bash
+python -m pip install NCLEdetector
+```
+
+Project page: https://pypi.org/project/NCLEdetector/
+
+### Method 2: Conda environment install (Linux and macOS)
 
 Use this when you want a local Python environment and direct script/package development.
 
@@ -57,7 +67,7 @@ CONDA_SUBDIR=osx-64 conda env create -f environment-mac.yml
 conda activate ncledetector
 ```
 
-### Method 2: Container install (Docker and Apptainer/Singularity)
+### Method 3: Container install (Docker and Apptainer/Singularity)
 
 Use this for reproducible runs, HPC workflows, or when you do not want to manage local dependencies.
 
