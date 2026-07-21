@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/obrien-lab-psu/entdetect
+  IMAGE: ghcr.io/obrien-lab-psu/ncledetector
 
 jobs:
   docker:
@@ -68,7 +68,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | apptainer registry login --username ${{ github.actor }} --password-stdin oras://ghcr.io
 
       - name: Build .sif from the pushed Docker image
-        run: apptainer build entdetect.sif docker://${{ env.IMAGE }}:${{ needs.docker.outputs.version }}
+        run: apptainer build ncledetector.sif docker://${{ env.IMAGE }}:${{ needs.docker.outputs.version }}
 
       - name: Push .sif to GHCR (OCI artifact)
-        run: apptainer push entdetect.sif oras://${{ env.IMAGE }}-sif:${{ needs.docker.outputs.version }}
+        run: apptainer push ncledetector.sif oras://${{ env.IMAGE }}-sif:${{ needs.docker.outputs.version }}

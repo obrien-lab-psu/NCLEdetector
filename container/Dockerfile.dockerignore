@@ -4,14 +4,14 @@
 **/__pycache__/
 *.pyc
 *.egg-info/
-EntDetect.egg-info/
+NCLEdetector.egg-info/
 
 # Logs and SLURM artifacts
 assets/slurm/logs/
 **/logs/
 
 # Local scratch / datastore should never be in the repo, but guard anyway
-**/EntDetect_Datastore/
+**/NCLEdetector_Datastore/
 scratch/
 
 # Docs build artifacts / notebooks checkpoints

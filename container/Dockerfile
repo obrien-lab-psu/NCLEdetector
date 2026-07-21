@@ -1,6 +1,6 @@
-# EntDetect container image
+# NCLEdetector container image
 #
-# Reproducible image for running the EntDetect minimal-workflow command-line
+# Reproducible image for running the NCLEdetector minimal-workflow command-line
 # tools (run_nativeNCLE, run_OP_on_simulation_traj, run_MSM, ...) directly.
 #
 # Base is glibc-based (Ubuntu jammy) because the bundled pulchra/stride binaries
@@ -8,7 +8,7 @@
 # linux/amd64. (ARM hosts run it via emulation; HPC Singularity is amd64.)
 #
 # Build (from repo root):
-#   docker build -f container/Dockerfile -t ghcr.io/obrien-lab-psu/entdetect:local .
+#   docker build -f container/Dockerfile -t ghcr.io/obrien-lab-psu/ncledetector:local .
 FROM condaforge/miniforge3:latest
 
 # ---------------------------------------------------------------------------
@@ -27,22 +27,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create the exactly-pinned conda environment from the lock file
 # ---------------------------------------------------------------------------
 COPY container/environment.lock.yml /tmp/environment.lock.yml
-RUN conda env create -n entdetect -f /tmp/environment.lock.yml \
+RUN conda env create -n ncledetector -f /tmp/environment.lock.yml \
     && conda clean --all --yes \
     && rm -f /tmp/environment.lock.yml
 
 # Put the env on PATH so console-scripts are directly callable in both
 # `docker run` and `singularity exec` (Singularity honors the image ENV PATH).
-ENV PATH=/opt/conda/envs/entdetect/bin:$PATH \
-    MAMBA_DEFAULT_ENV=entdetect
+ENV PATH=/opt/conda/envs/ncledetector/bin:$PATH \
+    MAMBA_DEFAULT_ENV=ncledetector
 
 # ---------------------------------------------------------------------------
-# Install EntDetect itself from the checkout (deps already satisfied by lock)
+# Install NCLEdetector itself from the checkout (deps already satisfied by lock)
 # ---------------------------------------------------------------------------
-COPY . /opt/EntDetect
-WORKDIR /opt/EntDetect
+COPY . /opt/NCLEdetector
+WORKDIR /opt/NCLEdetector
 RUN pip install --no-deps . \
-    && chmod +x EntDetect/resources/pulchra EntDetect/resources/stride EntDetect/Jwalk/jwalk
+    && chmod +x NCLEdetector/resources/pulchra NCLEdetector/resources/stride NCLEdetector/Jwalk/jwalk
 
 # Default to a user-data working directory (bind-mount host data here or 1:1).
 WORKDIR /work

@@ -1,4 +1,4 @@
-name: entdetect
+name: ncledetector
 channels:
   - conda-forge
   - bioconda
