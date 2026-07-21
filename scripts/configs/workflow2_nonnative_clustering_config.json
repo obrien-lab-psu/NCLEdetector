@@ -1,10 +1,10 @@
 {
-  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/nonnative_clustering_last67",
-  "trajnum2pklfile_path": "/scratch/ims86/EntDetect_Datastore/user_input/metadata/OP_last67_trajnum2file.txt",
+  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/nonnative_clustering_last335",
+  "trajnum2pklfile_path": "/scratch/ims86/EntDetect_Datastore/user_input/metadata/OP_last335_trajnum2file.txt",
   "traj_dir_prefix": "/scratch/ims86/EntDetect_Datastore/user_input/cg_trajectories",
-  "start_frame": 0,
+  "start_frame": 6332,
   "end_frame": 9999999,
-  "nproc": 4,
+  "nproc": 20,
   "log_level": "INFO",
-  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/nonnative_clustering_last67/logs"
+  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/nonnative_clustering_last335/logs"
 }

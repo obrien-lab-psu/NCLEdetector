@@ -19,6 +19,7 @@ from EntDetect.Jwalk import PDBTools, GridTools, SurfaceTools, SASDTools
 from importlib.resources import files
 import subprocess
 import pathlib
+import shutil
 from multiprocessing import cpu_count
 from scipy.stats import norm
 
@@ -112,12 +113,19 @@ class CalculateOP:
     #######################################################################################
 
     #######################################################################################
-    def Qpy(self, ):
+    def Qpy(self, chunk_frames:int=None, chunk_suffix:str='_chunk'):
         self.logger.info(f'Calculating the fraction of native contacts (Q)')
         """
         Calculate the fraction of native contacts in each frame of the DCD where a native contact is defined between secondary structures 
         and for residues atleast that are atleast 3 residues apart. So if i = 1 then j at a minimum can be 5. 
         For a contact to be present the distance between i and j must be less than 8A in the native structure and in a trajectory frame be less than 1.2*native distance.
+
+        If chunk_frames is None (default): accumulates every frame's result in memory before a
+        single write (backward compatible).
+        If chunk_frames > 0: flushes accumulated rows to a restart-friendly part file every
+        chunk_frames frames instead of holding the whole trajectory's results in memory. Parts
+        are concatenated into the final {ID}.Q once complete, then removed. If interrupted and
+        restarted, any part files already on disk are reused instead of recomputed.
         """
         # make directory for Q data if it doesnt exist
         self.Qpath = os.path.join(self.outdir, 'Q')
@@ -155,45 +163,101 @@ class CalculateOP:
         self.logger.debug(f'NumNativeContacts: {NumNativeContacts}')
         self.logger.debug(f'NumNativeContacts: {NumNativeContacts}')
 
+        Qoutfile = os.path.join(self.Qpath, f'{self.ID}.Q')
+
         # Step 3: Analyze each frame of the traj_universe and get the distance map
         self.logger.info(f'Step 3: Analyze each frame of the traj_universe and calc Q')
         # then determine the fraction of native contacts by those distances less than 1.2*native distance
-        Qoutput = {'Time(ns)':[], 'Frame':[], 'FrameNumNativeContacts':[], 'Q':[]}
-        for ts in self.traj_universe.trajectory[self.start:self.end:self.stride]:
+        def _calc_frame_Q(ts):
             frame_coor = self.traj_universe.atoms.positions
             frame_distances = np.triu(squareform(pdist(frame_coor)), k=4)
             frame_distances[resid_not_in_sec_elements - 1, :] = 0
             frame_distances[:, resid_not_in_sec_elements - 1] = 0
 
             cond = (frame_distances <= 1.2*ref_distances) & (ref_distances != 0)
-
             FrameNumNativeContacts = np.sum(cond)
-            #print(f'FrameNumNativeContacts: {FrameNumNativeContacts} for frame {ts.frame}')
-
             Q = FrameNumNativeContacts/NumNativeContacts
-            #print(f'Q: {Q} for frame {ts.frame}')
-
             frame_time = ts.time/1000
-            Qoutput['Frame'] += [ts.frame]
-            Qoutput['FrameNumNativeContacts'] += [FrameNumNativeContacts]
-            Qoutput['Q'] += [Q]
-            Qoutput['Time(ns)'] += [frame_time]
-        
-        # Step 4: save Q output 
-        self.logger.info(f'Step 4: save Q output')
-        Qoutput = pd.DataFrame(Qoutput)
-        Qoutfile = os.path.join(self.Qpath, f'{self.ID}.Q')
-        Qoutput.to_csv(Qoutfile, index=False)
+            return {'Time(ns)': frame_time, 'Frame': ts.frame, 'FrameNumNativeContacts': FrameNumNativeContacts, 'Q': Q}
+
+        if chunk_frames is None:
+            Qoutput = {'Time(ns)':[], 'Frame':[], 'FrameNumNativeContacts':[], 'Q':[]}
+            for ts in self.traj_universe.trajectory[self.start:self.end:self.stride]:
+                row = _calc_frame_Q(ts)
+                for k, v in row.items():
+                    Qoutput[k] += [v]
+
+            # Step 4: save Q output
+            self.logger.info(f'Step 4: save Q output')
+            Qoutput = pd.DataFrame(Qoutput)
+            Qoutput.to_csv(Qoutfile, index=False)
+            self.logger.info(f'SAVED: {Qoutfile}')
+            return {'outfile':Qoutfile, 'result':Qoutput}
+
+        # Chunked mode: flush every chunk_frames frames to a restart-friendly part file
+        part_dir = os.path.join(self.Qpath, f'.{self.ID}{chunk_suffix}_parts')
+        os.makedirs(part_dir, exist_ok=True)
+
+        part_files = []
+        chunk_idx = 0
+        rows_in_chunk = []
+
+        def _flush(idx, rows):
+            if not rows:
+                return
+            part_file = os.path.join(part_dir, f'{self.ID}{chunk_suffix}_{idx:04d}.Q')
+            tmp_part_file = part_file + '.tmp'
+            pd.DataFrame(rows).to_csv(tmp_part_file, index=False)
+            os.replace(tmp_part_file, part_file)
+            self.logger.info(f'SAVED chunk {idx}: {part_file}')
+            part_files.append(part_file)
+
+        frame_pos = 0
+        for ts in self.traj_universe.trajectory[self.start:self.end:self.stride]:
+            expected_part_file = os.path.join(part_dir, f'{self.ID}{chunk_suffix}_{chunk_idx:04d}.Q')
+            if os.path.exists(expected_part_file):
+                # Chunk already computed by a previous (interrupted) run; skip recompute for it
+                if expected_part_file not in part_files:
+                    part_files.append(expected_part_file)
+                    self.logger.info(f'Chunk {chunk_idx} already computed, skipping: {expected_part_file}')
+                frame_pos += 1
+                if frame_pos % chunk_frames == 0:
+                    chunk_idx += 1
+                continue
+
+            rows_in_chunk.append(_calc_frame_Q(ts))
+            frame_pos += 1
+            if frame_pos % chunk_frames == 0:
+                _flush(chunk_idx, rows_in_chunk)
+                rows_in_chunk = []
+                chunk_idx += 1
+
+        _flush(chunk_idx, rows_in_chunk)
+
+        # Merge all chunk parts into the single final output file, one chunk in memory at a time
+        for i, part_file in enumerate(part_files):
+            part_df = pd.read_csv(part_file)
+            part_df.to_csv(Qoutfile, mode='a' if i > 0 else 'w', header=(i == 0), index=False)
         self.logger.info(f'SAVED: {Qoutfile}')
-        self.logger.info(f'SAVED: {Qoutfile}')
+
+        shutil.rmtree(part_dir, ignore_errors=True)
+        Qoutput = pd.read_csv(Qoutfile)
         return {'outfile':Qoutfile, 'result':Qoutput}
     #######################################################################################  
 
     #######################################################################################
-    def Q(self,):
+    def Q(self, chunk_frames:int=None, chunk_suffix:str='_chunk'):
         """
         Calculate the fraction of native contacts (Q) using Yang's perl code which goes further and uses the domain definitions as well as the secondary structure elements
         it will return the fraction of native contacts overall (same as what Qpy) will give you as well as the Q within each domain and between them
+
+        If chunk_frames is None (default): a single perl invocation covers the whole
+        [start, end) frame range (backward compatible).
+        If chunk_frames > 0: the perl script is invoked once per sub-range of chunk_frames
+        frames, bounding both perl's and Python's peak memory. Each chunk's output is written
+        to a restart-friendly part file; parts are merged into the single final
+        {ID}_Traj{N}.Q once complete, then removed. If interrupted and restarted, any part
+        files already on disk are reused instead of recomputed.
         """
         # make directory for Q data if it doesnt exist
         self.Qpath = os.path.join(self.outdir, 'Q')
@@ -215,19 +279,19 @@ class CalculateOP:
         if self.start < 0:
             self.start = frames[self.start]
         self.logger.debug(f'START: {self.start}')
-        
+
         if os.path.exists(renamed_outfile):
             self.logger.info(f'Q outfile exists: {renamed_outfile}')
             Qoutput = pd.read_csv(renamed_outfile, sep = ',')
-            #print(f'Qoutput:\n{Qoutput}')
+            return {'outfile':renamed_outfile, 'result':Qoutput}
 
-        else:        
-            script_path = files('EntDetect.resources').joinpath('calc_Q.pl')
-            self.logger.debug(f'script_path: {script_path}')
+        script_path = files('EntDetect.resources').joinpath('calc_Q.pl')
+        self.logger.debug(f'script_path: {script_path}')
 
+        if chunk_frames is None:
             cmd = f'perl {script_path} -i {self.cor} -t {self.dcd} -d {self.domain} -s {self.sec_elements} -b {self.start + 1} -e {self.end} -o {self.Qpath}'
             self.logger.debug(f'cmd: {cmd}')
-        
+
             result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
             if result.returncode != 0:
                 raise RuntimeError(f"Perl script failed:\n{result.stderr}")
@@ -239,17 +303,58 @@ class CalculateOP:
 
             ## read the Q file back in and add the Frame column
             Qoutput = pd.read_csv(renamed_outfile, delim_whitespace=True)
-            #print(f'Qoutput:\n{Qoutput}')
-            
-            #print(frames[self.start:self.end])
             sel_frames = frames[self.start:self.end]
-            #print(f'sel_frames: {sel_frames}')
             Qoutput['Frame'] = sel_frames
-            #print(f'Qoutput:\n{Qoutput}')
-
             Qoutput.to_csv(renamed_outfile, index=False, sep = ',')
             self.logger.info(f'SAVED: {renamed_outfile}')
+            return {'outfile':renamed_outfile, 'result':Qoutput}
 
+        # Chunked mode: invoke the perl script over frame sub-ranges
+        sel_frames = frames[self.start:self.end]
+        total_frames = len(sel_frames)
+        num_chunks = (total_frames + chunk_frames - 1) // chunk_frames
+        part_dir = os.path.join(self.Qpath, f'.{self.ID}_Traj{self.Traj}{chunk_suffix}_parts')
+        os.makedirs(part_dir, exist_ok=True)
+
+        part_files = []
+        for chunk_idx in range(num_chunks):
+            start_idx = chunk_idx * chunk_frames
+            end_idx = min(start_idx + chunk_frames, total_frames)
+            chunk_frame_nums = sel_frames[start_idx:end_idx]
+            part_file = os.path.join(part_dir, f'{self.ID}_Traj{self.Traj}{chunk_suffix}_{chunk_idx:04d}.Q')
+            part_files.append(part_file)
+
+            if os.path.exists(part_file):
+                self.logger.info(f'Chunk {chunk_idx} already computed, skipping: {part_file}')
+                continue
+
+            chunk_tmp_dir = os.path.join(part_dir, f'tmp_{chunk_idx:04d}')
+            os.makedirs(chunk_tmp_dir, exist_ok=True)
+            chunk_b = self.start + start_idx + 1
+            chunk_e = self.start + end_idx
+            cmd = f'perl {script_path} -i {self.cor} -t {self.dcd} -d {self.domain} -s {self.sec_elements} -b {chunk_b} -e {chunk_e} -o {chunk_tmp_dir}'
+            self.logger.debug(f'cmd (chunk {chunk_idx}): {cmd}')
+            result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+            if result.returncode != 0:
+                raise RuntimeError(f"Perl script failed on chunk {chunk_idx}:\n{result.stderr}")
+
+            chunk_raw_file = os.path.join(chunk_tmp_dir, f'Q_{dcdname}.dat')
+            chunk_df = pd.read_csv(chunk_raw_file, delim_whitespace=True)
+            chunk_df['Frame'] = chunk_frame_nums
+            tmp_part_file = part_file + '.tmp'
+            chunk_df.to_csv(tmp_part_file, index=False, sep=',')
+            os.replace(tmp_part_file, part_file)
+            self.logger.info(f'SAVED chunk {chunk_idx}: {part_file}')
+            shutil.rmtree(chunk_tmp_dir, ignore_errors=True)
+
+        # Merge all chunk parts into the single final output file, one chunk in memory at a time
+        for i, part_file in enumerate(part_files):
+            chunk_df = pd.read_csv(part_file)
+            chunk_df.to_csv(renamed_outfile, mode='a' if i > 0 else 'w', header=(i == 0), index=False)
+        self.logger.info(f'SAVED: {renamed_outfile}')
+
+        shutil.rmtree(part_dir, ignore_errors=True)
+        Qoutput = pd.read_csv(renamed_outfile, sep=',')
         return {'outfile':renamed_outfile, 'result':Qoutput}
     #######################################################################################
 
@@ -295,12 +400,12 @@ class CalculateOP:
 
         ## Get the native entanglements from a CG model
         self.logger.info(f'Calculating the native entanglements...')
-        NativeEnt = ge.calculate_native_entanglements(self.cor, outdir=os.path.join(self.Gpath,'Native_GE/'), ID=f'{self.ID}_native', topoly=topoly)
+        NativeEnt = ge.calculate_native_entanglements(self.cor, outdir=os.path.join(self.Gpath,'Native_NCLE/'), ID=f'{self.ID}_native', topoly=topoly)
         #print(NativeEnt)
         
         ## Cluster the native entanglements
         self.logger.info(f'Clustering the native entanglements...')
-        nativeClusteredEnt = clustering.Cluster_NativeEntanglements(NativeEnt['outfile'], outdir=os.path.join(self.Gpath,'Native_clustered_GE/'), ID=f'{self.ID}_native')
+        nativeClusteredEnt = clustering.Cluster_NativeEntanglements(NativeEnt['outfile'], outdir=os.path.join(self.Gpath,'Native_clustered_NCLE/'), ID=f'{self.ID}_native')
         #print(nativeClusteredEnt)
         
         ## Get the trajectory entanglements
@@ -308,19 +413,21 @@ class CalculateOP:
         TrajEnt = ge.calculate_traj_entanglements(
             self.dcd,
             self.psf,
-            outdir=os.path.join(self.Gpath, 'Traj_GE/'),
+            outdir=os.path.join(self.Gpath, 'Traj_NCLE/'),
             ID=f'{self.ID}_traj{self.Traj}',
             start=self.start,
             stop=self.end,
             topoly=topoly,
             ref_contact_file=NativeEnt['outfile'],
+            chunk_frames=chunk_frames,
+            chunk_suffix=chunk_suffix,
         )
         #print(TrajEnt)
         
         ## Create the combined .pkl file required for clustering non-native entanglements
         ## Will also calculate G at the same time
         self.logger.info(f'Creating the combined .pkl file required for clustering non-native entanglements...')
-        Combined_data = ge.combine_ref_traj_GE(NativeEnt['outfile'], TrajEnt['outfile'], outdir=os.path.join(self.Gpath,'Combined_GE/'), ID=f'{self.ID}_traj{self.Traj}', chunk_frames=chunk_frames, chunk_suffix=chunk_suffix)
+        Combined_data = ge.combine_ref_traj_NCLE(NativeEnt['outfile'], TrajEnt['outfile'], outdir=os.path.join(self.Gpath,'Combined_NCLE/'), ID=f'{self.ID}_traj{self.Traj}', chunk_frames=chunk_frames, chunk_suffix=chunk_suffix)
         G = Combined_data['G']
         Goutfile = os.path.join(self.Gpath, f'{self.ID}_Traj{self.Traj}.G')
         G.to_csv(Goutfile, index=False)
@@ -443,41 +550,109 @@ class CalculateOP:
     #######################################################################################
 
     #######################################################################################
-    def K(self,) -> dict:
+    def K(self, chunk_frames:int=None, chunk_suffix:str='_chunk') -> dict:
         """
-        Calculate the mirror symmetry order parameter K for each frame of the DCD
+        Calculate the mirror symmetry order parameter K for each frame of the DCD.
+
+        Output is normalized to match Q()'s convention: a Frame column is added and the
+        final file is renamed to {ID}_Traj{N}.K (the perl script's raw K_{dcdname}.dat is
+        treated as an intermediate file, same as Q()'s handling of Q_{dcdname}.dat).
+
+        If chunk_frames is None (default): a single perl invocation covers the whole
+        [start, end) frame range (backward compatible aside from the renamed/Frame-tagged
+        output described above).
+        If chunk_frames > 0: the perl script is invoked once per sub-range of chunk_frames
+        frames, bounding both perl's and Python's peak memory. Each chunk's output is written
+        to a restart-friendly part file; parts are merged into the single final
+        {ID}_Traj{N}.K once complete, then removed. If interrupted and restarted, any part
+        files already on disk are reused instead of recomputed.
         """
-        # make directory for SASA data if it doesnt exist
+        # make directory for K data if it doesnt exist
         self.KPATH = os.path.join(self.outdir, 'K')
         if not os.path.exists(self.KPATH):
             os.makedirs(self.KPATH)
             self.logger.info(f'Made directory: {self.KPATH}')
 
-        script_path = files('EntDetect.resources').joinpath('calc_K.pl')
-        #print(f'script_path: {script_path}')
-
-        cmd = f'perl {script_path} -i {self.cor} -t {self.dcd} -d {self.domain} -s {self.sec_elements} -b {self.start} -e {self.end} -o {self.KPATH}'
-        #print(f'cmd: {cmd}')
-    
-        result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
-        if result.returncode != 0:
-            raise RuntimeError(f"Perl script failed:\n{result.stderr}")
-        #print(result)
-
-        ## outfile will follow the following format K_{name}.dat where name is the name of the DCD read in
         dcdname = self.dcd.split('/')[-1].split('.')[0]
-        #print(f'dcdname: {dcdname}')
         outfilename = os.path.join(self.KPATH, f'K_{dcdname}.dat')
-        #print(f'outfilename: {outfilename}')
+        renamed_outfile = os.path.join(self.KPATH, f'{self.ID}_Traj{self.Traj}.K')
 
-        if os.path.exists(outfilename):
-            self.logger.info(f'K outfile exists: {outfilename}')
+        u = mda.Universe(self.psf, self.dcd)
+        frames = [ts.frame for ts in u.trajectory]
+        if self.start < 0:
+            self.start = frames[self.start]
+
+        if os.path.exists(renamed_outfile):
+            self.logger.info(f'K outfile exists: {renamed_outfile}')
+            Koutput = pd.read_csv(renamed_outfile, sep=',')
+            return {'outfile':renamed_outfile, 'result':Koutput}
+
+        script_path = files('EntDetect.resources').joinpath('calc_K.pl')
+
+        if chunk_frames is None:
+            cmd = f'perl {script_path} -i {self.cor} -t {self.dcd} -d {self.domain} -s {self.sec_elements} -b {self.start + 1} -e {self.end} -o {self.KPATH}'
+            result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+            if result.returncode != 0:
+                raise RuntimeError(f"Perl script failed:\n{result.stderr}")
+
+            if not os.path.exists(outfilename):
+                raise FileNotFoundError(f'K outfile does not exist: {outfilename}')
+
             Koutput = pd.read_csv(outfilename, delim_whitespace=True)
-            self.logger.info(f'Koutput:\n{Koutput}')
-            return {'outfile':outfilename, 'result':Koutput}
-        else:
-            self.logger.info(f'K outfile does not exist: {outfilename}')
-            raise FileNotFoundError(f'K outfile does not exist: {outfilename}')
+            sel_frames = frames[self.start:self.end]
+            Koutput['Frame'] = sel_frames
+            Koutput.to_csv(renamed_outfile, index=False, sep=',')
+            self.logger.info(f'SAVED: {renamed_outfile}')
+            return {'outfile':renamed_outfile, 'result':Koutput}
+
+        # Chunked mode: invoke the perl script over frame sub-ranges
+        sel_frames = frames[self.start:self.end]
+        total_frames = len(sel_frames)
+        num_chunks = (total_frames + chunk_frames - 1) // chunk_frames
+        part_dir = os.path.join(self.KPATH, f'.{self.ID}_Traj{self.Traj}{chunk_suffix}_parts')
+        os.makedirs(part_dir, exist_ok=True)
+
+        part_files = []
+        for chunk_idx in range(num_chunks):
+            start_idx = chunk_idx * chunk_frames
+            end_idx = min(start_idx + chunk_frames, total_frames)
+            chunk_frame_nums = sel_frames[start_idx:end_idx]
+            part_file = os.path.join(part_dir, f'{self.ID}_Traj{self.Traj}{chunk_suffix}_{chunk_idx:04d}.K')
+            part_files.append(part_file)
+
+            if os.path.exists(part_file):
+                self.logger.info(f'Chunk {chunk_idx} already computed, skipping: {part_file}')
+                continue
+
+            chunk_tmp_dir = os.path.join(part_dir, f'tmp_{chunk_idx:04d}')
+            os.makedirs(chunk_tmp_dir, exist_ok=True)
+            chunk_b = self.start + start_idx + 1
+            chunk_e = self.start + end_idx
+            cmd = f'perl {script_path} -i {self.cor} -t {self.dcd} -d {self.domain} -s {self.sec_elements} -b {chunk_b} -e {chunk_e} -o {chunk_tmp_dir}'
+            result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+            if result.returncode != 0:
+                raise RuntimeError(f"Perl script failed on chunk {chunk_idx}:\n{result.stderr}")
+
+            chunk_raw_file = os.path.join(chunk_tmp_dir, f'K_{dcdname}.dat')
+            if not os.path.exists(chunk_raw_file):
+                raise FileNotFoundError(f'K outfile does not exist: {chunk_raw_file}')
+            chunk_df = pd.read_csv(chunk_raw_file, delim_whitespace=True)
+            chunk_df['Frame'] = chunk_frame_nums
+            tmp_part_file = part_file + '.tmp'
+            chunk_df.to_csv(tmp_part_file, index=False, sep=',')
+            os.replace(tmp_part_file, part_file)
+            self.logger.info(f'SAVED chunk {chunk_idx}: {part_file}')
+            shutil.rmtree(chunk_tmp_dir, ignore_errors=True)
+
+        # Merge all chunk parts into the single final output file, one chunk in memory at a time
+        for i, part_file in enumerate(part_files):
+            chunk_df = pd.read_csv(part_file)
+            chunk_df.to_csv(renamed_outfile, mode='a' if i > 0 else 'w', header=(i == 0), index=False)
+        self.logger.info(f'SAVED: {renamed_outfile}')
+
+        shutil.rmtree(part_dir, ignore_errors=True)
+        Koutput = pd.read_csv(renamed_outfile, sep=',')
+        return {'outfile':renamed_outfile, 'result':Koutput}
     #######################################################################################
 
     #######################################################################################
@@ -655,6 +830,12 @@ class CalculateOP:
             combined_df = combined_df[['Frame'] + [c for c in combined_df.columns if c != 'Frame']]
             combined_df.to_csv(combined_outfile, index=False, sep='\t')
             self.logger.info(f'SAVED: {combined_outfile}')
+            try:
+                if os.path.isdir(jwalk_base_dir):
+                    shutil.rmtree(jwalk_base_dir)
+                    self.logger.info(f'Removed temporary Jwalk directory: {jwalk_base_dir}')
+            except Exception as exc:
+                self.logger.warning(f'Could not remove temporary Jwalk directory {jwalk_base_dir}: {exc}')
             return {'outfile': combined_outfile, 'result': combined_df}
     #######################################################################################
 
@@ -871,8 +1052,8 @@ class CollectOP:
 
     Writes
     ------
-    SASA.npy  : float64 array  (n_traj, n_frames, prot_len)   units Å²
-    Jwalk.npy : object  array  (n_traj, n_frames)
+    SASA.npy  : float64 array  (n_traj, sasa_xp_frames_per_traj, prot_len)   units Å²
+    Jwalk.npy : object  array  (n_traj, sasa_xp_frames_per_traj)
                 each element is a dict
                 { 'RESNUM|CHAIN-RESNUM|CHAIN' : {'Euclidean': float, 'Jwalk': float} }
 
@@ -882,7 +1063,7 @@ class CollectOP:
     """
 
     def __init__(self, sasa_dir: str, xp_dir: str, outdir: str, ID: str,
-                 n_traj: int, n_frames: int, prot_len: int):
+                 n_traj: int, sasa_xp_frames_per_traj: int, prot_len: int):
         """
         Parameters
         ----------
@@ -891,7 +1072,7 @@ class CollectOP:
         outdir    : directory where SASA.npy and Jwalk.npy are written
         ID        : protein ID used in file naming (e.g. '1ZMR')
         n_traj    : total number of trajectories (files named 1 … n_traj)
-        n_frames  : number of frames per trajectory stored in each file
+        sasa_xp_frames_per_traj : number of frames per trajectory stored in each SASA/XP file
         prot_len  : number of residues in the protein
         """
         self.sasa_dir = sasa_dir
@@ -899,7 +1080,7 @@ class CollectOP:
         self.outdir   = outdir
         self.ID       = ID
         self.n_traj   = n_traj
-        self.n_frames = n_frames
+        self.sasa_xp_frames_per_traj = sasa_xp_frames_per_traj
         self.prot_len = prot_len
         os.makedirs(outdir, exist_ok=True)
         self.logger   = setup_logger('CollectOP', outdir)
@@ -919,14 +1100,15 @@ class CollectOP:
     # ------------------------------------------------------------------
     def collect_SASA(self, outfile: str = 'SASA.npy') -> str:
         """Read all {ID}_Traj{N}.SASA CSVs, convert nm² → Å² (×100), pivot
-        each to (n_frames, prot_len), stack into (n_traj, n_frames, prot_len)
-        and save.  Missing trajectory files are filled with NaN.
+        each to (sasa_xp_frames_per_traj, prot_len), stack into
+        (n_traj, sasa_xp_frames_per_traj, prot_len) and save.  Missing
+        trajectory files are filled with NaN.
 
         Returns the absolute path to the saved .npy file.
         """
         out_path = os.path.join(self.outdir, outfile)
         sasa_arr = np.full(
-            (self.n_traj, self.n_frames, self.prot_len),
+            (self.n_traj, self.sasa_xp_frames_per_traj, self.prot_len),
             np.nan,
             dtype=np.float64,
         )
@@ -939,19 +1121,19 @@ class CollectOP:
 
             df = pd.read_csv(fpath)
 
-            # pivot to (n_frames, prot_len): rows = frames (sorted), cols = resids (sorted)
+            # pivot to (sasa_xp_frames_per_traj, prot_len): rows = frames (sorted), cols = resids (sorted)
             pivot = (
                 df.pivot_table(index='Frame', columns='resid',
                                values='SASA(nm^2)', aggfunc='first')
                   .sort_index()        # ascending frame order
                   .sort_index(axis=1)  # ascending resid order
             )
-            arr = pivot.values  # shape (n_frames, prot_len)
+            arr = pivot.values  # shape (sasa_xp_frames_per_traj, prot_len)
 
-            if arr.shape != (self.n_frames, self.prot_len):
+            if arr.shape != (self.sasa_xp_frames_per_traj, self.prot_len):
                 self.logger.warning(
                     f'Traj {traj_num}: unexpected shape {arr.shape}, '
-                    f'expected ({self.n_frames}, {self.prot_len}) – skipping'
+                    f'expected ({self.sasa_xp_frames_per_traj}, {self.prot_len}) – skipping'
                 )
                 continue
 
@@ -966,7 +1148,7 @@ class CollectOP:
     def collect_Jwalk(self, outfile: str = 'Jwalk.npy') -> str:
         """Read all {ID}_Traj{N}.XP TSVs and reconstruct the per-frame dict
         structure used by MassSpec.  Save an object array of shape
-        (n_traj, n_frames).
+        (n_traj, sasa_xp_frames_per_traj).
 
         Each array element is a dict::
 
@@ -979,7 +1161,7 @@ class CollectOP:
         Returns the absolute path to the saved .npy file.
         """
         out_path  = os.path.join(self.outdir, outfile)
-        jwalk_arr = np.empty((self.n_traj, self.n_frames), dtype=object)
+        jwalk_arr = np.empty((self.n_traj, self.sasa_xp_frames_per_traj), dtype=object)
 
         for traj_num in range(1, self.n_traj + 1):
             fpath = os.path.join(self.xp_dir, f'{self.ID}_Traj{traj_num}.XP')
@@ -1001,10 +1183,10 @@ class CollectOP:
             )
             frames = sorted(df['Frame'].unique())
 
-            if len(frames) != self.n_frames:
+            if len(frames) != self.sasa_xp_frames_per_traj:
                 self.logger.warning(
                     f'Traj {traj_num}: found {len(frames)} frames, '
-                    f'expected {self.n_frames} – skipping'
+                    f'expected {self.sasa_xp_frames_per_traj} – skipping'
                 )
                 continue
 

@@ -13,8 +13,8 @@ plus the 'ref' entry.
 Usage example:
     python scripts/job_utilities/sliceCombined_GE_pklFiles.py \\
         --input  /scratch/ims86/EntDetect_Datastore/outputs/workflow2/GE/420_Combined_GE.pkl \\
-        --output /scratch/ims86/EntDetect_Datastore/outputs/workflow2/GE/420_Combined_GE_last67.pkl \\
-        --start  6600 \\
+        --output /scratch/ims86/EntDetect_Datastore/outputs/workflow2/GE/420_Combined_GE_last335.pkl \\
+        --start  6332 \\
         --end    6666
 
 Arguments:

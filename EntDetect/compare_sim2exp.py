@@ -18,9 +18,9 @@ class MassSpec:
     """
     #############################################################################################################
     def __init__(self, msm_data_file:str, meta_dist_file:str, LiPMS_exp_file:str, sasa_data_file:str, XLMS_exp_file:str, dist_data_file:str,
-                 cluster_data_file:str, OPpath:str, AAdcd_dir:str, native_AA_pdb:str, native_state_idx:int, state_idx_list:list, prot_len:int, last_num_frames:int,
+                 cluster_data_file:str, OPpath:str, AAdcd_dir:str, native_AA_pdb:str, native_state_idx:int, state_idx_list:list, prot_len:int, n_analysis_frames:int,
                  rm_traj_list:list=[], outdir:str='./', ID:str='', xp_dir:str=None, resid2residueidx_map:dict={},
-                 sasa_dir:str=None, n_traj:int=None, n_frames:int=None, collect_jwalk_npy:bool=False,
+                 sasa_dir:str=None, n_traj:int=None, sasa_xp_frames_per_traj:int=None, collect_jwalk_npy:bool=False,
                  start:int=0, end:int=999999999999, stride:int=1, verbose:bool=False, num_perm:int=10000, n_boot:int=10000, lag_frame:int=1, nproc:int=1, log_level:int=logging.INFO, logdir:str=None):
 
 
@@ -60,7 +60,7 @@ class MassSpec:
 
         self.if_calc_M = 1
 
-        self.last_num_frames = last_num_frames # last X ns
+        self.n_analysis_frames = n_analysis_frames # last X ns actually analyzed (trailing-frame window shared by MSM/G/Q/SASA/XP)
         self.lag_frame = lag_frame # down sample trajectories at each #lag_frame frame
         self.n_boot = n_boot
         #self.n_boot = 100
@@ -73,11 +73,11 @@ class MassSpec:
         # Optionally collect per-trajectory OP files into the dense arrays
         # (SASA.npy / Jwalk.npy) that the consistency test consumes.
         self._maybe_collect_op_arrays(sasa_dir=sasa_dir, n_traj=n_traj,
-                                      n_frames=n_frames, collect_jwalk_npy=collect_jwalk_npy)
+                                      sasa_xp_frames_per_traj=sasa_xp_frames_per_traj, collect_jwalk_npy=collect_jwalk_npy)
     ##############################################################################
 
     ##############################################################################
-    def _maybe_collect_op_arrays(self, sasa_dir, n_traj, n_frames, collect_jwalk_npy):
+    def _maybe_collect_op_arrays(self, sasa_dir, n_traj, sasa_xp_frames_per_traj, collect_jwalk_npy):
         """Build SASA.npy (and optionally Jwalk.npy) from per-trajectory OP files.
 
         Runs only when the corresponding cached array is not already available.
@@ -92,12 +92,12 @@ class MassSpec:
                 self.sasa_data_file = cached
                 self.logger.info(f'Using cached SASA array: {cached}')
             else:
-                if n_traj is None or n_frames is None:
-                    raise ValueError('n_traj and n_frames are required to collect SASA from sasa_dir')
+                if n_traj is None or sasa_xp_frames_per_traj is None:
+                    raise ValueError('n_traj and sasa_xp_frames_per_traj are required to collect SASA from sasa_dir')
                 from EntDetect.order_params import CollectOP
                 self.logger.info(f'Collecting SASA from {sasa_dir} into {self.outdir}/SASA.npy')
                 collector = CollectOP(sasa_dir=sasa_dir, xp_dir=self.xp_dir, outdir=self.outdir,
-                                      ID=self.ID, n_traj=n_traj, n_frames=n_frames, prot_len=self.prot_len)
+                                      ID=self.ID, n_traj=n_traj, sasa_xp_frames_per_traj=sasa_xp_frames_per_traj, prot_len=self.prot_len)
                 self.sasa_data_file = collector.collect_SASA()
 
         if collect_jwalk_npy:
@@ -108,12 +108,12 @@ class MassSpec:
                     self.dist_data_file = cached
                     self.logger.info(f'Using cached Jwalk array: {cached}')
                 else:
-                    if n_traj is None or n_frames is None:
-                        raise ValueError('n_traj and n_frames are required to collect Jwalk from xp_dir')
+                    if n_traj is None or sasa_xp_frames_per_traj is None:
+                        raise ValueError('n_traj and sasa_xp_frames_per_traj are required to collect Jwalk from xp_dir')
                     from EntDetect.order_params import CollectOP
                     self.logger.info(f'Collecting Jwalk from {self.xp_dir} into {self.outdir}/Jwalk.npy')
                     collector = CollectOP(sasa_dir=sasa_dir, xp_dir=self.xp_dir, outdir=self.outdir,
-                                          ID=self.ID, n_traj=n_traj, n_frames=n_frames, prot_len=self.prot_len)
+                                          ID=self.ID, n_traj=n_traj, sasa_xp_frames_per_traj=sasa_xp_frames_per_traj, prot_len=self.prot_len)
                     self.dist_data_file = collector.collect_Jwalk()
     ##############################################################################
 
@@ -393,13 +393,13 @@ class MassSpec:
                 traj_len = len(traj_df)
                 self.logger.debug(f'traj: {traj}, traj_len: {traj_len}\n{traj_df.head()}')
 
-                last = traj_df.iloc[-self.last_num_frames:,:]
+                last = traj_df.iloc[-self.n_analysis_frames:,:]
                 last = last.reset_index(drop=True)
                 last = last['metastablestate'].values
                 #print(f'last: {last}')
                 meta_dtrajs_last.append(last)
 
-                self.logger.debug(f'traj_idx: {traj_idx}, traj: {traj}, traj_len: {traj_len}, last_num_frames: {self.last_num_frames}, last: {last} {len(last)}')
+                self.logger.debug(f'traj_idx: {traj_idx}, traj: {traj}, traj_len: {traj_len}, n_analysis_frames: {self.n_analysis_frames}, last: {last} {len(last)}')
                 traj_idx_to_trajnum[traj_idx] = traj
 
             meta_dtrajs_last = np.array(meta_dtrajs_last)
@@ -437,7 +437,7 @@ class MassSpec:
             #################################################################
             # Create frame_list for each state
             # The result is a list where each element is a 2D array with the first column being the trajectory index and the second column being the frame index
-            sel_frame_idx = np.arange(0, self.last_num_frames, self.lag_frame)
+            sel_frame_idx = np.arange(0, self.n_analysis_frames, self.lag_frame)
             self.logger.info(f'sel_frame_idx:\n{sel_frame_idx}')
 
             frame_list = []
@@ -452,7 +452,7 @@ class MassSpec:
 
                 #frame_list_0 = self.remove_traj_from_frame_list(self.rm_traj_list, frame_list_0, 1)
                 if len(frame_list_0) == 0:
-                    self.logger.info(f'No frames for state {state_idx} in the last {self.last_num_frames} frames. Exitting. The state maybe made entirely of mirror traj and in the self.rm_traj_list!')
+                    self.logger.info(f'No frames for state {state_idx} in the last {self.n_analysis_frames} frames. Exitting. The state maybe made entirely of mirror traj and in the self.rm_traj_list!')
                     empty_states.append(state_idx)
                     continue
 
@@ -477,7 +477,7 @@ class MassSpec:
 
             #################################################################
             # Load SASA data
-            sasa_traj_list = np.load(self.sasa_data_file, allow_pickle=True)[:,-self.last_num_frames:,:]
+            sasa_traj_list = np.load(self.sasa_data_file, allow_pickle=True)[:,-self.n_analysis_frames:,:]
             self.logger.info(f'sasa_traj_list.shape: {sasa_traj_list.shape}')
 
             # Align OP rows to the MSM trajectory order by trajectory number.
@@ -545,7 +545,7 @@ class MassSpec:
 
                 M_XLMS = np.zeros((*meta_dtrajs_last.shape, len(XLMS_sig_data)))
                 if self.dist_data_file is not None and os.path.exists(self.dist_data_file):
-                    dist_traj_list = np.load(self.dist_data_file, allow_pickle=True)[:,-self.last_num_frames:]
+                    dist_traj_list = np.load(self.dist_data_file, allow_pickle=True)[:,-self.n_analysis_frames:]
                     self.logger.info(f'dist_traj_list.shape: {dist_traj_list.shape}')
 
                     # Align OP rows to the MSM trajectory order by trajectory number.
@@ -637,8 +637,8 @@ class MassSpec:
             else:
                 self.logger.debug('Loading metric matrix...')
                 M_data = np.load(npz_outfile, allow_pickle=True)
-                M_LiPMS = M_data['M_LiPMS'][:,-self.last_num_frames:,:]
-                M_XLMS = M_data['M_XLMS'][:,-self.last_num_frames:,:]
+                M_LiPMS = M_data['M_LiPMS'][:,-self.n_analysis_frames:,:]
+                M_XLMS = M_data['M_XLMS'][:,-self.n_analysis_frames:,:]
             #################################################################
 
 
@@ -880,9 +880,11 @@ class MassSpec:
     ##############################################################################
 
     ##############################################################################
-    def select_rep_structs(self, consist_data_file:str, consist_result_file:str, total_traj_num_frames:int, last_num_frames:int):
+    def select_rep_structs(self, consist_data_file:str, consist_result_file:str, total_traj_num_frames:int, n_analysis_frames:int, restart: bool = False):
         """
-        After performing the consistency test select representative structures with high consistency
+        After performing the consistency test select representative structures with high consistency.
+        When restart=True, an existing viz_rep_struct directory is preserved and any group directory
+        that already contains a .done sentinel file is skipped.
         """
         self.logger.info(f'Selecting representative structure')
 
@@ -980,7 +982,7 @@ class MassSpec:
             traj_len = len(traj_df)
             #print(f'traj: {traj}, traj_len: {traj_len}\n{traj_df.head()}')
 
-            last = traj_df.iloc[-last_num_frames:,:]
+            last = traj_df.iloc[-n_analysis_frames:,:]
             last = last.reset_index(drop=True)
             meta_last = last['metastablestate'].values
             micro_last = last['microstate'].values
@@ -1007,8 +1009,8 @@ class MassSpec:
         ##############################################################################
         # Load Consistency Metrics
         consist_data = np.load(consist_data_file, allow_pickle=True)
-        M_LiPMS = consist_data['M_LiPMS'][:,-last_num_frames:,:]
-        M_XLMS = consist_data['M_XLMS'][:,-last_num_frames:,:]
+        M_LiPMS = consist_data['M_LiPMS'][:,-n_analysis_frames:,:]
+        M_XLMS = consist_data['M_XLMS'][:,-n_analysis_frames:,:]
         self.logger.info(f'Loaded consistency metrics from {consist_data_file}')
         self.logger.debug(f'M_LiPMS: {M_LiPMS.shape}')
         self.logger.debug(f'M_XLMS: {M_XLMS.shape}')
@@ -1092,7 +1094,7 @@ class MassSpec:
 
         ##############################################################################
         # Load SASA data
-        sasa_traj_list = np.load(self.sasa_data_file, allow_pickle=True)[:,-last_num_frames:,:]
+        sasa_traj_list = np.load(self.sasa_data_file, allow_pickle=True)[:,-n_analysis_frames:,:]
         self.logger.info(f'Loaded SASA data: {self.sasa_data_file}')
 
         # remove trajectories that are in the rm_traj_list - 1
@@ -1316,7 +1318,7 @@ class MassSpec:
         ##############################################################################
         # Load Q list
         self.logger.info(f'Loading G and Q data from {self.OPpath}')
-        Q_list, G_list = self.load_OP(start=-last_num_frames)
+        Q_list, G_list = self.load_OP(start=-n_analysis_frames)
         self.logger.info(f'Loaded G and Q data from {self.OPpath}')
         ##############################################################################
 
@@ -1368,7 +1370,7 @@ class MassSpec:
         # Save data
         consist_signal_struct_data_outfile = os.path.join(self.outdir, 'consist_signal_struct_data.npz')
         np.savez(consist_signal_struct_data_outfile,
-                last_num_frames = last_num_frames,
+                n_analysis_frames = n_analysis_frames,
                 total_traj_num_frames = total_traj_num_frames,
                 LIPMS_consist_data=LIPMS_consist_data,
                 XLMS_consist_data=XLMS_consist_data,
@@ -1421,7 +1423,7 @@ class MassSpec:
                     [traj_idx, frame_idx] = rep_group_dict[state_id][k][kk]
                     #print(f'traj_idx: {traj_idx} | frame_idx: {frame_idx}')
 
-                    traj_frame_idx = total_traj_num_frames - last_num_frames + frame_idx
+                    traj_frame_idx = total_traj_num_frames - n_analysis_frames + frame_idx
                     #print(f'Processing state {state_id}, consistent signal {k_str}, entanglement ID {kk_str}, traj {traj_idx+1}, frame {traj_frame_idx}')
 
                     num = len(group_dict[state_id][k][kk])
@@ -1451,14 +1453,14 @@ class MassSpec:
         self.logger.info(f'Create visualizations...')
         if self.dist_data_file is not None and os.path.exists(self.dist_data_file):
             self.logger.info(f'Loading dist_traj_list: {self.dist_data_file}')
-            dist_traj_list = np.load(self.dist_data_file, allow_pickle=True)[:,-last_num_frames:]
+            dist_traj_list = np.load(self.dist_data_file, allow_pickle=True)[:,-n_analysis_frames:]
             self.logger.info(f'Loaded distance data: {dist_traj_list.shape}')
             dist_traj_list = [v for i, v in enumerate(dist_traj_list) if i not in np.asarray(self.rm_traj_list) - 1]
             dist_traj_list = np.array(dist_traj_list)
             self.logger.info(f'dist_traj_list after removal of mirror images: {dist_traj_list.shape}')
         elif self.xp_dir is not None and os.path.isdir(self.xp_dir):
             self.logger.info(f'Building sparse dist_traj_list from XP files in: {self.xp_dir}')
-            dist_traj_list = np.empty((len(idx2traj), last_num_frames), dtype=object)
+            dist_traj_list = np.empty((len(idx2traj), n_analysis_frames), dtype=object)
             dist_traj_list[:] = None
 
             needed_frames_by_traj = {}
@@ -1522,11 +1524,15 @@ class MassSpec:
             )
 
 
-        # Check if the viz_rep_struct path exists. if so remove it and make a fresh one
-        if os.path.exists('viz_rep_struct'):
-            self.logger.info(f'viz_rep_struct exists and will be removed')
-            os.system('rm -rf viz_rep_struct/')
-        os.system('mkdir viz_rep_struct/')
+        # Check if the viz_rep_struct path exists.
+        if restart:
+            os.makedirs('viz_rep_struct/', exist_ok=True)
+            self.logger.info(f'Restart mode: preserving existing viz_rep_struct directory')
+        else:
+            if os.path.exists('viz_rep_struct'):
+                self.logger.info(f'viz_rep_struct exists and will be removed')
+                os.system('rm -rf viz_rep_struct/')
+            os.system('mkdir viz_rep_struct/')
         os.chdir('viz_rep_struct/')
 
         if os.path.isdir(self.AAdcd_dir):
@@ -1547,10 +1553,32 @@ class MassSpec:
             self.logger.info(f'Made {state_dir}')
             # os.chdir(state_dir)
             self.logger.info(f'Length of rep_group_dict[state_id]: {len(rep_group_dict[state_id])}')
+
+            # PHASE 1: Pre-extract per-(traj_idx, frame_idx) data for each (state_id, k) pair
+            # to avoid pickling full arrays (~1 GB) to each worker. Extract only the specific
+            # slices needed for this task.
+            per_frame_data_dict = {}
+            for k in rep_group_dict[state_id].keys():
+                per_frame_data_dict[k] = {}
+                for kk in rep_group_dict[state_id][k].keys():
+                    [traj_idx, frame_idx] = rep_group_dict[state_id][k][kk]
+                    if (traj_idx, frame_idx) not in per_frame_data_dict[k]:
+                        # Extract full rows for M_LiPMS and M_XLMS since they're indexed
+                        # by signal-dependent third indices in process_k
+                        per_frame_data_dict[k][(traj_idx, frame_idx)] = {
+                            'Q': Q_list[traj_idx, frame_idx],
+                            'G': G_list[traj_idx, frame_idx],
+                            'M_LiPMS_row': M_LiPMS[traj_idx, frame_idx, :],
+                            'M_XLMS_row': M_XLMS[traj_idx, frame_idx, :],
+                            'rep_chg_ent_dict': rep_chg_ent_dtrajs[traj_idx, frame_idx],
+                            'dist_frame_data': dist_traj_list[traj_idx, frame_idx]
+                        }
+
+            # PHASE 2: Build args_list with pre-extracted per-frame data instead of full arrays
             args_list = [
-                (state_dir, state_id, k, rep_group_dict, sorted_chg_ent_structure_keyword_list, last_num_frames, total_traj_num_frames,
-                idx2traj, AAtraj_files, self.native_AA_pdb, rep_chg_ent_dtrajs, Q_list, G_list,
-                LIPMS_consist_data, M_LiPMS, XLMS_consist_data, M_XLMS, dist_traj_list, if_backmap, pulchra_only, self.logger.name)
+                (state_dir, state_id, k, rep_group_dict, sorted_chg_ent_structure_keyword_list, n_analysis_frames, total_traj_num_frames,
+                idx2traj, AAtraj_files, self.native_AA_pdb, per_frame_data_dict[k],
+                LIPMS_consist_data, XLMS_consist_data, if_backmap, pulchra_only, self.logger.name, restart)
                 for k in rep_group_dict[state_id].keys()
             ]
             self.logger.info(f'Processing {len(args_list)} consistent signal groups for state {state_id}...')
@@ -1558,21 +1586,30 @@ class MassSpec:
                 self.logger.info(f'No consistent signal groups for state {state_id}, skipping...')
                 continue
             
-            # process_k(args_list[0])
-            # print('Testing done for one process_k, exiting...')
-            # quit()
-            # nproc = 10
-            with multiprocessing.Pool(processes=self.nproc) as pool:
-                pool.map(process_k, args_list)
+            # `spawn` is safer than the Linux default `fork` when worker code touches
+            # mdtraj/parmed C extensions and large shared-filesystem DCDs.
+            worker_count = min(self.nproc, len(args_list))
+            self.logger.info(
+                f'Launching representative-structure pool for state {state_id + 1} '
+                f'with start_method=spawn, processes={worker_count}, maxtasksperchild=1'
+            )
+            ctx = multiprocessing.get_context("spawn")
+            with ctx.Pool(processes=worker_count, maxtasksperchild=1) as pool:
+                for completed_idx, result in enumerate(pool.imap_unordered(process_k, args_list, chunksize=1), start=1):
+                    self.logger.info(
+                        f'Completed consistent signal group {completed_idx}/{len(args_list)} '
+                        f'for state {state_id + 1}: {result}'
+                    )
         self.logger.debug('Completion of selecting rep structure')
 
 
 ##################################################################################################
 import mdtraj as mdt  # at the top of your file
 def process_k(args):
-    (state_dir, state_id, k, rep_group_dict, sorted_chg_ent_structure_keyword_list, last_num_frames, total_traj_num_frames,
-     idx2traj, AAtraj_files, native_AA_pdb, rep_chg_ent_dtrajs, Q_list, G_list,
-     LIPMS_consist_data, M_LiPMS, XLMS_consist_data, M_XLMS, dist_traj_list, if_backmap, pulchra_only, logger_name) = args
+    # PHASE 3: Updated unpacking to receive pre-extracted per-frame data instead of full arrays
+    (state_dir, state_id, k, rep_group_dict, sorted_chg_ent_structure_keyword_list, n_analysis_frames, total_traj_num_frames,
+     idx2traj, AAtraj_files, native_AA_pdb, per_frame_data_dict,
+     LIPMS_consist_data, XLMS_consist_data, if_backmap, pulchra_only, logger_name, restart) = args
 
     logger = logging.getLogger(logger_name)
 
@@ -1583,82 +1620,116 @@ def process_k(args):
     logger.info(f'Made {k_str_dir}')
     key_order = ['type', 'code', 'native_contact', 'native_contact_residx',  'linking_value', 'crossing_resid', 'crossing_residx', 'crossing_pattern', 'gauss_linking_number', 'topoly_linking_number', 
                  'ref_native_contact', 'ref_native_contact_residx', 'ref_linking_value', 'ref_crossing_resid', 'ref_crossing_residx', 'ref_crossing_pattern', 'ref_gauss_linking_number', 'ref_topoly_linking_number']
-    # os.system('mkdir %s/' % k_str)
-    # os.chdir(k_str)
+    completed_groups = 0
 
-    for kk in rep_group_dict[state_id][k].keys():
-        kk_list = eval(sorted_chg_ent_structure_keyword_list[kk])
-        if len(kk_list) == 0:
-            continue
+    try:
+        for kk in rep_group_dict[state_id][k].keys():
+            kk_list = eval(sorted_chg_ent_structure_keyword_list[kk])
+            if len(kk_list) == 0:
+                continue
 
-        kk_str = '_'.join([str(i+1) for i in kk_list])
-        kk_str_dir = os.path.join(k_str_dir, kk_str)
-        os.makedirs(kk_str_dir, exist_ok=True)
-        logger.info(f'Made {kk_str_dir}')
-        # os.system('mkdir %s/' % kk_str)
-        # os.chdir(kk_str)
+            kk_str = '_'.join([str(i+1) for i in kk_list])
+            kk_str_dir = os.path.join(k_str_dir, kk_str)
+            if restart and os.path.isfile(os.path.join(kk_str_dir, '.done')):
+                logger.info(f'Restart: skipping completed group {kk_str_dir}')
+                continue
+            os.makedirs(kk_str_dir, exist_ok=True)
+            logger.info(f'Made {kk_str_dir}')
 
-        [traj_idx, frame_idx] = rep_group_dict[state_id][k][kk]
-        traj = idx2traj[traj_idx]
-        traj_frame_idx = total_traj_num_frames - last_num_frames + frame_idx
+            [traj_idx, frame_idx] = rep_group_dict[state_id][k][kk]
+            traj = idx2traj[traj_idx]
+            traj_frame_idx = total_traj_num_frames - n_analysis_frames + frame_idx
 
-        AAtraj_file = match_pattern(AAtraj_files, f'{traj}')
-        if len(AAtraj_file) != 1:
-            raise ValueError(f'Found {len(AAtraj_file)} AA traj files for traj {traj}, expected 1.')
+            AAtraj_file = match_pattern(AAtraj_files, f'{traj}')
+            if len(AAtraj_file) != 1:
+                raise ValueError(f'Found {len(AAtraj_file)} AA traj files for traj {traj}, expected 1.')
 
-        state_cor = mdt.load(AAtraj_file[0], top=native_AA_pdb)[traj_frame_idx].center_coordinates().xyz * 10
-        rep_chg_ent_dict = rep_chg_ent_dtrajs[traj_idx][frame_idx]
+            load_start = time.time()
+            logger.info(
+                f'Loading AA trajectory for state {state_id + 1}, signals {k_str}, group {kk_str}: '
+                f'traj={traj}, frame={traj_frame_idx + 1}, file={AAtraj_file[0]}'
+            )
+            state_cor = mdt.load(AAtraj_file[0], top=native_AA_pdb)[traj_frame_idx].center_coordinates().xyz * 10
+            logger.info(
+                f'Loaded AA trajectory for state {state_id + 1}, signals {k_str}, group {kk_str} '
+                f'in {time.time() - load_start:.2f} s'
+            )
 
-        rep_ent_dict = {tuple(v['code']): [] for kkk, v in rep_chg_ent_dict.items()}
-        for kkk, v in rep_chg_ent_dict.items():
-            v['chg_index'] = kkk
-            rep_ent_dict[tuple(v['code'])].append(v)
-        gen_state_visualizion(state_id, kk_str, kk_str_dir, native_AA_pdb, state_cor, native_AA_pdb, rep_ent_dict,
-                      logger,
-                              if_backmap=if_backmap, pulchra_only=pulchra_only, exp_signal_str=k_str)
+            # PHASE 3: Fetch pre-extracted frame data from per_frame_data_dict
+            frame_info = per_frame_data_dict[(traj_idx, frame_idx)]
+            rep_chg_ent_dict = frame_info['rep_chg_ent_dict']
 
-        Q = Q_list[traj_idx, frame_idx]
-        G = G_list[traj_idx, frame_idx]
-        info_file = os.path.join(kk_str_dir, 'info.txt')
-        with open(info_file, 'w') as f:
-            f.write('State #%d\n' % (state_id + 1))
-            f.write('Q: %f\n' % (Q))
-            f.write('G: %f\n' % (G))
-            f.write('Consistent experiment signals: %s\n' % k)
-            f.write('Changes in entanglement cluster IDs: %s\n' % [i+1 for i in kk_list])
-            f.write('Trajectory number: %d\n' % (traj))
-            f.write('Frame number: %d\n' % (traj_frame_idx + 1))
-            f.write('%s\n' % ('-' * 64))
-            for signal in k_list:
-                if signal in LIPMS_consist_data.keys():
-                    M = M_LiPMS[traj_idx, frame_idx, LIPMS_consist_data[signal][4]]
-                    f.write('%s: M: %.4f\n' % (signal, M))
-                elif signal in XLMS_consist_data.keys():
-                    M = M_XLMS[traj_idx, frame_idx, XLMS_consist_data[signal][4]]
-                    requested_key = '%s|A-%s|A' % (signal.split('-')[0][1:], signal.split('-')[1][1:])
-                    frame_data = dist_traj_list[traj_idx, frame_idx]
-                    if frame_data is None or requested_key not in frame_data:
-                        logger.warning(
-                            f'Missing XL-MS key for signal {signal}. '
-                            f'Traj {idx2traj[traj_idx]}, frame {frame_idx}, '
-                            f'MSM indices [{traj_idx}, {frame_idx}]. '
-                            f'Requested key: {requested_key}. '
-                            f'Available keys in frame_dict: {list(frame_data.keys()) if frame_data is not None else "None"}. '
-                            f'Skipping this signal in info file.'
-                        )
-                        f.write('%s: M: %.4f Jwalk: N/A Euclidean: N/A (key not in XP data)\n' % (signal, M))
-                    else:
-                        d_data = frame_data[requested_key]
-                        f.write('%s: M: %.4f Jwalk: %.4f Euclidean: %.4f\n' % (signal, M, d_data['Jwalk'], d_data['Euclidean']))
-            f.write('%s\n' % ('-' * 64))
+            rep_ent_dict = {tuple(v['code']): [] for kkk, v in rep_chg_ent_dict.items()}
             for kkk, v in rep_chg_ent_dict.items():
-                f.write('%d:\n' % (kkk + 1))
-                # f.write(' ' * 4 + 'code: %s\n' % v['code'])
-                # for kkkk in ['linking_value', 'topoly_linking_number', 'native_contact_residx', 'crossing_residx', 'crossing_pattern']:
-                for kkkk in key_order:
-                    f.write(' ' * 4 + '%s: %s\n' % (kkkk, v[kkkk]))
-                    # f.write(' ' * 4 + 'ref_%s: %s\n' % (kkkk, v['ref_' + kkkk]))
-        logger.debug(f'SAVED: {info_file}')
+                v['chg_index'] = kkk
+                rep_ent_dict[tuple(v['code'])].append(v)
+
+            viz_start = time.time()
+            logger.info(
+                f'Generating representative visualization for state {state_id + 1}, '
+                f'signals {k_str}, group {kk_str}'
+            )
+            gen_state_visualizion(state_id, kk_str, kk_str_dir, native_AA_pdb, state_cor, native_AA_pdb, rep_ent_dict,
+                          logger,
+                                  if_backmap=if_backmap, pulchra_only=pulchra_only, exp_signal_str=k_str)
+            logger.info(
+                f'Finished representative visualization for state {state_id + 1}, '
+                f'signals {k_str}, group {kk_str} in {time.time() - viz_start:.2f} s'
+            )
+
+            # PHASE 3: Use pre-extracted Q and G from frame_info
+            Q = frame_info['Q']
+            G = frame_info['G']
+            info_file = os.path.join(kk_str_dir, 'info.txt')
+            with open(info_file, 'w') as f:
+                f.write('State #%d\n' % (state_id + 1))
+                f.write('Q: %f\n' % (Q))
+                f.write('G: %f\n' % (G))
+                f.write('Consistent experiment signals: %s\n' % k)
+                f.write('Changes in entanglement cluster IDs: %s\n' % [i+1 for i in kk_list])
+                f.write('Trajectory number: %d\n' % (traj))
+                f.write('Frame number: %d\n' % (traj_frame_idx + 1))
+                f.write('%s\n' % ('-' * 64))
+                for signal in k_list:
+                    if signal in LIPMS_consist_data.keys():
+                        # PHASE 3: Use pre-extracted M_LiPMS row, index by signal-dependent third dimension
+                        M = frame_info['M_LiPMS_row'][LIPMS_consist_data[signal][4]]
+                        f.write('%s: M: %.4f\n' % (signal, M))
+                    elif signal in XLMS_consist_data.keys():
+                        # PHASE 3: Use pre-extracted M_XLMS row, index by signal-dependent third dimension
+                        M = frame_info['M_XLMS_row'][XLMS_consist_data[signal][4]]
+                        requested_key = '%s|A-%s|A' % (signal.split('-')[0][1:], signal.split('-')[1][1:])
+                        # PHASE 3: Use pre-extracted dist frame data
+                        frame_data = frame_info['dist_frame_data']
+                        if frame_data is None or requested_key not in frame_data:
+                            logger.warning(
+                                f'Missing XL-MS key for signal {signal}. '
+                                f'Traj {idx2traj[traj_idx]}, frame {frame_idx}, '
+                                f'MSM indices [{traj_idx}, {frame_idx}]. '
+                                f'Requested key: {requested_key}. '
+                                f'Available keys in frame_dict: {list(frame_data.keys()) if frame_data is not None else "None"}. '
+                                f'Skipping this signal in info file.'
+                            )
+                            f.write('%s: M: %.4f Jwalk: N/A Euclidean: N/A (key not in XP data)\n' % (signal, M))
+                        else:
+                            d_data = frame_data[requested_key]
+                            f.write('%s: M: %.4f Jwalk: %.4f Euclidean: %.4f\n' % (signal, M, d_data['Jwalk'], d_data['Euclidean']))
+                f.write('%s\n' % ('-' * 64))
+                for kkk, v in rep_chg_ent_dict.items():
+                    f.write('%d:\n' % (kkk + 1))
+                    for kkkk in key_order:
+                        f.write(' ' * 4 + '%s: %s\n' % (kkkk, v[kkkk]))
+            logger.debug(f'SAVED: {info_file}')
+            with open(os.path.join(kk_str_dir, '.done'), 'w'):
+                pass
+            completed_groups += 1
+    except Exception:
+        logger.exception(
+            f'Representative-structure worker failed for state {state_id + 1}, signals {k_str}'
+        )
+        raise
+
+    return f'{k_str} ({completed_groups} subgroup(s))'
 ##############################################################################
 
 ##############################################################################
@@ -1723,6 +1794,7 @@ def gen_state_visualizion(state_id, ent_id, kk_str_dir, psf, state_cor, native_A
         logger.info(f'k:\n{k}')
         logger.info(f'v:\n{v} {len(v)}')
 
+    logger.info(f'Loading structure template from {psf}')
     struct = pmd.load_file(psf)
     struct.coordinates = state_cor
 
@@ -1734,15 +1806,19 @@ def gen_state_visualizion(state_id, ent_id, kk_str_dir, psf, state_cor, native_A
         else:
             pulchra_only = '0'
         temp_pdb_path = os.path.join(kk_str_dir, 'tmp.pdb')
+        logger.info(f'Writing temporary backmapping PDB {temp_pdb_path}')
         struct.save(temp_pdb_path, overwrite=True)
         os.system('backmap.py -i '+native_AA_pdb+' -c '+temp_pdb_path+' -p '+pulchra_only)
         os.system('mv tmp_rebuilt.pdb '+pdb_path)
         os.system('rm -f '+temp_pdb_path)
         os.system('rm -rf ./rebuild_tmp/')
     else:
+        logger.info(f'Writing representative PDB {pdb_path}')
         struct.save(pdb_path, overwrite=True)
 
+    logger.info(f'Loading reference structure from {native_AA_pdb}')
     ref_struct = pmd.load_file(native_AA_pdb)
+    logger.info(f'Loading representative structure from {pdb_path}')
     current_struct = pmd.load_file(pdb_path)
     
     # parse exp_signal_str

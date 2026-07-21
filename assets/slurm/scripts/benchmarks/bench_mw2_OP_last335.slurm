@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J bench_mw2_OP_last67
+#SBATCH -J bench_mw2_OP_last335
 #SBATCH --partition=basic
 #SBATCH -N 1
 #SBATCH -n 8
@@ -14,7 +14,7 @@
 # Benchmark - Minimal Workflow 2 (OP): last-10ns window, frames [6600, 6667).
 # 5 proteins x 50 trajectories = 250 array tasks (throttled to 50 concurrent).
 #   task_id -> protein = task_id / 50 ; traj = task_id % 50
-# Config-driven: scripts/configs/benchmarks/<protein>/OP_last67.json
+# Config-driven: scripts/configs/benchmarks/<protein>/OP_last335.json
 # Per-task overrides: --Traj <t> --DCD <source quench dcd>
 ################################################################################
 set -eo pipefail
@@ -31,10 +31,10 @@ TRAJ=$(( SLURM_ARRAY_TASK_ID % 50 ))
 P=${PROTEINS[$PIDX]}
 DCD="$SRC/$P/Quenching/${P}_t${TRAJ}_quench.dcd"
 
-echo "=== MW2 OP last67 | protein=$P | traj=$TRAJ | $(date) ==="
+echo "=== MW2 OP last335 | protein=$P | traj=$TRAJ | $(date) ==="
 echo "DCD: $DCD"
 python scripts/run_OP_on_simulation_traj.py \
-    --config "scripts/configs/benchmarks/$P/OP_last67.json" \
+    --config "scripts/configs/benchmarks/$P/OP_last335.json" \
     --Traj "$TRAJ" \
     --DCD "$DCD"
 echo "=== done $P traj $TRAJ | $(date) ==="

@@ -75,7 +75,7 @@ OUTDIR=$DATASTORE/outputs/workflow4
 | Optional residue mapping files | `$DATASTORE/user_input/proteome_structures/EXP/*_resid_mapping.txt` | Map structure residue numbering to canonical indices |
 | Gene list file (tutorial test case) | `$DATASTORE/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_ent_genes.txt` | Controls cohort used in modeling |
 | AF per-residue features table | `$DATASTORE/user_input/experimental_data/PDB_residue_features/AF/residueFeatures.csv` | Provides response/predictor columns (e.g., `cut_C_Rall`, `AA`) |
-| Combined residue design matrix | Built in Step 2 (`$OUTDIR/residue_dataframes_workflow4.csv`) | Input for Step 3 regression |
+| Combined residue design matrix | Built in Step 1 (`$OUTDIR/residue_dataframes_workflow4.csv`) | Input for Step 2 regression and Step 3 Monte Carlo |
 
 ---
 

@@ -13,12 +13,12 @@ For each selected protein it:
   1. Converts the CG CA structure (``*_ca.cor`` + ``*_ca.psf``) to a PDB for MW1.
   2. Symlinks the real domain-definition file and secondary-structure file.
   3. Creates the datastore output directories.
-  4. Writes config JSONs for MW1 (native NCLE), MW2 (OP full + last67),
+  4. Writes config JSONs for MW1 (native NCLE), MW2 (OP full + last335),
      MW3 (nonnative clustering), and MW4 (MSM).
 
 Frame windows (per the benchmark design, matching PGK):
-  - Full traj analysis : frames [0, 6667)
-  - Last 10 ns (67 fr) : frames [6600, 6667)
+    - Full traj analysis   : frames [0, 6667)
+    - Last-window analysis : frames [6332, 6667)  # 335 frames
 The source trajectories have 26667 frames; the OP runner now supports ``--end``
 so no trajectory files are duplicated.
 
@@ -55,7 +55,7 @@ CONFIG_ROOT = f"{REPO}/scripts/configs/benchmarks"
 
 # Frame windows
 FULL_START, FULL_END = 0, 6667
-LAST_START, LAST_END = 6600, 6667
+LAST_START, LAST_END = 6332, 6667
 
 N_TRAJ = 50            # t0 .. t49 per protein
 NPROC = 8              # CPUs used for G (also SLURM -n in the slurm scripts)
@@ -147,7 +147,7 @@ def setup_protein(dirname, accession, pdb, chain, size, dry_run):
     # ---- output dirs ------------------------------------------------------ #
     out1 = f"{OUT1_ROOT}/{dirname}"
     op_full = f"{OUT2_ROOT}/{dirname}/OP"
-    op_last = f"{OUT2_ROOT}/{dirname}/OP_last67"
+    op_last = f"{OUT2_ROOT}/{dirname}/OP_last335"
     clust = f"{OUT2_ROOT}/{dirname}/nonnative_clustering"
     msm = f"{OUT2_ROOT}/{dirname}/MSM"
     if not dry_run:
@@ -205,8 +205,8 @@ def setup_protein(dirname, accession, pdb, chain, size, dry_run):
         "chunk_suffix": "_chunk",
     }, dry_run)
 
-    # MW2 last67: frames [6600, 6667)
-    _write_json(f"{cfg_dir}/OP_last67.json", {
+    # MW2 last335: frames [6332, 6667)
+    _write_json(f"{cfg_dir}/OP_last335.json", {
         **op_common,
         "outdir": op_last,
         "logdir": f"{op_last}/logs",
@@ -218,7 +218,7 @@ def setup_protein(dirname, accession, pdb, chain, size, dry_run):
     # MW3: nonnative clustering (trajnum2file built by the slurm before running)
     _write_json(f"{cfg_dir}/nonnative_clustering.json", {
         "outdir": clust,
-        "trajnum2pklfile_path": f"{bench_in}/OP_last67_trajnum2file.txt",
+        "trajnum2pklfile_path": f"{bench_in}/OP_last335_trajnum2file.txt",
         "traj_dir_prefix": f"{SRC_BASE}/{dirname}/Quenching",
         "start_frame": 0,
         "end_frame": 9999999,
@@ -247,7 +247,7 @@ def main():
     args = ap.parse_args()
 
     print(f"Selected {len(PROTEINS)} proteins x {N_TRAJ} trajectories.")
-    print(f"Frame windows: full=[{FULL_START},{FULL_END})  last67=[{LAST_START},{LAST_END})")
+    print(f"Frame windows: full=[{FULL_START},{FULL_END})  last335=[{LAST_START},{LAST_END})")
     for row in PROTEINS:
         setup_protein(*row, dry_run=args.dry_run)
     print("\nDONE. Configs under:", CONFIG_ROOT)

@@ -25,7 +25,7 @@ Two usage modes:
          --sasa_dir    /path/to/OP_AA/SASA
          --xp_dir      /path/to/OP_AA/XP
          --n_traj      1000
-         --n_frames    67
+         --sasa_xp_frames_per_traj    335
          --msm_data_file ...  (remaining args as below)
 
   2. Pre-built mode (provide --sasa_data_file):
@@ -40,7 +40,7 @@ python scripts/run_compare_sim2exp.py
 --sasa_dir        /path/to/OP_AA/SASA
 --xp_dir          /path/to/OP_AA/XP
 --n_traj          1000
---n_frames        67
+--sasa_xp_frames_per_traj 335
 --msm_data_file   /path/to/msm_data.csv
 --meta_dist_file  /path/to/meta_dist.npy
 --LiPMS_exp_file  /path/to/LiPMS_exp.xlsx
@@ -51,7 +51,7 @@ python scripts/run_compare_sim2exp.py
 --native_AA_pdb   /path/to/native.pdb
 --state_idx_list  4 6 8
 --prot_len        387
---last_num_frames 67
+--n_analysis_frames 335
 --rm_traj_list    65 75 155
 --native_state_idx 9
 --outdir          /path/to/outdir/
@@ -83,7 +83,7 @@ def main(argv=None):
     parser.add_argument("--native_AA_pdb", type=str, required=False, default=argparse.SUPPRESS, help="Path to native all-atom PDB file")
     parser.add_argument("--state_idx_list", type=int, nargs='+', required=False, default=argparse.SUPPRESS, help="List of state indices to analyze")
     parser.add_argument("--prot_len", type=int, required=False, default=argparse.SUPPRESS, help="Length of the protein")
-    parser.add_argument("--last_num_frames", type=int, required=False, default=argparse.SUPPRESS, help="Number of last frames to consider")
+    parser.add_argument("--n_analysis_frames", type=int, required=False, default=argparse.SUPPRESS, help="Number of trailing frames per trajectory actually analyzed (must match the MSM/G/Q/SASA/XP last-frame window)")
     parser.add_argument("--rm_traj_list", type=int, nargs='+', required=False, default=argparse.SUPPRESS, help="List of trajectory indices to remove")
     parser.add_argument("--native_state_idx", type=int, required=False, default=argparse.SUPPRESS, help="Index of the native state")
     parser.add_argument("--outdir", type=str, required=False, default=argparse.SUPPRESS, help="Output directory for results")
@@ -103,8 +103,8 @@ def main(argv=None):
                         help="Directory of per-traj {ID}_Traj{N}.XP files (used with --sasa_dir).")
     parser.add_argument("--n_traj", type=int, default=argparse.SUPPRESS,
                         help="Total number of trajectories for CollectOP (required with --sasa_dir).")
-    parser.add_argument("--n_frames", type=int, default=argparse.SUPPRESS,
-                        help="Frames per trajectory stored in each file (required with --sasa_dir).")
+    parser.add_argument("--sasa_xp_frames_per_traj", type=int, default=argparse.SUPPRESS,
+                        help="Frames per trajectory stored in each SASA/XP file (required with --sasa_dir).")
     parser.add_argument("--collect_jwalk_npy", action='store_true', default=argparse.SUPPRESS,
                         help="Also build Jwalk.npy with CollectOP (legacy path). "
                              "By default, XL-MS scoring streams directly from XP files to reduce memory use.")
@@ -113,6 +113,9 @@ def main(argv=None):
                         help="Path to pre-built SASA.npy. Required if --sasa_dir is not provided.")
     parser.add_argument("--dist_data_file", type=str, default=argparse.SUPPRESS,
                         help="Path to pre-built Jwalk.npy. Required if --xp_dir is not provided.")
+    parser.add_argument("--restart", action='store_true', default=argparse.SUPPRESS,
+                        help="Resume an interrupted viz_rep_struct run. Keeps the existing directory "
+                             "and skips any group that already has a .done sentinel file.")
     args = parse_args_with_config(
         parser,
         argv,
@@ -120,11 +123,12 @@ def main(argv=None):
             "sasa_dir": None,
             "xp_dir": None,
             "n_traj": None,
-            "n_frames": None,
+            "sasa_xp_frames_per_traj": None,
             "collect_jwalk_npy": False,
             "sasa_data_file": None,
             "dist_data_file": None,
             "verbose": False,
+            "restart": False,
         },
         aliases={"id": "ID"},
     )
@@ -132,7 +136,7 @@ def main(argv=None):
     required_fields = [
         "msm_data_file", "meta_dist_file", "LiPMS_exp_file", "XLMS_exp_file",
         "cluster_data_file", "OPpath", "AAdcd_dir", "native_AA_pdb",
-        "state_idx_list", "prot_len", "last_num_frames", "rm_traj_list",
+        "state_idx_list", "prot_len", "n_analysis_frames", "rm_traj_list",
         "native_state_idx", "outdir", "ID",
         "num_perm", "n_boot", "lag_frame", "nproc",
     ]
@@ -158,7 +162,7 @@ def main(argv=None):
     native_AA_pdb = args.native_AA_pdb
     state_idx_list = args.state_idx_list
     prot_len = args.prot_len
-    last_num_frames = args.last_num_frames
+    n_analysis_frames = args.n_analysis_frames
     rm_traj_list = args.rm_traj_list
     native_state_idx = args.native_state_idx
     outdir = args.outdir
@@ -180,8 +184,8 @@ def main(argv=None):
         )
     if collect_mode and args.n_traj is None:
         parser.error("--n_traj is required when using --sasa_dir (or provide it in --config)")
-    if collect_mode and args.n_frames is None:
-        parser.error("--n_frames is required when using --sasa_dir (or provide it in --config)")
+    if collect_mode and args.sasa_xp_frames_per_traj is None:
+        parser.error("--sasa_xp_frames_per_traj is required when using --sasa_dir (or provide it in --config)")
 
     # ── Step 1: Initialize MassSpec (it handles collection internally if needed)
     MS = MassSpec(msm_data_file=msm_data_file,
@@ -196,12 +200,12 @@ def main(argv=None):
                     dist_data_file=dist_data_file,
                     sasa_dir=args.sasa_dir,
                     n_traj=args.n_traj,
-                    n_frames=args.n_frames,
+                    sasa_xp_frames_per_traj=args.sasa_xp_frames_per_traj,
                     collect_jwalk_npy=args.collect_jwalk_npy,
                     xp_dir=args.xp_dir,
                     state_idx_list=state_idx_list,
                     prot_len=prot_len,
-                    last_num_frames=last_num_frames,
+                    n_analysis_frames=n_analysis_frames,
                     rm_traj_list=rm_traj_list,
                     native_state_idx=native_state_idx,
                     outdir=outdir,
@@ -218,7 +222,7 @@ def main(argv=None):
     print(f'consist_result_file: {consist_result_file}')
 
     # select the representative structures from the consistency test
-    MS.select_rep_structs(consist_data_file, consist_result_file, total_traj_num_frames=335, last_num_frames=67)
+    MS.select_rep_structs(consist_data_file, consist_result_file, total_traj_num_frames=335, n_analysis_frames=n_analysis_frames, restart=args.restart)
     
     print(f'NORMAL TERMINATION - {time.time() - start_time} seconds')
     return 0

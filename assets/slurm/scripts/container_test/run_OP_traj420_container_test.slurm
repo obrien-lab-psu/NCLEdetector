@@ -14,7 +14,7 @@ set -eo pipefail
 REPO=/storage/group/epo2/default/ims86/git_repos/EntDetect
 DATASTORE=/scratch/ims86/EntDetect_Datastore
 SIF=${SIF:-$REPO/entdetect-v2.0.1.sif}
-CFG=scripts/configs/workflow2_OP_last67_container_config.json
+CFG=scripts/configs/workflow2_OP_last335_container_config.json
 
 cd "$REPO"
 
@@ -23,7 +23,7 @@ if [[ ! -f "$SIF" ]]; then
   exit 1
 fi
 
-mkdir -p "$DATASTORE/outputs/workflow2/OP_last67/container/logs"
+mkdir -p "$DATASTORE/outputs/workflow2/OP_last335/container/logs"
 
 apptainer exec \
   --bind "$DATASTORE:$DATASTORE" \

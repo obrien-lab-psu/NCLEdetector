@@ -24,7 +24,7 @@ dcd = f"{CG_TRAJ_DIR}/420_prod.dcd"
 u = mda.Universe(psf, dcd)
 protein = u.select_atoms("protein")
 
-for i, ts in enumerate(u.trajectory[-67:]):   # last 67 frames
+for i, ts in enumerate(u.trajectory[-335:]):   # last 335 frames
     out_pdb = f"{OUTDIR}/cg_frames/frame_{i:04d}.pdb"
     protein.write(out_pdb)
 ```

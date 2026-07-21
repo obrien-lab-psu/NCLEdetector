@@ -12,8 +12,8 @@
 
 ################################################################################
 # Benchmark - Minimal Workflow 3: nonnative entanglement clustering.
-# One array task per protein. Requires MW2 OP_last67 to have completed.
-# Builds the trajnum->pkl map from the last67 Combined_GE outputs, then runs the
+# One array task per protein. Requires MW2 OP_last335 to have completed.
+# Builds the trajnum->pkl map from the last335 Combined_GE outputs, then runs the
 # clustering with the config.
 # Config-driven: scripts/configs/benchmarks/<protein>/nonnative_clustering.json
 ################################################################################
@@ -30,8 +30,8 @@ ACCS=(P61175 P0A6T9 P45748 P0A6L2 P0AD61)
 P=${PROTEINS[$SLURM_ARRAY_TASK_ID]}
 ACC=${ACCS[$SLURM_ARRAY_TASK_ID]}
 
-MAP="$DATASTORE/user_input/benchmarks/$P/OP_last67_trajnum2file.txt"
-CGE="$DATASTORE/outputs/workflow2/benchmarks/$P/OP_last67/G/Combined_GE"
+MAP="$DATASTORE/user_input/benchmarks/$P/OP_last335_trajnum2file.txt"
+CGE="$DATASTORE/outputs/workflow2/benchmarks/$P/OP_last335/G/Combined_GE"
 
 echo "=== MW3 clustering | protein=$P | building trajnum map | $(date) ==="
 echo "trajnum,pklfile" > "$MAP"
@@ -45,9 +45,9 @@ for t in $(seq 0 49); do
 done
 echo "map rows: $(( $(wc -l < "$MAP") - 1 ))"
 
-# Safety guard: benchmark clustering for ent_detection_method=2 must use last-67 OP outputs.
-if ! grep -q '/OP_last67/G/Combined_GE/' "$MAP"; then
-    echo "ERROR: $MAP does not point to OP_last67 Combined_GE files. Aborting." >&2
+# Safety guard: benchmark clustering for ent_detection_method=2 must use last-335 OP outputs.
+if ! grep -q '/OP_last335/G/Combined_GE/' "$MAP"; then
+    echo "ERROR: $MAP does not point to OP_last335 Combined_GE files. Aborting." >&2
     exit 2
 fi
 

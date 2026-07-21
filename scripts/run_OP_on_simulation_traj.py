@@ -56,8 +56,10 @@ Flags
   --sec_elements         STRIDE secondary structure definitions (required for Q, G, K)
   --domain               Domain boundary definitions (required for Q, G, K)
     --pdb_file             All-atom PDB for XP cross-link probability (required for XP)
-  --chunk_frames         Frames per chunk for Combined_GE (default: None = single file)
-  --chunk_suffix         Naming suffix for chunk files (default: _chunk)
+  --chunk_frames         Frames per chunk for Q/G/K memory-bounded, restartable chunked
+                         processing (Q/*.Q, G/Traj_NCLE/*.csv, G/Combined_NCLE/*.pkl,
+                         G/*.G, K/*.K). default: None = single-shot (no chunking)
+  --chunk_suffix         Naming suffix for chunk part files (default: _chunk)
   --log_level            Logging verbosity: DEBUG, INFO, WARNING, ERROR (default: INFO)
   --logdir               Directory for log file (default: same as --outdir)
 """
@@ -109,9 +111,9 @@ def main(argv=None):
 
     parser.add_argument("--pdb_file",   type=str, default=argparse.SUPPRESS, help="All-atom PDB for XP (required for XP)")
 
-    # --- G chunking (for large trajectories) ---
-    parser.add_argument("--chunk_frames", type=int, default=argparse.SUPPRESS, help="Frames per chunk for Combined_GE output (default: None = single file)")
-    parser.add_argument("--chunk_suffix", type=str, default=argparse.SUPPRESS, help="Naming suffix for chunked files (default: _chunk)")
+    # --- chunking (for large trajectories); applies to Q, G, and K outputs ---
+    parser.add_argument("--chunk_frames", type=int, default=argparse.SUPPRESS, help="Frames per chunk for Q/G/K chunked processing (default: None = single file)")
+    parser.add_argument("--chunk_suffix", type=str, default=argparse.SUPPRESS, help="Naming suffix for chunked part files (default: _chunk)")
 
     # --- logging ---
     parser.add_argument("--log_level", default=argparse.SUPPRESS, choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging verbosity (default: INFO)")
@@ -266,7 +268,7 @@ def main(argv=None):
     logger.info(f'CalculateOP (primary): {CalcOP}')
 
     if 'Q' in ops:
-        Qdata_dict = CalcOP.Q()
+        Qdata_dict = CalcOP.Q(chunk_frames=args.chunk_frames, chunk_suffix=args.chunk_suffix)
         logger.info(f'Q keys: {list(Qdata_dict.keys())}')
 
     if 'G' in ops:
@@ -274,7 +276,7 @@ def main(argv=None):
         logger.info(f'G keys: {list(Gdata_dict.keys())}')
 
     if 'K' in ops:
-        Kdata_dict = CalcOP.K()
+        Kdata_dict = CalcOP.K(chunk_frames=args.chunk_frames, chunk_suffix=args.chunk_suffix)
         logger.info(f'K keys: {list(Kdata_dict.keys())}')
 
     if 'SASA' in ops:

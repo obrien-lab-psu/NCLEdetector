@@ -103,7 +103,7 @@ Depending on the workflow, you may need:
 | LiP-MS / XL-MS experimental files | `$DATASTORE/user_input/experimental_data/` |
 | Trajectory-to-pkl mapping | `$DATASTORE/user_input/metadata/trajnum2file.txt` |
 | E. coli proteome PDB structures | `$DATASTORE/user_input/proteome_structures/AF/` and `.../EXP/` |
-| Pre-computed OP data (reference) | `$TESTDIR/OP_Full/` and `$TESTDIR/OP_last67_density1/` |
+| Pre-computed OP data (reference) | `$TESTDIR/OP_Full/` and `$TESTDIR/OP_last335_density1/` |
 | MSM outputs (reference) | `$TESTDIR/MSM/` |
 | Clustering outputs (reference) | `$TESTDIR/nonnative_entanglement_clustering/` |
 | Consistency test data (reference) | `$TESTDIR/compare_sim2exp/` |
@@ -164,7 +164,7 @@ $DATASTORE/
 $TESTDIR/
 ├── nativeNCLE/                      # reference native NCLE outputs
 ├── OP_Full/                         # OPs over all frames
-├── OP_last67_density1/              # OPs over last 67 frames
+├── OP_last335_density1/              # OPs over last 335 frames
 ├── nonnative_entanglement_clustering/
 ├── MSM/
 ├── compare_sim2exp/

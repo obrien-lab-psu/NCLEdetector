@@ -380,8 +380,8 @@ ID = "1ZMR"
 COR = "./1zmr_model_clean_ca.cor"
 sec_elements = "./secondary_struc_defs.txt"
 domain = "./domain_def.dat"
-outdir = "./run_OP_on_simulation_traj_last67frames/"
-start = 6600
+outdir = "./run_OP_on_simulation_traj_last335frames/"
+start = 6332
 
 CalcOP = CalculateOP(
     outdir=outdir,
@@ -473,7 +473,7 @@ clustering_NNents = ClusterNonNativeEntanglements(
     outdir=outdir
 )
 
-clustering_NNents.cluster(start_frame=6600)
+clustering_NNents.cluster(start_frame=6332)
 ```
 
 ### What this step does
@@ -713,8 +713,8 @@ Traj = 1
 PSF = "./1zmr_model_clean.pdb"
 DCD = "./1_prod_aa.dcd"
 ID = "1ZMR"
-outdir = "./run_OP_on_simulation_traj_last67frames/"
-start = 6600
+outdir = "./run_OP_on_simulation_traj_last335frames/"
+start = 6332
 
 CalcOP = CalculateOP(
     outdir=outdir,
@@ -764,19 +764,19 @@ outdir = "./MassSpec_ConsistencyTest/"
 msm_data_file = "./MSM/1ZMR_prod_MSMmapping.csv"
 meta_dist_file = "./MSM/1ZMR_prod_meta_dist.npy"
 LiPMS_exp_file = "./ecPGK_significant_LiPMS_peptide_R1_merged.xlsx"
-sasa_data_file = "./run_OP_on_simulation_traj_last67frames/SASA/SASA.npy"
+sasa_data_file = "./run_OP_on_simulation_traj_last335frames/SASA/SASA.npy"
 XLMS_exp_file = "./ecPGK_significant_XLMS_peptide_R1_merged.xlsx"
-dist_data_file = "./run_OP_on_simulation_traj_last67frames/Jwalk/Jwalk.npy"
+dist_data_file = "./run_OP_on_simulation_traj_last335frames/Jwalk/Jwalk.npy"
 cluster_data_file = "./nonnative_entanglement_clustering/cluster_data_topoly_linking_number.npz"
-OPpath = "./run_OP_on_simulation_traj_last67frames/"
+OPpath = "./run_OP_on_simulation_traj_last335frames/"
 AAdcd_dir = "/path/to/backmapped/dcds/"
 native_AA_pdb = "./1zmr_model_clean.pdb"
 state_idx_list = [4, 6, 8]
 prot_len = 387
-last_num_frames = 335
+n_analysis_frames = 335
 rm_traj_list = []
 native_state_idx = 9
-start = 6600
+start = 6332
 ID = "1ZMR"
 
 MS = MassSpec(
@@ -792,7 +792,7 @@ MS = MassSpec(
     native_AA_pdb=native_AA_pdb,
     state_idx_list=state_idx_list,
     prot_len=prot_len,
-    last_num_frames=last_num_frames,
+    n_analysis_frames=n_analysis_frames,
     rm_traj_list=rm_traj_list,
     native_state_idx=native_state_idx,
     outdir=outdir,
@@ -801,7 +801,7 @@ MS = MassSpec(
 )
 
 consist_data_file, consist_result_file = MS.LiP_XL_MS_ConsistencyTest()
-MS.select_rep_structs(consist_data_file, consist_result_file, total_traj_num_frames=335, last_num_frames=67)
+MS.select_rep_structs(consist_data_file, consist_result_file, total_traj_num_frames=335, n_analysis_frames=n_analysis_frames)
 ```
 
 ### What this step does

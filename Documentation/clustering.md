@@ -76,7 +76,7 @@ nn_clustering = ClusterNonNativeEntanglements(
 Performs clustering analysis of non-native entanglement changes.
 
 ```python
-nn_clustering.cluster(start_frame=6600)
+nn_clustering.cluster(start_frame=6332)
 ```
 
 **Parameters:**
@@ -153,7 +153,7 @@ nn_clustering = ClusterNonNativeEntanglements(
 )
 
 # Perform clustering starting from equilibration
-nn_clustering.cluster(start_frame=6600)
+nn_clustering.cluster(start_frame=6332)
 ```
 
 ### MSM Construction

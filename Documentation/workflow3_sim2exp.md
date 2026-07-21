@@ -50,7 +50,7 @@ $DATASTORE/outputs/workflow2/
 │   ├── 1ZMR_Traj1.XP
 │   ├── 1ZMR_Traj2.XP
 │   └── ... (one per trajectory)
-└── nonnative_clustering/
+└── nonnative_clustering_last335/
     └── cluster_data_topoly_linking_number.npz
 ```
 
@@ -83,8 +83,8 @@ OUTDIR=$DATASTORE/outputs/workflow3
 | Per-traj SASA files | `$DATASTORE/outputs/workflow2/OP_AA/SASA/{ID}_Traj{N}.SASA` | Solvent-accessible surface area (one per trajectory) |
 | Per-traj XP files | `$DATASTORE/outputs/workflow2/OP_AA/XP/{ID}_Traj{N}.XP` | Jwalk cross-link predictions (one per trajectory) |
 | MSM mapping | `$DATASTORE/outputs/workflow2/MSM/1ZMR_prod_MSMmapping.csv` | Per-frame metastable state assignments |
-| MSM meta distribution | `$DATASTORE/outputs/workflow2/MSM/1ZMR_prod_meta_dist.npy` | Distance matrix between metastable states |
-| Non-native clustering data | `$DATASTORE/outputs/workflow2/nonnative_clustering/cluster_data_topoly_linking_number.npz` | Clustering results for validation |
+| MSM meta distribution | `$DATASTORE/outputs/workflow2/MSM/1ZMR_prod_meta_dist.npy` | Metastable-state probability distributions over MSM microstates |
+| Non-native clustering data | `$DATASTORE/outputs/workflow2/nonnative_clustering_last335/cluster_data_topoly_linking_number.npz` | Clustering results for validation |
 | Native all-atom PDB | `$DATASTORE/user_input/reference_structures/1zmr_model_clean.pdb` | Native reference structure |
 | AA trajectory DCDs | `$DATASTORE/user_input/aa_trajectories/{N}_prod_aa.dcd` | All-atom trajectories (N=1–1000) |
 
@@ -131,7 +131,7 @@ DATASTORE   = "/scratch/ims86/EntDetect_Datastore"
 OUTDIR      = f"{DATASTORE}/outputs/workflow3"
 sasa_dir    = f"{DATASTORE}/outputs/workflow2/OP_AA/SASA"  # per-traj SASA files
 xp_dir      = f"{DATASTORE}/outputs/workflow2/OP_AA/XP"    # per-traj XP files
-OPpath      = f"{DATASTORE}/outputs/workflow2/OP_last67/"
+OPpath      = f"{DATASTORE}/outputs/workflow2/OP_last335/"
 AAdcd_dir   = f"{DATASTORE}/user_input/aa_trajectories"
 TestOutdir  = f"{OUTDIR}/MassSpec_ConsistencyTest"
 
@@ -140,18 +140,18 @@ msm_data_file    = f"{DATASTORE}/outputs/workflow2/MSM/1ZMR_prod_MSMmapping.csv"
 meta_dist_file   = f"{DATASTORE}/outputs/workflow2/MSM/1ZMR_prod_meta_dist.npy"
 LiPMS_exp_file   = f"{DATASTORE}/user_input/experimental_data/ecPGK_significant_LiPMS_peptide_R1_merged.xlsx"
 XLMS_exp_file    = f"{DATASTORE}/user_input/experimental_data/ecPGK_significant_XLMS_peptide_R1_merged.xlsx"
-cluster_data_file = f"{DATASTORE}/outputs/workflow2/nonnative_clustering/cluster_data_topoly_linking_number.npz"
+cluster_data_file = f"{DATASTORE}/outputs/workflow2/nonnative_clustering_last335/cluster_data_topoly_linking_number.npz"
 native_AA_pdb    = f"{DATASTORE}/user_input/reference_structures/1zmr_model_clean.pdb"
 
 # Protocol-specific parameters for the 1ZMR / ecPGK example system
 state_idx_list   = [4, 6, 8]   # metastable state indices to test
 prot_len         = 387          # protein length in residues
-last_num_frames  = 67          # number of frames per trajectory analyzed
+n_analysis_frames = 67          # number of frames per trajectory analyzed
 n_traj           = 1000        # total number of trajectories
-n_frames         = 67          # frames per trajectory in Workflow 2 output
+sasa_xp_frames_per_traj = 67    # frames per trajectory in Workflow 2 output
 rm_traj_list   = [65, 75, 155, 162, 199, 231, 264, 286, 296, 314, 354, 417, 448, 472, 473, 474, 577, 579, 591, 703, 704, 732, 758, 812, 833, 870, 876, 944, 967]
 native_state_idx = 9            # index of the native/folded metastable state
-start            = 6600         # first frame index used in OP calculations
+start = 6332         # first frame index used in OP calculations
 ID               = "1ZMR"
 
 # ── Run  ───────────────────────────────────────────────────────────────
@@ -168,10 +168,10 @@ MS = MassSpec(
     sasa_dir=sasa_dir,           # MassSpec will handle collection internally
     xp_dir=xp_dir,               # for streaming or collection
     n_traj=n_traj,
-    n_frames=n_frames,
+    sasa_xp_frames_per_traj=sasa_xp_frames_per_traj,
     state_idx_list=state_idx_list,
     prot_len=prot_len,
-    last_num_frames=last_num_frames,
+    n_analysis_frames=n_analysis_frames,
     rm_traj_list=rm_traj_list,
     native_state_idx=native_state_idx,
     outdir=TestOutdir,
@@ -216,7 +216,7 @@ MS.select_rep_structs(
     consist_data_file,
     consist_result_file,
     total_traj_num_frames=335,   # total frames per trajectory in the full run
-    last_num_frames=67            # frames from which representatives are selected
+    n_analysis_frames=67            # frames from which representatives are selected
 )
 ```
 
@@ -288,15 +288,15 @@ python scripts/run_compare_sim2exp.py \
     --meta_dist_file  $DATASTORE/outputs/workflow2/MSM/1ZMR_prod_meta_dist.npy \
     --LiPMS_exp_file  $DATASTORE/user_input/experimental_data/ecPGK_significant_LiPMS_peptide_R1_merged.xlsx \
     --XLMS_exp_file   $DATASTORE/user_input/experimental_data/ecPGK_significant_XLMS_peptide_R1_merged.xlsx \
-    --cluster_data_file $DATASTORE/outputs/workflow2/nonnative_clustering/cluster_data_topoly_linking_number.npz \
-    --OPpath          $DATASTORE/outputs/workflow2/OP_last67/ \
+    --cluster_data_file $DATASTORE/outputs/workflow2/nonnative_clustering_last335/cluster_data_topoly_linking_number.npz \
+    --OPpath          $DATASTORE/outputs/workflow2/OP_last335/ \
     --AAdcd_dir       $DATASTORE/user_input/aa_trajectories/ \
     --native_AA_pdb   $DATASTORE/user_input/reference_structures/1zmr_model_clean.pdb \
     --sasa_dir        $DATASTORE/outputs/workflow2/OP_AA/SASA \
     --xp_dir          $DATASTORE/outputs/workflow2/OP_AA/XP \
     --state_idx_list  4 6 8 \
     --prot_len        387 \
-    --last_num_frames 67 \
+    --n_analysis_frames 67 \
     --rm_traj_list    65 75 155 162 199 231 264 286 296 314 354 417 448 472 473 474 577 579 591 703 704 732 758 812 833 870 876 944 967 \
     --native_state_idx 9 \
     --outdir          $DATASTORE/outputs/workflow3/MassSpec_ConsistencyTest \
@@ -305,7 +305,7 @@ python scripts/run_compare_sim2exp.py \
     --end             -1 \
     --stride          1 \
     --n_traj          1000 \
-    --n_frames        67 \
+    --sasa_xp_frames_per_traj 67 \
     --num_perm        1000 \
     --n_boot          100 \
     --lag_frame       20 \
@@ -347,8 +347,8 @@ apptainer exec \
     "meta_dist_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM/1ZMR_prod_meta_dist.npy",
     "LiPMS_exp_file": "/scratch/ims86/EntDetect_Datastore/user_input/experimental_data/ecPGK_significant_LiPMS_peptide_R1_merged.xlsx",
     "XLMS_exp_file": "/scratch/ims86/EntDetect_Datastore/user_input/experimental_data/ecPGK_significant_XLMS_peptide_R1_merged.xlsx",
-    "cluster_data_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/nonnative_clustering/cluster_data_topoly_linking_number.npz",
-    "OPpath": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last67/",
+    "cluster_data_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/nonnative_clustering_last335/cluster_data_topoly_linking_number.npz",
+    "OPpath": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last335/",
     "AAdcd_dir": "/scratch/ims86/EntDetect_Datastore/user_input/aa_trajectories/",
     "native_AA_pdb": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean.pdb",
     "sasa_dir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA/SASA",
@@ -357,14 +357,14 @@ apptainer exec \
     "ID": "1ZMR",
     "state_idx_list": [4, 6, 8],
     "prot_len": 387,
-    "last_num_frames": 67,
+    "n_analysis_frames": 67,
     "native_state_idx": 9,
     "rm_traj_list": [65, 75, 155, 162, 199, 231, 264, 286, 296, 314, 354, 417, 448, 472, 473, 474, 577, 579, 591, 703, 704, 732, 758, 812, 833, 870, 876, 944, 967],
-    "start": 6600,
+    "start": 6332,
     "end": -1,
     "stride": 1,
     "n_traj": 1000,
-    "n_frames": 67,
+    "sasa_xp_frames_per_traj": 67,
     "num_perm": 1000,
     "n_boot": 100,
     "lag_frame": 20,
@@ -378,7 +378,7 @@ The JSON/YAML config keys and their matching CLI flags are listed below. For the
 | Term | Definition |
 |------|------------|
 | `msm_data_file` (`--msm_data_file`) | Input MSM mapping CSV from Workflow 2 containing the per-frame microstate and metastable-state assignments used to align simulation frames with experimental comparisons. |
-| `meta_dist_file` (`--meta_dist_file`) | NumPy array of MSM-derived distances between metastable states, used when ranking and selecting representative structures after the consistency test. |
+| `meta_dist_file` (`--meta_dist_file`) | NumPy array of MSM metastable-state probability distributions over microstates, used when ranking and selecting representative structures after the consistency test. |
 | `LiPMS_exp_file` (`--LiPMS_exp_file`) | Processed LiP-MS workbook containing the experimentally significant proteolysis signals to compare against simulated solvent exposure. |
 | `XLMS_exp_file` (`--XLMS_exp_file`) | Processed XL-MS workbook containing the experimentally significant cross-link signals to compare against simulated inter-residue distances. |
 | `cluster_data_file` (`--cluster_data_file`) | Non-native entanglement clustering archive used to link experiment-consistent structures back to specific entanglement-change classes. |
@@ -391,14 +391,14 @@ The JSON/YAML config keys and their matching CLI flags are listed below. For the
 | `ID` (`--ID`) | System identifier used in output filenames and as the default log-file stem. |
 | `state_idx_list` (`--state_idx_list`) | List of metastable-state indices to test against the experimental data. |
 | `prot_len` (`--prot_len`) | Protein length in residues, used when building residue-index mappings and interpreting LiP-MS or XL-MS signals. |
-| `last_num_frames` (`--last_num_frames`) | Number of final frames retained from each trajectory for the experiment-versus-simulation comparison. |
+| `n_analysis_frames` (`--n_analysis_frames`) | Number of final frames retained from each trajectory for the experiment-versus-simulation comparison. |
 | `native_state_idx` (`--native_state_idx`) | Metastable-state index treated as the native or near-native reference state in the consistency statistics. |
 | `rm_traj_list` (`--rm_traj_list`) | Trajectory IDs to exclude before scoring, typically mirror-image or otherwise invalid trajectories that should not contribute to the statistics. |
 | `start` (`--start`) | First frame index associated with the analyzed order-parameter window in the original trajectories. |
 | `end` (`--end`) | Last frame index associated with the analyzed order-parameter window; `-1` means use the full remaining trajectory range. |
 | `stride` (`--stride`) | Frame stride used when interpreting the selected trajectory window. |
 | `n_traj` (`--n_traj`) | Total number of trajectories expected in collection-mode inputs. In the shipped example this matches the number of Workflow 2 trajectories. |
-| `n_frames` (`--n_frames`) | Number of frames per trajectory expected in the per-trajectory collection-mode files. |
+| `sasa_xp_frames_per_traj` (`--sasa_xp_frames_per_traj`) | Number of frames per trajectory expected in the per-trajectory collection-mode files. |
 | `num_perm` (`--num_perm`) | Number of permutation samples used for the LiP-MS and XL-MS hypothesis tests. |
 | `n_boot` (`--n_boot`) | Number of bootstrap samples used when estimating confidence intervals and resampled consistency statistics. |
 | `lag_frame` (`--lag_frame`) | Down-sampling interval in frames used by the consistency test when building the workbook outputs. |
@@ -437,17 +437,17 @@ Each file below is listed once, followed by the column-level or archive-level de
 |---|---|---|
 | Input | `$DATASTORE/user_input/experimental_data/ecPGK_significant_XLMS_peptide_R1_merged.xlsx` | Processed XL-MS signal table defining the experimental cross-links or cross-link changes to test against simulated distances. |
 
-### `$DATASTORE/outputs/workflow2/nonnative_clustering/cluster_data_topoly_linking_number.npz`
+### `$DATASTORE/outputs/workflow2/nonnative_clustering_last335/cluster_data_topoly_linking_number.npz`
 
 | I/O | File | File Description |
 |---|---|---|
-| Input | `$DATASTORE/outputs/workflow2/nonnative_clustering/cluster_data_topoly_linking_number.npz` | Compressed clustering data describing non-native entanglement-change classes used when linking experimental consistency back to structural mechanisms. |
+| Input | `$DATASTORE/outputs/workflow2/nonnative_clustering_last335/cluster_data_topoly_linking_number.npz` | Compressed clustering data describing non-native entanglement-change classes used when linking experimental consistency back to structural mechanisms. |
 
-### `$DATASTORE/outputs/workflow2/OP_last67/`
+### `$DATASTORE/outputs/workflow2/OP_last335/`
 
 | I/O | File | File Description |
 |---|---|---|
-| Input | `$DATASTORE/outputs/workflow2/OP_last67/` | Directory containing the Q and G order-parameter files for the last analyzed frames of each trajectory, used when reporting representative state structures. |
+| Input | `$DATASTORE/outputs/workflow2/OP_last335/` | Directory containing the Q and G order-parameter files for the last analyzed frames of each trajectory, used when reporting representative state structures. |
 
 ### `$DATASTORE/user_input/aa_trajectories/<TRAJ>_prod_aa.dcd`
 
@@ -553,7 +553,7 @@ Each file below is listed once, followed by the column-level or archive-level de
 
 | Stored Object | Object Description |
 |---|---|
-| `last_num_frames` | Number of final frames per trajectory retained for representative-structure selection. |
+| `n_analysis_frames` | Number of final frames per trajectory retained for representative-structure selection. |
 | `total_traj_num_frames` | Total frame count per trajectory in the source simulation used to map local frame indices back to absolute trajectory frames. |
 | `LIPMS_consist_data` | LiP-MS signal-level consistency summary objects used during grouping and ranking. |
 | `XLMS_consist_data` | XL-MS signal-level consistency summary objects used during grouping and ranking. |

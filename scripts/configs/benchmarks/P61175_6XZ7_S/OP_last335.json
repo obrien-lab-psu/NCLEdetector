@@ -13,9 +13,9 @@
   "Calpha": true,
   "nproc": 8,
   "log_level": "INFO",
-  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/benchmarks/P61175_6XZ7_S/OP_last67",
-  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/benchmarks/P61175_6XZ7_S/OP_last67/logs",
-  "start": 6600,
+  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/benchmarks/P61175_6XZ7_S/OP_last335",
+  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/benchmarks/P61175_6XZ7_S/OP_last335/logs",
+  "start": 6332,
   "end": 6667,
   "ent_detection_method": 2
 }

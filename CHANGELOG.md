@@ -5,6 +5,14 @@ All notable changes to EntDetect will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **BREAKING** `EntDetect.compare_sim2exp.MassSpec` — renamed `last_num_frames` → `n_analysis_frames` (trailing-frame analysis window shared by the MSM/G/Q/SASA/XP slicing) and `EntDetect.order_params.CollectOP` / `MassSpec`'s `n_frames` → `sasa_xp_frames_per_traj` (frames per trajectory stored in each SASA/XP file), to disambiguate the two previously same-named-sounding but distinct concepts. Updated `run_compare_sim2exp.py` CLI flags (`--last_num_frames`→`--n_analysis_frames`, `--n_frames`→`--sasa_xp_frames_per_traj`), config JSON keys, the workflow3 SLURM script, and documentation accordingly.
+
+### Fixed
+- `scripts/run_compare_sim2exp.py` — `select_rep_structs(...)` was called with hardcoded `last_num_frames=67` instead of the config-derived value, causing representative-structure frame indices (and `info.txt` frame numbers) to be offset from the correct trailing-frame window whenever the configured analysis window differed from 67 frames.
+
 ## [2.0.0] - 2026-07-08
 
 ### Added

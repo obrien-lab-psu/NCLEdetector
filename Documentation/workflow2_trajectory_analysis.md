@@ -117,8 +117,8 @@ CG_TRAJ_DIR  = f"{DATASTORE}/user_input/cg_trajectories"
 AA_TRAJ_DIR  = f"{DATASTORE}/user_input/aa_trajectories"
 OUTDIR       = f"{DATASTORE}/outputs/workflow2"
 OP_outdir       = f"{OUTDIR}/OP"
-OP_last67_outdir       = f"{OUTDIR}/OP_last67"
-OP_AA_last67_outdir       = f"{OUTDIR}/OP_AA_last67"
+OP_last335_outdir       = f"{OUTDIR}/OP_last335"
+OP_AA_last335_outdir       = f"{OUTDIR}/OP_AA_last335"
 
 # ── Inputs ──────────────────────────────────────────────────────────────────
 Traj         = 420
@@ -135,8 +135,8 @@ dcd   = f"{AA_TRAJ_DIR}/420_prod_aa.dcd"
 # start: first frame to include (0-indexed).
 # Adjust to skip early equilibration frames for production runs.
 OP_start = 0
-OP_last67_start = 6600
-OP_AA_last67_start = 268
+OP_last335_start = 6332
+OP_AA_last335_start = 268
 
 # ── Initialize and Run across full traj ────────────────────────────────────────────────────
 CalcOP = CalculateOP(outdir=OP_outdir, Traj=Traj, ID=ID, psf=PSF, cor=COR, sec_elements=sec_elements, dcd=DCD, domain=domain, start=OP_start, ent_detection_method=1)
@@ -146,7 +146,7 @@ Gdata_dict = CalcOP.G(topoly=False, Calpha=True, CG=True, nproc=10, chunk_frames
 Kdata_dict = CalcOP.K()
 
 # ── Initialize and Run across last 67 ────────────────────────────────────────────────────
-CalcOP = CalculateOP(outdir=OP_last67_outdir, Traj=Traj, ID=ID, psf=PSF, cor=COR, sec_elements=sec_elements, dcd=DCD, domain=domain, start=OP_last67_start, ent_detection_method=2)
+CalcOP = CalculateOP(outdir=OP_last335_outdir, Traj=Traj, ID=ID, psf=PSF, cor=COR, sec_elements=sec_elements, dcd=DCD, domain=domain, start=OP_last335_start, ent_detection_method=2)
 
 Qdata_dict = CalcOP.Q()
 Gdata_dict = CalcOP.G(topoly=True, Calpha=True, CG=True, nproc=10)
@@ -170,6 +170,8 @@ Kdata_dict = CalcOP.K()
 
 **Output:** A `.G` file and per-frame entanglement metadata `.pkl` in `$OUTDIR/OP/G/`
 
+> **Chunked processing (`Q`, `G`, `K`):** `chunk_frames`/`chunk_suffix` are accepted by all three of `Q()`, `G()`, and `K()`, not just `G`. When `chunk_frames` is set, each order parameter is computed in batches and each batch is written to a hidden, restart-friendly part file under a hidden directory next to the final output, e.g. `$OUTDIR/OP/Q/.{ID}_Traj{Traj}{chunk_suffix}_parts/`, `$OUTDIR/OP/G/Traj_NCLE/.{ID}_traj{Traj}{chunk_suffix}_parts/`, `$OUTDIR/OP/K/.{ID}_Traj{Traj}{chunk_suffix}_parts/` (note the leading `.`, so these directories are hidden from a plain `ls` — use `ls -a`). Once all chunks for a trajectory finish successfully, they are merged into the single final `.Q`/`.G`/`.K` file and the hidden parts directory is deleted automatically. **You will only see these hidden directories on disk if a run was interrupted (job killed, walltime exceeded, crash) partway through chunked processing** — their presence is a sign of an incomplete run, not a bug. If you rerun the same command afterward, any part files already on disk are detected and skipped (logged as `already computed, skipping`), and only the missing chunks are (re)computed before merging and cleanup — i.e., chunked runs are restartable by default.
+
 > **Runtime note:** `G` is the most expensive order parameter to compute. Expect 12–20 hours per CG trajectory at ~6700 frames on 10 cores. Submit via the cluster for a full 1000-trajectory run (see [Minimal Workflow – 2: Running the OP calculations as single script](#minimal-workflow--2-running-the-op-calculations-as-single-script)).
 
 `K` detects frames where the protein has adopted a **mirror-image conformation** relative to the native structure. These frames are artifacts that must be removed before clustering.
@@ -189,7 +191,7 @@ Kdata_dict = CalcOP.K()
 ```python
 # ── Initialize and Run ───────────────────────────────────────────────────────────────
 CalcOP = CalculateOP(
-    outdir=OP_AA_last67_outdir,
+    outdir=OP_AA_last335_outdir,
     Traj=Traj,
     ID=ID,
     psf=pdb_file,
@@ -233,25 +235,25 @@ conda activate entdetect
 
 # ── Config files ───────────────────────────────────────────────────────────────
 CFG_OP=scripts/configs/workflow2_OP_config.json
-CFG_OP_LAST67=scripts/configs/workflow2_OP_last67_config.json
-CFG_OP_AA_LAST67=scripts/configs/workflow2_OP_AA_last67_config.json
+CFG_OP_LAST335=scripts/configs/workflow2_OP_last335_config.json
+CFG_OP_AA_LAST335=scripts/configs/workflow2_OP_AA_last335_config.json
 
 # ── Run ───────────────────────────────────────────────────────────────
 # 1) CG full trajectory run (Q, G, K)
 python scripts/run_OP_on_simulation_traj.py \
         --config $CFG_OP
 
-# 2) CG last-67-frame run (Q, G, K)
+# 2) CG last-335-frame run (Q, G, K)
 python scripts/run_OP_on_simulation_traj.py \
-        --config $CFG_OP_LAST67
+        --config $CFG_OP_LAST335
 
 # 3) AA run (SASA, XP)
 python scripts/run_OP_on_simulation_traj.py \
-        --config $CFG_OP_AA_LAST67
+        --config $CFG_OP_AA_LAST335
 
 # Example CLI override on top of config (override trajectory index only):
 python scripts/run_OP_on_simulation_traj.py \
-        --config $CFG_OP_LAST67 \
+        --config $CFG_OP_LAST335 \
         --Traj 421 \
         --DCD /scratch/ims86/EntDetect_Datastore/user_input/cg_trajectories/421_prod.dcd
 ```
@@ -261,8 +263,8 @@ Container equivalent (same configs and optional CLI override):
 ```bash
 DATASTORE=/scratch/ims86/EntDetect_Datastore
 CFG_OP=scripts/configs/workflow2_OP_config.json
-CFG_OP_LAST67=scripts/configs/workflow2_OP_last67_config.json
-CFG_OP_AA_LAST67=scripts/configs/workflow2_OP_AA_last67_config.json
+CFG_OP_LAST335=scripts/configs/workflow2_OP_last335_config.json
+CFG_OP_AA_LAST335=scripts/configs/workflow2_OP_AA_last335_config.json
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
@@ -276,14 +278,14 @@ apptainer exec \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
     entdetect-latest.sif \
-    python scripts/run_OP_on_simulation_traj.py --config "$CFG_OP_LAST67"
+    python scripts/run_OP_on_simulation_traj.py --config "$CFG_OP_LAST335"
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
     entdetect-latest.sif \
-    python scripts/run_OP_on_simulation_traj.py --config "$CFG_OP_AA_LAST67"
+    python scripts/run_OP_on_simulation_traj.py --config "$CFG_OP_AA_LAST335"
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
@@ -291,7 +293,7 @@ apptainer exec \
     --pwd "$PWD" \
     entdetect-latest.sif \
     python scripts/run_OP_on_simulation_traj.py \
-        --config "$CFG_OP_LAST67" \
+        --config "$CFG_OP_LAST335" \
         --Traj 421 \
         --DCD /scratch/ims86/EntDetect_Datastore/user_input/cg_trajectories/421_prod.dcd
 ```
@@ -322,7 +324,7 @@ Config file example 1 (matches `scripts/configs/workflow2_OP_config.json`):
 }
 ```
 
-Config file example 2 (matches `scripts/configs/workflow2_OP_last67_config.json`):
+Config file example 2 (matches `scripts/configs/workflow2_OP_last335_config.json`):
 
 ```json
 {
@@ -333,9 +335,9 @@ Config file example 2 (matches `scripts/configs/workflow2_OP_last67_config.json`
     "DCD": "/scratch/ims86/EntDetect_Datastore/user_input/cg_trajectories/420_prod.dcd",
     "sec_elements": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/secondary_struc_defs.txt",
     "domain": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/domain_def.dat",
-    "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last67",
-    "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last67/logs",
-    "start": 6600,
+    "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last335",
+    "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last335/logs",
+    "start": 6332,
     "ops": ["Q", "G", "K"],
     "CG": true,
     "Calpha": true,
@@ -345,7 +347,7 @@ Config file example 2 (matches `scripts/configs/workflow2_OP_last67_config.json`
 }
 ```
 
-Config file example 3 (matches `scripts/configs/workflow2_OP_AA_last67_config.json`):
+Config file example 3 (matches `scripts/configs/workflow2_OP_AA_last335_config.json`):
 
 ```json
 {
@@ -353,9 +355,9 @@ Config file example 3 (matches `scripts/configs/workflow2_OP_AA_last67_config.js
     "ID": "1ZMR",
     "PSF": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean.pdb",
     "DCD": "/scratch/ims86/EntDetect_Datastore/user_input/aa_trajectories/420_prod_aa.dcd",
-    "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA_last67",
-    "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA_last67/logs",
-    "start": 268,
+    "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA_last335",
+    "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA_last335/logs",
+    "start": 0,
     "ops": ["SASA", "XP"],
     "CG": false,
     "Calpha": false,
@@ -387,8 +389,8 @@ The JSON/YAML config keys and their matching CLI flags are listed below. For the
 | `sec_elements` (`--sec_elements`) | Secondary-structure definition file required when computing `Q`, `G`, or `K`. |
 | `domain` (`--domain`) | Domain-boundary definition file required when computing `Q`, `G`, or `K`. |
 | `pdb_file` (`--pdb_file`) | All-atom reference PDB supplied to the `XP` calculation for residue-pair generation and Jwalk SASD calculations. Required when `XP` is included in `ops`. |
-| `chunk_frames` (`--chunk_frames`) | Optional number of frames per chunk when writing `Combined_GE` outputs from `G`; use this to reduce memory pressure on long trajectories. |
-| `chunk_suffix` (`--chunk_suffix`) | Filename suffix appended to chunked `Combined_GE` pickle outputs. |
+| `chunk_frames` (`--chunk_frames`) | Optional number of frames per chunk for restartable, memory-bounded processing of `Q`, `G`, and `K`; use this to reduce memory pressure on long trajectories. Each chunk is written to a hidden part file that is merged and deleted automatically once the full trajectory finishes; the hidden parts directory only persists on disk if a run was interrupted mid-way. |
+| `chunk_suffix` (`--chunk_suffix`) | Filename suffix appended to chunked `Q`/`G`/`K` part files and their hidden parts directory (default `_chunk`). |
 | `log_level` (`--log_level`) | Logging verbosity for the wrapper: `DEBUG`, `INFO`, `WARNING`, or `ERROR`. |
 | `logdir` (`--logdir`) | Directory where the log file is written. If omitted, logging defaults to the same directory as `outdir`. |
 
@@ -597,7 +599,7 @@ The pre-populated copy at `$DATASTORE/user_input/metadata/trajnum2file.txt` maps
 
 ```bash
 echo "trajnum,pklfile" > $DATASTORE/user_input/metadata/trajnum2file.txt
-for pkl in $DATASTORE/outputs/workflow2/OP_last67/G/Combined_GE/*.pkl; do
+for pkl in $DATASTORE/outputs/workflow2/OP_last335/G/Combined_GE/*.pkl; do
     num=$(basename $pkl | sed 's/1ZMR_traj\([0-9]*\)_GE.pkl/\1/')
     echo "$num,$pkl"
 done >> $DATASTORE/user_input/metadata/trajnum2file.txt
@@ -615,8 +617,8 @@ OUTDIR      = f"{DATASTORE}/outputs/workflow2"
 traj_dir_prefix = f"{DATASTORE}/user_input/cg_trajectories"
 
 # ── Inputs ──────────────────────────────────────────────────────────────────
-trajnum2pklfile_path = f"{DATASTORE}/user_input/metadata/OP_last67_trajnum2file.txt"
-clust_outdir         = f"{OUTDIR}/nonnative_clustering_last67"
+trajnum2pklfile_path = f"{DATASTORE}/user_input/metadata/OP_last335_trajnum2file.txt"
+clust_outdir         = f"{OUTDIR}/nonnative_clustering_last335"
 
 # ── Initialize and Run ──────────────────────────────────────────────────────
 clustering_NNents = ClusterNonNativeEntanglements(
@@ -634,7 +636,7 @@ import pandas as pd
 import numpy as np
 
 DATASTORE  = "/scratch/ims86/EntDetect_Datastore"
-clust_dir  = f"{DATASTORE}/outputs/workflow2/nonnative_clustering"
+clust_dir  = f"{DATASTORE}/outputs/workflow2/nonnative_clustering_last335"
 
 # Representative entanglement changes
 rep_df = pd.read_csv(f"{clust_dir}/rep_chg_ent_topoly_linking_number.csv")
@@ -674,7 +676,7 @@ python scripts/run_nonnative_entanglement_clustering.py \
 # Example CLI override (swap in a different trajnum2file):
 python scripts/run_nonnative_entanglement_clustering.py \
     --config $CFG \
-    --trajnum2pklfile_path /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last67/trajnum2file.txt
+    --trajnum2pklfile_path /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last335/trajnum2file.txt
 ```
 
 Container equivalent (same config and optional CLI override):
@@ -697,21 +699,21 @@ apptainer exec \
     entdetect-latest.sif \
     python scripts/run_nonnative_entanglement_clustering.py \
         --config "$CFG" \
-        --trajnum2pklfile_path /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last67/trajnum2file.txt
+        --trajnum2pklfile_path /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last335/trajnum2file.txt
 ```
 
 Config file (matches `scripts/configs/workflow2_nonnative_clustering_config.json`):
 
 ```json
 {
-  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/nonnative_clustering_last67",
-  "trajnum2pklfile_path": "/scratch/ims86/EntDetect_Datastore/user_input/metadata/OP_last67_trajnum2file.txt",
+  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/nonnative_clustering_last335",
+  "trajnum2pklfile_path": "/scratch/ims86/EntDetect_Datastore/user_input/metadata/OP_last335_trajnum2file.txt",
   "traj_dir_prefix": "/scratch/ims86/EntDetect_Datastore/user_input/cg_trajectories",
   "start_frame": 0,
   "end_frame": 9999999,
   "nproc": 4,
   "log_level": "INFO",
-  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/nonnative_clustering_last67/logs"
+  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/nonnative_clustering_last335/logs"
 }
 ```
 
@@ -728,26 +730,26 @@ The JSON/YAML config keys and their matching CLI flags are listed below. For the
 | `log_level` (`--log_level`) | Logging verbosity for the wrapper: `DEBUG`, `INFO`, `WARNING`, or `ERROR`. |
 | `logdir` (`--logdir`) | Directory where the clustering log file is written. If omitted, logging defaults to the same directory as `outdir`. |
 
-Submit through SLURM with the dedicated OP_last67 wrapper:
+Submit through SLURM with the dedicated OP_last335 wrapper:
 
 ```bash
-sbatch assets/slurm/scripts/run_nonnative_clustering_OP_last67.slurm
+sbatch assets/slurm/scripts/run_nonnative_clustering_OP_last335.slurm
 ```
 
 ## I/O Reference for run_nonnative_entanglement_clustering.py
 
 Each file below is listed once, followed by column-level details when applicable.
 
-### `$DATASTORE/user_input/metadata/OP_last67_trajnum2file.txt`
+### `$DATASTORE/user_input/metadata/OP_last335_trajnum2file.txt`
 
 | I/O | File | File Description |
 |---|---|---|
-| Input | `$DATASTORE/user_input/metadata/OP_last67_trajnum2file.txt` | Mapping of trajectory numbers to OP_last67 Combined_NCLE pickle files used as the source of truth for which pkl files to analyze. |
+| Input | `$DATASTORE/user_input/metadata/OP_last335_trajnum2file.txt` | Mapping of trajectory numbers to OP_last335 Combined_GE pickle files used as the source of truth for which pkl files to analyze. |
 
 | Column Name | Column Description |
 |---|---|
 | trajnum | Integer trajectory identifier (for example 1..1000). |
-| pklfile | Absolute path to the trajectory-specific Combined_NCLE pickle file. |
+| pklfile | Absolute path to the trajectory-specific Combined_GE pickle file. |
 
 ### `$DATASTORE/user_input/cg_trajectories/<TRAJ>_prod.dcd`
 
@@ -755,7 +757,7 @@ Each file below is listed once, followed by column-level details when applicable
 |---|---|---|
 | Input | `$DATASTORE/user_input/cg_trajectories/<TRAJ>_prod.dcd` | CG trajectory used to resolve per-frame DCD coordinates; stored in `idx2trajfile` inside the output npz for downstream structure extraction. |
 
-### `$OUTDIR/nonnative_clustering_last67/rep_chg_ent_topoly_linking_number.csv`
+### `$OUTDIR/nonnative_clustering_last335/rep_chg_ent_topoly_linking_number.csv`
 
 | Column Name | Column Description |
 |---|---|
@@ -777,7 +779,7 @@ Each file below is listed once, followed by column-level details when applicable
 | N-ter Linking Number | Topological linking number for the N-terminus in the representative frame. |
 | C-ter Linking Number | Topological linking number for the C-terminus in the representative frame. |
 
-### `$OUTDIR/nonnative_clustering_last67/chg_ent_struct_topoly_linking_number.csv`
+### `$OUTDIR/nonnative_clustering_last335/chg_ent_struct_topoly_linking_number.csv`
 
 | Column Name | Column Description |
 |---|---|
@@ -790,11 +792,11 @@ Each file below is listed once, followed by column-level details when applicable
 | Max Q | Maximum Q order-parameter value among all frames in this state. |
 | Median Q | Median Q order-parameter value among all frames in this state. |
 
-### `$OUTDIR/nonnative_clustering_last67/cluster_data_topoly_linking_number.npz`
+### `$OUTDIR/nonnative_clustering_last335/cluster_data_topoly_linking_number.npz`
 
 | I/O | File | File Description |
 |---|---|---|
-| Output | `$OUTDIR/nonnative_clustering_last67/cluster_data_topoly_linking_number.npz` | Compressed archive containing all clustering artifacts: per-frame entanglement fingerprints, Q values, cluster assignments (`dtrajs`), representative structures, trajectory-to-file mapping (`idx2trajfile`), and structural state data. Used as input to Workflow 3. |
+| Output | `$OUTDIR/nonnative_clustering_last335/cluster_data_topoly_linking_number.npz` | Compressed archive containing all clustering artifacts: per-frame entanglement fingerprints, Q values, cluster assignments (`dtrajs`), representative structures, trajectory-to-file mapping (`idx2trajfile`), and structural state data. Used as input to Workflow 3. |
 
 This is a NumPy `.npz` archive, not a flat table. It stores the full in-memory clustering state needed for downstream representative-structure extraction and Workflow 3 analyses.
 
@@ -815,11 +817,11 @@ This is a NumPy `.npz` archive, not a flat table. It stores the full in-memory c
 | `chg_ent_structure_cluster_data` | `dict[str, list]` | Mapping from each structural-state label to the list of `(traj_idx, frame_idx)` observations assigned to that state. |
 | `rep_struct_data` | `dict[str, list[int, int]]` | Representative `(traj_idx, frame_idx)` chosen for each structural state, selected by maximum Q within that state. |
 
-### `$OUTDIR/nonnative_clustering_last67/cluster_tree_topoly_linking_number.dat`
+### `$OUTDIR/nonnative_clustering_last335/cluster_tree_topoly_linking_number.dat`
 
 | I/O | File | File Description |
 |---|---|---|
-| Output | `$OUTDIR/nonnative_clustering_last67/cluster_tree_topoly_linking_number.dat` | Plain-text representation of the hierarchical clustering tree showing how individual entanglement-change observations were merged into representative clusters. |
+| Output | `$OUTDIR/nonnative_clustering_last335/cluster_tree_topoly_linking_number.dat` | Plain-text representation of the hierarchical clustering tree showing how individual entanglement-change observations were merged into representative clusters. |
 
 This is a human-readable text summary of the staged clustering procedure for each entanglement-change keyword.
 
@@ -831,11 +833,11 @@ This is a human-readable text summary of the staged clustering procedure for eac
 | `After clustering on loop:` | Final cluster memberships after loop-level clustering/merging. |
 | Cluster entries like `[1, 4, 7]` | Representative entanglement-cluster IDs grouped together at that stage. These IDs correspond to the 1-based cluster numbering used in `rep_chg_ent_topoly_linking_number.csv`. |
 
-### `$OUTDIR/nonnative_clustering_last67/rep_chg_ent_list_topoly_linking_number.pkl`
+### `$OUTDIR/nonnative_clustering_last335/rep_chg_ent_list_topoly_linking_number.pkl`
 
 | I/O | File | File Description |
 |---|---|---|
-| Output | `$OUTDIR/nonnative_clustering_last67/rep_chg_ent_list_topoly_linking_number.pkl` | Serialized Python list of representative entanglement-change objects, one per cluster, containing the full fingerprint data for the chosen representative frame. |
+| Output | `$OUTDIR/nonnative_clustering_last335/rep_chg_ent_list_topoly_linking_number.pkl` | Serialized Python list of representative entanglement-change objects, one per cluster, containing the full fingerprint data for the chosen representative frame. |
 
 This is a Python pickle containing the minimal representative observation for each entanglement-change cluster.
 
@@ -849,11 +851,11 @@ This is a Python pickle containing the minimal representative observation for ea
 
 The richer per-contact fingerprint metadata for these representatives is written in tabular form to `rep_chg_ent_topoly_linking_number.csv` and is also recoverable through `chg_ent_fingerprint_list` in the `.npz` archive.
 
-### `$OUTDIR/nonnative_clustering_last67/chg_ent_topoly_linking_number_distribution.pdf`
+### `$OUTDIR/nonnative_clustering_last335/chg_ent_topoly_linking_number_distribution.pdf`
 
 | I/O | File | File Description |
 |---|---|---|
-| Output | `$OUTDIR/nonnative_clustering_last67/chg_ent_topoly_linking_number_distribution.pdf` | Plot showing the loop and crossing residue positions for each cluster, coloured by reference (green) vs. trajectory (blue) crossings. |
+| Output | `$OUTDIR/nonnative_clustering_last335/chg_ent_topoly_linking_number_distribution.pdf` | Plot showing the loop and crossing residue positions for each cluster, coloured by reference (green) vs. trajectory (blue) crossings. |
 
 This PDF visualizes the residue-level geometry of each representative entanglement-change cluster.
 

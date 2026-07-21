@@ -48,6 +48,7 @@ import json
 from collections import defaultdict
 import time
 import multiprocessing as mp
+import shutil
 from EntDetect._logging import setup_logger
 from typing import Optional
 filterwarnings("ignore")
@@ -606,7 +607,7 @@ class GaussianEntanglement:
         self.logger.info(f"\n{'#'*100}\nCOMPUTING ENTANGLEMENTS FOR \033[4m{pdb}\033[0m with ID {ID}")
 
         ## Define the outfile and check if it exists. If so load it else create it
-        outfile = os.path.join(f'{outdir}', f'{ID}_GE.csv')
+        outfile = os.path.join(f'{outdir}', f'{ID}_NCLE.csv')
         if os.path.exists(outfile):
             self.logger.info(f'{outfile} ALREADY EXISTS AND WILL BE LOADED')
             outdf = pd.read_csv(outfile, sep='|', dtype={'c': str})
@@ -755,7 +756,7 @@ class GaussianEntanglement:
                 
                 ## If there is Native entanglement then save a file
                 if ent_result: 
-                    outfile = os.path.join(f'{outdir}', f'{ID}_GE.csv')
+                    outfile = os.path.join(f'{outdir}', f'{ID}_NCLE.csv')
                     #print(f'WRITING: {outfile}')
                     outdf = {'ID':[], 'chain':[], 'i':[], 'j': [], 'crossingsN': [], 'crossingsC': [], 'gn':[], 'gc':[], 'GLNn':[], 'GLNc':[], 'TLNn':[], 'TLNc':[], 'CCbond':[]}
 
@@ -812,6 +813,43 @@ class GaussianEntanglement:
             
 
     ##########################################################################################################################################################
+    def _filter_ent_rows_to_ref(self, outdf: pd.DataFrame, ref_contact_file: str) -> pd.DataFrame:
+        """
+        Filters a Traj_NCLE dataframe (single or multi-frame chunk) down to only the
+        (chain, i, j) native contacts present in ref_contact_file. Shared helper used by
+        both the single-shot and chunked code paths in calculate_traj_entanglements().
+        """
+        try:
+            ref_df = pd.read_csv(ref_contact_file, sep='|', usecols=['chain', 'i', 'j'])
+            ref_min = np.minimum(ref_df['i'].astype(int).to_numpy(), ref_df['j'].astype(int).to_numpy())
+            ref_max = np.maximum(ref_df['i'].astype(int).to_numpy(), ref_df['j'].astype(int).to_numpy())
+            ref_keys = (
+                ref_df['chain'].astype(str).to_numpy().astype(str)
+                + ':'
+                + ref_min.astype(str)
+                + '-'
+                + ref_max.astype(str)
+            )
+            ref_keys = set(ref_keys.tolist())
+
+            out_min = np.minimum(outdf['i'].astype(int).to_numpy(), outdf['j'].astype(int).to_numpy())
+            out_max = np.maximum(outdf['i'].astype(int).to_numpy(), outdf['j'].astype(int).to_numpy())
+            out_keys = (
+                outdf['chain'].astype(str).to_numpy().astype(str)
+                + ':'
+                + out_min.astype(str)
+                + '-'
+                + out_max.astype(str)
+            )
+            mask = pd.Series(out_keys).isin(ref_keys).to_numpy()
+            filtered = outdf.loc[mask].reset_index(drop=True)
+            return filtered
+        except Exception as e:
+            self.logger.warning(f'WARNING: Failed to filter Traj_NCLE output using ref_contact_file={ref_contact_file}: {e}')
+            return outdf
+    ##########################################################################################################################################################
+
+    ##########################################################################################################################################################
     def calculate_traj_entanglements(
         self,
         dcd: str,
@@ -823,10 +861,20 @@ class GaussianEntanglement:
         stop: int = 999999999,
         stride: int = 1,
         ref_contact_file: Optional[str] = None,
+        chunk_frames: Optional[int] = None,
+        chunk_suffix: str = '_chunk',
     ) -> dict:
 
         """
         Driver function that takes a CA coarse grained MD trajectory and looks for entanglements. 
+
+        If chunk_frames is None (default): all frames are processed in one shot and held in
+        memory before being written out (backward compatible behavior).
+        If chunk_frames > 0: frames are processed in batches of chunk_frames. Each batch is
+        ENT/ref-filtered and written to a restart-friendly part file immediately, bounding peak
+        memory to roughly one batch's worth of rows. Part files are concatenated into the final
+        {ID}_NCLE.csv once all batches are complete, then removed. If the job is interrupted and
+        restarted, any part files already on disk are reused instead of recomputed.
         """
 
         ## set up the outdir for this calculation
@@ -844,44 +892,19 @@ class GaussianEntanglement:
     
 
         ## Define the outfile and check if it exists. If so load it else create it
-        outfile = os.path.join(f'{outdir}', f'{ID}_GE.csv')
+        outfile = os.path.join(f'{outdir}', f'{ID}_NCLE.csv')
         if os.path.exists(outfile):
             self.logger.info(f'{outfile} ALREADY EXISTS AND WILL BE LOADED')
             outdf = pd.read_csv(outfile, sep='|', dtype={'c': str})
             if ref_contact_file is not None:
-                try:
-                    ref_df = pd.read_csv(ref_contact_file, sep='|', usecols=['chain', 'i', 'j'])
-                    ref_min = np.minimum(ref_df['i'].astype(int).to_numpy(), ref_df['j'].astype(int).to_numpy())
-                    ref_max = np.maximum(ref_df['i'].astype(int).to_numpy(), ref_df['j'].astype(int).to_numpy())
-                    ref_keys = (
-                        ref_df['chain'].astype(str).to_numpy().astype(str)
-                        + ':'
-                        + ref_min.astype(str)
-                        + '-'
-                        + ref_max.astype(str)
+                filtered = self._filter_ent_rows_to_ref(outdf, ref_contact_file)
+                if len(filtered) != len(outdf):
+                    self.logger.info(
+                        f'Filtered existing Traj_NCLE output to reference contacts: '
+                        f'{len(outdf)} -> {len(filtered)} rows (ref: {ref_contact_file})'
                     )
-                    ref_keys = set(ref_keys.tolist())
-
-                    out_min = np.minimum(outdf['i'].astype(int).to_numpy(), outdf['j'].astype(int).to_numpy())
-                    out_max = np.maximum(outdf['i'].astype(int).to_numpy(), outdf['j'].astype(int).to_numpy())
-                    out_keys = (
-                        outdf['chain'].astype(str).to_numpy().astype(str)
-                        + ':'
-                        + out_min.astype(str)
-                        + '-'
-                        + out_max.astype(str)
-                    )
-                    mask = pd.Series(out_keys).isin(ref_keys).to_numpy()
-                    filtered = outdf.loc[mask].reset_index(drop=True)
-                    if len(filtered) != len(outdf):
-                        self.logger.info(
-                            f'Filtered existing Traj_GE output to reference contacts: '
-                            f'{len(outdf)} -> {len(filtered)} rows (ref: {ref_contact_file})'
-                        )
-                        filtered.to_csv(outfile, sep='|', index=False)
-                        outdf = filtered
-                except Exception as e:
-                    self.logger.warning(f'WARNING: Failed to filter Traj_GE output using ref_contact_file={ref_contact_file}: {e}')
+                    filtered.to_csv(outfile, sep='|', index=False)
+                    outdf = filtered
 
             return {'outfile': outfile, 'ent_result': outdf}
     
@@ -890,93 +913,123 @@ class GaussianEntanglement:
         self.logger.debug(f'univ: {univ}')
 
         chains_to_analyze = set(univ.segments.segids)
+        columns = ['ID','chain','frame','i','j','crossingsN','crossingsC','gn','gc','GLNn','GLNc','TLNn','TLNc']
 
-        ## define the output dataframe
-        # outdf = {'ID': [], 'chain':[], 'frame':[], 'i':[], 'j': [], 'c': [], 'gn':[], 'gc':[], 'Gn':[], 'Gc':[]}
-        rows = []
-        
+        import multiprocessing as mp
+
+        if chunk_frames is None:
+            ## Backward-compatible mode: process every frame of every chain in one shot,
+            ## holding all rows in memory before a single write.
+            rows = []
+            for chain in chains_to_analyze:
+                self.logger.info(f'Analyzing chain {chain}')
+                chain_atoms = univ.select_atoms(f"segid {chain}")
+                resids = chain_atoms.resids
+                atom_names = chain_atoms.names
+                chain_res = resids.size
+
+                frame_indices = [ts.frame for ts in univ.trajectory[start:stop:stride]]
+                self.logger.info(f'Analyzing frames from {start} to {stop} with stride {stride}')
+                self.logger.info(f'Total frames to analyze: {len(frame_indices)}')
+
+                pool_args = [
+                    (frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, self.Calpha, self.CG, self.g_threshold, self.density, self.ent_detection_method)
+                    for frame_idx in frame_indices
+                ]
+                with mp.get_context("spawn").Pool(processes=self.nproc) as pool:
+                    all_rows = pool.map(process_frame, pool_args)
+
+                for frame_rows in all_rows:
+                    rows.extend(frame_rows)
+
+            outdf = pd.DataFrame(rows, columns=columns)
+            outdf['frame'] = pd.to_numeric(outdf['frame'], errors='coerce')
+            outdf = outdf.sort_values(by='frame', ascending=True).reset_index(drop=True)
+            outdf['ENT'] = outdf.apply(lambda row: self.determine_ent_status(row['GLNn'], row['GLNc'], row['TLNn'], row['TLNc']), axis=1)
+
+            if ref_contact_file is not None:
+                before = len(outdf)
+                outdf = self._filter_ent_rows_to_ref(outdf, ref_contact_file)
+                self.logger.info(f'Filtered Traj_NCLE to reference contacts: {before} -> {len(outdf)} rows (ref: {ref_contact_file})')
+
+            self.logger.info(f'outdf:\n{outdf.head()}\n{outdf.tail()}')
+            outdf.to_csv(outfile, sep='|', index=False)
+            self.logger.info(f'SAVED: {outfile}')
+            return {'outfile': outfile, 'ent_result': outdf}
+
+        ## Chunked mode: process frames in batches of chunk_frames per chain, applying the
+        ## ENT/ref-filter transforms per batch (they are row-wise and independent of other
+        ## frames) and writing each batch to a restart-friendly part file immediately. This
+        ## bounds peak memory to roughly one batch's worth of rows instead of the whole
+        ## trajectory. Part files are concatenated (in processing order) into the final
+        ## {ID}_NCLE.csv once complete, then removed. NOTE: for multi-chain systems this
+        ## preserves chain-then-frame ordering rather than a fully global frame sort.
+        part_dir = os.path.join(outdir, f'.{ID}{chunk_suffix}_parts')
+        os.makedirs(part_dir, exist_ok=True)
+        part_files = []
+
         for chain in chains_to_analyze:
             self.logger.info(f'Analyzing chain {chain}')
-
-            # Get the coordinates of the chain
             chain_atoms = univ.select_atoms(f"segid {chain}")
-
             resids = chain_atoms.resids
-            self.logger.debug(f'resids: {resids}')
-
-            resnames = chain_atoms.resnames
-            self.logger.debug(f'resnames: {resnames}')
-
-            chain_res = resids.size
-            self.logger.debug(f'chain_res: {chain_res}')
-
             atom_names = chain_atoms.names
-            self.logger.debug(f'atom_names: {atom_names}')
+            chain_res = resids.size
 
-
-            frame_indices = []
-            for ts in univ.trajectory[start:stop:stride]:
-                frame_indices.append(ts.frame)
+            frame_indices = [ts.frame for ts in univ.trajectory[start:stop:stride]]
             self.logger.info(f'Analyzing frames from {start} to {stop} with stride {stride}')
             self.logger.info(f'Total frames to analyze: {len(frame_indices)}')
-            self.logger.debug(f'frame_indices: {frame_indices[:10]} ... {frame_indices[-10:]}')
 
-            pool_args = [
-                (frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, self.Calpha, self.CG, self.g_threshold, self.density, self.ent_detection_method)
-                for frame_idx in frame_indices
-            ]
-            import multiprocessing as mp
-            with mp.get_context("spawn").Pool(processes=self.nproc) as pool:
-                all_rows = pool.map(process_frame, pool_args)
+            total_frames = len(frame_indices)
+            num_chunks = (total_frames + chunk_frames - 1) // chunk_frames if total_frames > 0 else 0
 
-            for frame_rows in all_rows:
-                rows.extend(frame_rows)
+            for chunk_idx in range(num_chunks):
+                start_idx = chunk_idx * chunk_frames
+                end_idx = min(start_idx + chunk_frames, total_frames)
+                batch_frame_indices = frame_indices[start_idx:end_idx]
 
-        # outdf = pd.DataFrame(outdf)
-        outdf = pd.DataFrame(rows, columns=['ID','chain','frame','i','j','crossingsN','crossingsC','gn','gc','GLNn','GLNc','TLNn','TLNc'])
-        outdf['frame'] = pd.to_numeric(outdf['frame'], errors='coerce')
-        outdf = outdf.sort_values(by='frame', ascending=True).reset_index(drop=True)
+                part_file = os.path.join(part_dir, f'{ID}_chain{chain}{chunk_suffix}_{chunk_idx:04d}.csv')
+                part_files.append(part_file)
 
-        outdf['ENT'] = outdf.apply(lambda row: self.determine_ent_status(row['GLNn'], row['GLNc'], row['TLNn'], row['TLNc']), axis=1)
+                if os.path.exists(part_file):
+                    self.logger.info(f'Chunk {chunk_idx} (chain {chain}) already computed, skipping: {part_file}')
+                    continue
 
-        if ref_contact_file is not None:
-            try:
-                ref_df = pd.read_csv(ref_contact_file, sep='|', usecols=['chain', 'i', 'j'])
-                ref_min = np.minimum(ref_df['i'].astype(int).to_numpy(), ref_df['j'].astype(int).to_numpy())
-                ref_max = np.maximum(ref_df['i'].astype(int).to_numpy(), ref_df['j'].astype(int).to_numpy())
-                ref_keys = (
-                    ref_df['chain'].astype(str).to_numpy().astype(str)
-                    + ':'
-                    + ref_min.astype(str)
-                    + '-'
-                    + ref_max.astype(str)
-                )
-                ref_keys = set(ref_keys.tolist())
+                pool_args = [
+                    (frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, self.Calpha, self.CG, self.g_threshold, self.density, self.ent_detection_method)
+                    for frame_idx in batch_frame_indices
+                ]
+                with mp.get_context("spawn").Pool(processes=self.nproc) as pool:
+                    batch_all_rows = pool.map(process_frame, pool_args)
 
-                out_min = np.minimum(outdf['i'].astype(int).to_numpy(), outdf['j'].astype(int).to_numpy())
-                out_max = np.maximum(outdf['i'].astype(int).to_numpy(), outdf['j'].astype(int).to_numpy())
-                out_keys = (
-                    outdf['chain'].astype(str).to_numpy().astype(str)
-                    + ':'
-                    + out_min.astype(str)
-                    + '-'
-                    + out_max.astype(str)
-                )
-                mask = pd.Series(out_keys).isin(ref_keys).to_numpy()
-                before = len(outdf)
-                outdf = outdf.loc[mask].reset_index(drop=True)
-                after = len(outdf)
-                self.logger.info(f'Filtered Traj_GE to reference contacts: {before} -> {after} rows (ref: {ref_contact_file})')
-            except Exception as e:
-                self.logger.warning(f'WARNING: Failed to filter Traj_GE output using ref_contact_file={ref_contact_file}: {e}')
+                batch_rows = []
+                for frame_rows in batch_all_rows:
+                    batch_rows.extend(frame_rows)
 
-        self.logger.info(f'outdf:\n{outdf.head()}\n{outdf.tail()}')
-        outdf.to_csv(outfile, sep='|', index=False)
+                batch_df = pd.DataFrame(batch_rows, columns=columns)
+                batch_df['frame'] = pd.to_numeric(batch_df['frame'], errors='coerce')
+                batch_df = batch_df.sort_values(by='frame', ascending=True).reset_index(drop=True)
+                batch_df['ENT'] = batch_df.apply(lambda row: self.determine_ent_status(row['GLNn'], row['GLNc'], row['TLNn'], row['TLNc']), axis=1)
+
+                if ref_contact_file is not None:
+                    batch_df = self._filter_ent_rows_to_ref(batch_df, ref_contact_file)
+
+                tmp_part_file = part_file + '.tmp'
+                batch_df.to_csv(tmp_part_file, sep='|', index=False)
+                os.replace(tmp_part_file, part_file)
+                self.logger.info(f'SAVED chunk {chunk_idx} (chain {chain}): {part_file}')
+                del batch_rows, batch_df
+
+        ## Merge all part files into the single final output file, one part in memory at a time
+        for i, part_file in enumerate(part_files):
+            part_df = pd.read_csv(part_file, sep='|', dtype={'c': str})
+            part_df.to_csv(outfile, sep='|', mode='a' if i > 0 else 'w', header=(i == 0), index=False)
+            del part_df
         self.logger.info(f'SAVED: {outfile}')
 
-        # Multiprocessing disables per-frame timing, so skip frame_times and mean_time reporting
-        # Return a dictionary with the outfile and the results
-        return {'outfile':outfile, 'ent_result':outdf}
+        shutil.rmtree(part_dir, ignore_errors=True)
+
+        outdf = pd.read_csv(outfile, sep='|', dtype={'c': str})
+        return {'outfile': outfile, 'ent_result': outdf}
     ##########################################################################################################################################################
 
     ##########################################################################################################################################################
@@ -1194,32 +1247,39 @@ class GaussianEntanglement:
     ##########################################################################################################################################################
 
     ##########################################################################################################################################################
-    def combine_ref_traj_GE(self, RefFile: dict, TrajFile: dict, outdir: str='./', ID: str='', chunk_frames: int=None, chunk_suffix: str='_chunk'):
+    def combine_ref_traj_NCLE(self, RefFile: dict, TrajFile: dict, outdir: str='./', ID: str='', chunk_frames: int=None, chunk_suffix: str='_chunk'):
         """
-        Combines reference and trajectory entanglements into pickle files.
-        
-        If chunk_frames is None (default): creates single {ID}_GE.pkl with all frames (backward compatible)
-        If chunk_frames > 0: creates multiple chunk files {ID}{chunk_suffix}_0000.pkl, etc., each with ref data
-        
-        Each chunk pickle contains: {'ref': ref_dict, frame_num: frame_dict, ...}
+        Combines reference and trajectory entanglements into a single {ID}_NCLE.pkl file.
+
+        If chunk_frames is None (default): reads the whole TrajFile, builds the full frame
+        dictionary in memory, and writes one pickle.dump() call (backward compatible).
+
+        If chunk_frames > 0: streams TrajFile in row-batches (it is written frame-sorted by
+        calculate_traj_entanglements), grouping rows into complete frames as they arrive.
+        Every chunk_frames complete frames are pickle.dump()'d as their own dict onto the
+        SAME open {ID}_NCLE.pkl file (sequential dumps), matching the multi-dump streaming
+        read already implemented by ClusterNonNativeEntanglements.load_pickle(). This bounds
+        peak memory to roughly one chunk's worth of entanglement fingerprints instead of the
+        whole trajectory. Progress (last fully-flushed frame) is tracked in a
+        `{ID}_NCLE.progress.json` sidecar so an interrupted/restarted run resumes after the
+        last durably-written chunk instead of recomputing from scratch.
         """
         ## set up the outdir for this calculation
         if not os.path.isdir(outdir):
             os.makedirs(outdir, exist_ok=True)
             self.logger.info(f"Creating directory: {outdir}")
 
-        ## Load reference and trajectory data
+        outfile = os.path.join(outdir, f'{ID}_NCLE.pkl')
+
+        ## Load reference entanglements (small, always fully loaded)
         Ref = pd.read_csv(RefFile, sep='|', dtype={'crossingsN': str, 'crossingsC': str})
-        Traj = pd.read_csv(TrajFile, sep='|', dtype={'crossingsN': str, 'crossingsC': str})
         self.logger.info(f'Ref {RefFile}')
         self.logger.info(f'Traj {TrajFile}')
 
-        ##########################################################################################
-        ## Parse the reference entanglements into ref_dict
         ref_dict = {'ent_fingerprint':{}, 'chg_ent_fingerprint':None, 'G_dict':None, 'G':None}
         Num_native_contacts = len(Ref)
         self.logger.debug(f'Num_native_contacts: {Num_native_contacts}')
-        
+
         for rowi, row in Ref.iterrows():
             i = int(row['i'])
             j = int(row['j'])
@@ -1234,19 +1294,11 @@ class GaussianEntanglement:
             value = {'linking_value': [gn, gc], 'crossing_resid': crossing_resid, 'crossing_pattern': crossing_pattern, 'gauss_linking_number': [GLNn, GLNc], 'topoly_linking_number': [TLNn, TLNc], 'native_contact': [i, j]}
             ref_dict['ent_fingerprint'][key] = value
 
-        ##########################################################################################
-        ## Process trajectory frames
-        Gdf = {'Frame':[], 'L-C~':[], 'L-C#':[], 'L+C~':[], 'L+C#':[], 'L#C~':[], 'L#C#':[], 'G':[]}
-        
-        # Collect all frames first to allow chunking
-        frames_data = {}
-        for frame, frame_df in Traj.groupby('frame'):
-            frame_dict = {'ent_fingerprint': {}, 
-                     'chg_ent_fingerprint': {}, 
-                     'G_dict': {'L-C~': 0, 'L-C#': 0, 'L+C~': 0, 'L+C#': 0, 'L#C~': 0, 'L#C#': 0}, 
+        def _process_frame_rows(frame_df):
+            frame_dict = {'ent_fingerprint': {},
+                     'chg_ent_fingerprint': {},
+                     'G_dict': {'L-C~': 0, 'L-C#': 0, 'L+C~': 0, 'L+C#': 0, 'L#C~': 0, 'L#C#': 0},
                      'G': None}
-            
-            ## Get the ent_fingerprint data for the frame
             for rowi, row in frame_df.iterrows():
                 i = int(row['i'])
                 j = int(row['j'])
@@ -1262,93 +1314,130 @@ class GaussianEntanglement:
                 value = {'linking_value': [gn, gc], 'crossing_resid': crossing_resid, 'crossing_pattern': crossing_pattern, 'gauss_linking_number': [GLNn, GLNc], 'topoly_linking_number': [TLNn, TLNc], 'native_contact': [i, j]}
                 frame_dict['ent_fingerprint'][key] = value
 
-                ## Get the chg_ent_fingerprint data for the frame
                 if key in ref_dict['ent_fingerprint']:
                     chg_ent_fingerprint = self.get_chg_ent_fingerprint(ref = ref_dict['ent_fingerprint'][key], frame = value)
                     frame_dict['chg_ent_fingerprint'][key] = chg_ent_fingerprint
                     frame_dict['G_dict'][chg_ent_fingerprint['code'][0]] += 1
                     frame_dict['G_dict'][chg_ent_fingerprint['code'][1]] += 1
 
-            ## Calculate G for this frame
-            Gdf['Frame'] += [frame]
             G = 0
             for code in ['L-C~', 'L-C#', 'L+C~', 'L+C#', 'L#C~']:
                 G += frame_dict['G_dict'][code]
-                Gdf[code] += [frame_dict['G_dict'][code]]
-            Gdf['L#C#'] += [frame_dict['G_dict']['L#C#']]
-            G /= (Num_native_contacts*2)
-            Gdf['G'] += [G]
+            G /= (Num_native_contacts * 2)
             frame_dict['G'] = G
-            frames_data[frame] = frame_dict
+            return frame_dict
 
         ##########################################################################################
-        ## Save output based on chunking mode
         if chunk_frames is None:
-            # Backward-compatible mode: single file with all frames
+            # Backward-compatible mode: read everything, build the full frame dict, single dump
+            Traj = pd.read_csv(TrajFile, sep='|', dtype={'crossingsN': str, 'crossingsC': str})
+            Gdf = {'Frame':[], 'L-C~':[], 'L-C#':[], 'L+C~':[], 'L+C#':[], 'L#C~':[], 'L#C#':[], 'G':[]}
+            frames_data = {}
+            for frame, frame_df in Traj.groupby('frame'):
+                frame_dict = _process_frame_rows(frame_df)
+                Gdf['Frame'] += [frame]
+                for code in ['L-C~', 'L-C#', 'L+C~', 'L+C#', 'L#C~', 'L#C#']:
+                    Gdf[code] += [frame_dict['G_dict'][code]]
+                Gdf['G'] += [frame_dict['G']]
+                frames_data[frame] = frame_dict
+
             Master = {'ref': ref_dict}
             Master.update(frames_data)
-            outfile = os.path.join(f'{outdir}', f'{ID}_GE.pkl')
             with open(outfile, 'wb') as fw:
                 pickle.dump(Master, fw)
             self.logger.info(f'SAVED: {outfile}')
             return {'outfile': outfile, 'Combined_ref_traj_dict': Master, 'G': pd.DataFrame(Gdf)}
-        
-        else:
-            # Chunking mode: split frames into chunks, each with ref data
-            sorted_frames = sorted(frames_data.keys())
-            total_frames = len(sorted_frames)
-            num_chunks = (total_frames + chunk_frames - 1) // chunk_frames  # ceiling division
-            
-            chunk_metadata = {
-                'ID': ID,
-                'total_frames': total_frames,
-                'chunk_size': chunk_frames,
-                'num_chunks': num_chunks,
-                'chunks': []
-            }
-            
-            first_chunk_file = None
-            for chunk_idx in range(num_chunks):
-                start_idx = chunk_idx * chunk_frames
-                end_idx = min(start_idx + chunk_frames, total_frames)
-                chunk_frame_nums = sorted_frames[start_idx:end_idx]
-                
-                # Create chunk dict with ref and frame data
-                chunk_dict = {'ref': ref_dict}
-                for frame_num in chunk_frame_nums:
-                    chunk_dict[frame_num] = frames_data[frame_num]
-                
-                # Save chunk
-                chunk_filename = f'{ID}{chunk_suffix}_{chunk_idx:04d}.pkl'
-                chunk_filepath = os.path.join(outdir, chunk_filename)
-                with open(chunk_filepath, 'wb') as fw:
-                    pickle.dump(chunk_dict, fw)
-                self.logger.info(f'SAVED: {chunk_filepath}')
-                
-                if first_chunk_file is None:
-                    first_chunk_file = chunk_filepath
-                
-                # Record metadata for this chunk
-                chunk_metadata['chunks'].append({
-                    'chunk_index': chunk_idx,
-                    'filename': chunk_filename,
-                    'frame_range': [int(chunk_frame_nums[0]), int(chunk_frame_nums[-1])],
-                    'num_frames': len(chunk_frame_nums)
-                })
-            
-            # Save metadata file
-            metadata_filepath = os.path.join(outdir, f'{ID}_chunk_metadata.json')
-            with open(metadata_filepath, 'w') as fw:
-                json.dump(chunk_metadata, fw, indent=2)
-            self.logger.info(f'SAVED: {metadata_filepath}')
-            
-            # Return with outfile pointing to first chunk for backward compatibility
-            return {
-                'outfile': first_chunk_file, 
-                'Combined_ref_traj_dict': None,  # Not applicable for chunked mode
-                'G': pd.DataFrame(Gdf),
-                'chunk_info': chunk_metadata
-            }
+
+        ##########################################################################################
+        # Chunked/streaming mode: bound memory to ~chunk_frames frames at a time and support
+        # resuming after an interruption via a small progress sidecar file.
+        progress_file = os.path.join(outdir, f'{ID}_NCLE.progress.json')
+        progress = {'last_frame': None, 'chunks_written': 0, 'Gdf_rows': []}
+        resume = False
+        if os.path.exists(progress_file) and os.path.exists(outfile):
+            try:
+                with open(progress_file, 'r') as fr:
+                    progress = json.load(fr)
+                resume = True
+                self.logger.info(f'RESUMING {outfile} from progress file: {progress_file} (last_frame={progress["last_frame"]}, chunks_written={progress["chunks_written"]})')
+            except Exception as e:
+                self.logger.warning(f'WARNING: Failed to load progress file {progress_file}, starting fresh: {e}')
+                progress = {'last_frame': None, 'chunks_written': 0, 'Gdf_rows': []}
+                resume = False
+
+        last_frame = progress['last_frame']
+        chunks_written = progress['chunks_written']
+        Gdf_rows = list(progress['Gdf_rows'])
+
+        fw = open(outfile, 'ab' if resume else 'wb')
+        if not resume:
+            pickle.dump({'ref': ref_dict}, fw)
+            fw.flush()
+
+        current_chunk = {}
+        pending_frame = None
+        pending_rows = []
+
+        def _flush_chunk():
+            nonlocal chunks_written
+            if not current_chunk:
+                return
+            pickle.dump(dict(current_chunk), fw)
+            fw.flush()
+            chunks_written += 1
+            current_chunk.clear()
+
+        def _save_progress():
+            with open(progress_file, 'w') as fp:
+                json.dump({'last_frame': last_frame, 'chunks_written': chunks_written, 'Gdf_rows': Gdf_rows}, fp)
+
+        def _finalize_frame(frame_num, frame_rows_list):
+            nonlocal last_frame
+            full_frame_df = pd.concat(frame_rows_list, ignore_index=True)
+            frame_dict = _process_frame_rows(full_frame_df)
+            Gdf_rows.append({'Frame': int(frame_num), **{c: frame_dict['G_dict'][c] for c in ['L-C~','L-C#','L+C~','L+C#','L#C~','L#C#']}, 'G': frame_dict['G']})
+            current_chunk[int(frame_num)] = frame_dict
+            last_frame = int(frame_num)
+            if len(current_chunk) >= chunk_frames:
+                _flush_chunk()
+                _save_progress()
+
+        try:
+            reader = pd.read_csv(TrajFile, sep='|', dtype={'crossingsN': str, 'crossingsC': str}, chunksize=200000)
+            for batch in reader:
+                if last_frame is not None:
+                    batch = batch[batch['frame'] > last_frame]
+                    if batch.empty:
+                        continue
+                for frame, frame_group in batch.groupby('frame'):
+                    if pending_frame is None:
+                        pending_frame, pending_rows = frame, [frame_group]
+                    elif frame == pending_frame:
+                        pending_rows.append(frame_group)
+                    else:
+                        _finalize_frame(pending_frame, pending_rows)
+                        pending_frame, pending_rows = frame, [frame_group]
+
+            # the last frame seen in the file has no follow-up frame to signal completion, finalize it here
+            if pending_frame is not None:
+                _finalize_frame(pending_frame, pending_rows)
+
+            _flush_chunk()
+        finally:
+            fw.close()
+
+        if os.path.exists(progress_file):
+            os.remove(progress_file)
+
+        self.logger.info(f'SAVED: {outfile} ({chunks_written} chunk(s) written)')
+
+        Gdf_rows_sorted = sorted(Gdf_rows, key=lambda r: r['Frame'])
+        Gdf = {'Frame':[], 'L-C~':[], 'L-C#':[], 'L+C~':[], 'L+C#':[], 'L#C~':[], 'L#C#':[], 'G':[]}
+        for r in Gdf_rows_sorted:
+            for k in Gdf:
+                Gdf[k].append(r[k])
+
+        return {'outfile': outfile, 'Combined_ref_traj_dict': None, 'G': pd.DataFrame(Gdf)}
 
     ##########################################################################################################################################################
 

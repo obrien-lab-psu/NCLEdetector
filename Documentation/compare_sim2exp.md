@@ -110,7 +110,7 @@ MS.select_rep_structs(
     consist_data_file=consist_data_file,
     consist_result_file=consist_result_file, 
     total_traj_num_frames=335,
-    last_num_frames=67
+    n_analysis_frames=67
 )
 ```
 
@@ -118,7 +118,7 @@ MS.select_rep_structs(
 - `consist_data_file` (str): Path to consistency test data file
 - `consist_result_file` (str): Path to consistency test results file
 - `total_traj_num_frames` (int): Total trajectory frames
-- `last_num_frames` (int): Frames to consider from trajectory end
+- `n_analysis_frames` (int): Frames to consider from trajectory end
 
 **Output:**
 - Representative structure files for each consistent state
@@ -167,7 +167,7 @@ MS.select_rep_structs(
     consist_data_file=consist_data,
     consist_result_file=consist_results,
     total_traj_num_frames=335, 
-    last_num_frames=67
+    n_analysis_frames=67
 )
 ```
 
@@ -221,7 +221,7 @@ python scripts/run_compare_sim2exp.py \
   --native_AA_pdb structures/native.pdb \
   --state_idx_list 1 2 3 4 5 \
   --prot_len 390 \
-  --last_num_frames 100 \
+  --n_analysis_frames 100 \
   --rm_traj_list 65 75 155 \
   --native_state_idx 0 \
   --outdir results/comparison/ \
@@ -348,7 +348,7 @@ Cross-linking Mass Spectrometry provides distance constraints:
 ### Key Methods
 - `load_OP(start=0, end=99999999999)`: Loads G and Q order parameter values for each trajectory into arrays for analysis.
 - `LiP_XL_MS_ConsistencyTest()`: Performs consistency tests between simulation and experimental LiP-MS/XL-MS data. Returns paths to saved data/results files.
-- `select_rep_structs(consist_data_file, consist_result_file, total_traj_num_frames, last_num_frames)`: After performing the consistency test, selects representative structures with high consistency between simulation and experiment. Generates output files and visualizations.
+- `select_rep_structs(consist_data_file, consist_result_file, total_traj_num_frames, n_analysis_frames)`: After performing the consistency test, selects representative structures with high consistency between simulation and experiment. Generates output files and visualizations.
 
 #### select_rep_structs
 ```python
@@ -356,14 +356,14 @@ select_rep_structs(
     consist_data_file: str,
     consist_result_file: str,
     total_traj_num_frames: int,
-    last_num_frames: int
+    n_analysis_frames: int
 )
 ```
 **Arguments:**
 - `consist_data_file` (str): Path to the .npz file with consistency test data (output of `LiP_XL_MS_ConsistencyTest`).
 - `consist_result_file` (str): Path to the Excel file with consistency test results (output of `LiP_XL_MS_ConsistencyTest`).
 - `total_traj_num_frames` (int): Total number of frames in the trajectory.
-- `last_num_frames` (int): Number of frames from the end of the trajectory to consider for representative selection.
+- `n_analysis_frames` (int): Number of frames from the end of the trajectory to consider for representative selection.
 
 **Description:**
 Selects representative structures from the simulation that are most consistent with experimental signals, based on the results of the consistency test. Outputs include:
@@ -379,7 +379,7 @@ MS = MassSpec(...)
 consist_data_file, consist_result_file = MS.LiP_XL_MS_ConsistencyTest()
 MS.select_rep_structs(
     consist_data_file, consist_result_file,
-    total_traj_num_frames=335, last_num_frames=67
+    total_traj_num_frames=335, n_analysis_frames=67
 )
 ```
 
@@ -414,7 +414,7 @@ MS = MassSpec(
 consist_data_file, consist_result_file = MS.LiP_XL_MS_ConsistencyTest()
 MS.select_rep_structs(
     consist_data_file, consist_result_file,
-    total_traj_num_frames=335, last_num_frames=67
+    total_traj_num_frames=335, n_analysis_frames=67
 )
 ```
 
