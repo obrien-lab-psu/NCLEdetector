@@ -12,7 +12,7 @@ permissions:
 jobs:
   pypi-publish:
     runs-on: ubuntu-latest
-    environment: pypi
+    environment: ncledetector
     steps:
       - name: Checkout
         uses: actions/checkout@v4
