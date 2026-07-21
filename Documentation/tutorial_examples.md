@@ -1,12 +1,12 @@
-# EntDetect User Tutorial
+# NCLEdetector User Tutorial
 
-A detailed, beginner-friendly guide to the three main analysis workflows in the **EntDetect** Python package.
+A detailed, beginner-friendly guide to the three main analysis workflows in the **NCLEdetector** Python package.
 
 ---
 
 ## Table of Contents
 
-1. [What EntDetect is for](#what-entdetect-is-for)
+1. [What NCLEdetector is for](#what-ncledetector-is-for)
 2. [Who this tutorial is for](#who-this-tutorial-is-for)
 3. [Before you begin](#before-you-begin)
 4. [Recommended project layout](#recommended-project-layout)
@@ -20,9 +20,9 @@ A detailed, beginner-friendly guide to the three main analysis workflows in the 
 
 ---
 
-## What EntDetect is for
+## What NCLEdetector is for
 
-**EntDetect** is a Python package for studying **non-covalent lasso entanglements (NCLEs)** in proteins and protein ensembles. It supports three major use cases:
+**NCLEdetector** is a Python package for studying **non-covalent lasso entanglements (NCLEs)** in proteins and protein ensembles. It supports three major use cases:
 
 1. **Identifying native entanglements** in a single protein structure.
 2. **Tracking changes in entanglement** across simulation trajectories and organizing those changes into structural states.
@@ -41,11 +41,11 @@ This tutorial is written as a practical guide for a **new user** who is learning
 This tutorial assumes you:
 
 - are working in a **Linux environment**;
-- have already installed the software dependencies listed in the EntDetect materials/setup documentation;
-- have created a **Miniconda or Conda environment** with EntDetect installed;
+- have already installed the software dependencies listed in the NCLEdetector materials/setup documentation;
+- have created a **Miniconda or Conda environment** with NCLEdetector installed;
 - are comfortable running terminal commands and basic Python scripts.
 
-Even if you are new to EntDetect, the goal of this guide is to walk you through the logic of each workflow, the required inputs, the core API calls, and the expected outputs.
+Even if you are new to NCLEdetector, the goal of this guide is to walk you through the logic of each workflow, the required inputs, the core API calls, and the expected outputs.
 
 ---
 
@@ -57,7 +57,7 @@ Open a terminal and move to your working directory:
 
 ```bash
 cd /path/to/base/directory
-conda activate EntDetect_env
+conda activate NCLEdetector_env
 ```
 
 This tutorial assumes all relative paths are defined from your current working directory.
@@ -90,7 +90,7 @@ The original protocol specifically recommends rebuilding missing atoms/residues 
 
 ## Recommended project layout
 
-A consistent directory structure makes EntDetect much easier to use and debug. One reasonable layout is:
+A consistent directory structure makes NCLEdetector much easier to use and debug. One reasonable layout is:
 
 ```text
 project/
@@ -123,7 +123,7 @@ You do not have to use this exact structure, but keeping structures, trajectorie
 
 ## Workflow overview
 
-The full EntDetect analysis logic can be thought of as four connected layers:
+The full NCLEdetector analysis logic can be thought of as four connected layers:
 
 ### A. Native structure layer
 Start with one experimental or predicted structure and identify its **native NCLEs**.
@@ -155,12 +155,12 @@ Usually **less than 1 minute to 10 minutes**, depending on protein size.
 
 ```bash
 cd /path/to/base/directory
-conda activate EntDetect_env
+conda activate NCLEdetector_env
 ```
 
 ## Step 2. Prepare a cleaned structure
 
-Before running EntDetect, prepare a cleaned structure file:
+Before running NCLEdetector, prepare a cleaned structure file:
 
 - input can be a **PDB** or AlphaFold-derived structure;
 - rebuild missing residues and atoms if needed;
@@ -195,8 +195,8 @@ Using a script is usually better for reproducibility.
 Import the required class and define your inputs:
 
 ```python
-from EntDetect.gaussian_entanglement import GaussianEntanglement
-from EntDetect.clustering import ClusterNativeEntanglements
+from NCLEdetector.gaussian_entanglement import GaussianEntanglement
+from NCLEdetector.clustering import ClusterNativeEntanglements
 
 # Input paths and identifiers
 pdb = "./1zmr_model_clean.pdb"
@@ -266,7 +266,7 @@ then the protocol notes that a **mapping file** can be supplied so that only ent
 Many entanglements can be structurally redundant or degenerate variants of the same topological motif. This step reduces the set to a more interpretable non-redundant representation.
 
 ```python
-from EntDetect.clustering import ClusterNativeEntanglements
+from NCLEdetector.clustering import ClusterNativeEntanglements
 
 native_clustered_HQ_outdir = "./nativeNCLE/Native_clustered_HQ_GE"
 NCLE_file = "./nativeNCLE/Native_HQ_GE/1zmr.csv"
@@ -297,7 +297,7 @@ A file containing:
 Once you have representative entanglements, you can calculate features that describe their structural complexity.
 
 ```python
-from EntDetect.entanglement_features import FeatureGen
+from NCLEdetector.entanglement_features import FeatureGen
 
 pdb = "./1zmr_model_clean.pdb"
 native_GQ_feature_outdir = "./nativeNCLE/Native_clustered_HQ_GE_features"
@@ -371,7 +371,7 @@ You will generally need:
 ### Example setup
 
 ```python
-from EntDetect.order_params import CalculateOP
+from NCLEdetector.order_params import CalculateOP
 
 Traj = 1
 PSF = "./1zmr_model_clean_ca.psf"
@@ -459,7 +459,7 @@ Once you have computed `G` and filtered trajectory artifacts, cluster the change
 ### Example setup
 
 ```python
-from EntDetect.clustering import ClusterNonNativeEntanglements
+from NCLEdetector.clustering import ClusterNonNativeEntanglements
 
 pkl_file_path = "./OP/G/Combined_GE/"
 trajnum2pklfile_path = "./trajnum2file.txt"
@@ -507,7 +507,7 @@ This step uses the order-parameter outputs to organize structures into microstat
 ### Example setup
 
 ```python
-from EntDetect.clustering import MSMNonNativeEntanglementClustering
+from NCLEdetector.clustering import MSMNonNativeEntanglementClustering
 
 outdir = "./run_MSM"
 ID = "1ZMR"
@@ -561,7 +561,7 @@ The state-distribution surface is automatically generated by the MSM step.
 ### 13b. Plot state probability evolution
 
 ```python
-from EntDetect.statistics import MSMStats
+from NCLEdetector.statistics import MSMStats
 
 outdir = "./MSM_StateProbabilityStats"
 msm_meta_file = "MSM/1ZMR_prod_meta_set_A80%Native.csv"
@@ -597,7 +597,7 @@ You can compare structural-ensemble evolution between two conditions by analyzin
 
 ```python
 import pandas as pd
-from EntDetect.statistics import FoldingPathwayStats
+from NCLEdetector.statistics import FoldingPathwayStats
 
 outdir = "./Foldingpathway_A80%Native"
 msm_meta_file = "MSM/1ZMR_prod_meta_set_A80%Native.csv"
@@ -669,7 +669,7 @@ For each frame of interest, save a structure file.
 ### 15b. Back-map the structures
 
 ```python
-from EntDetect.change_resolution import BackMapping
+from NCLEdetector.change_resolution import BackMapping
 
 Outdir = "./BackMapping/"
 cg_pdb = "./1zmr_model_clean_ca.cor"
@@ -707,7 +707,7 @@ These metrics are needed for comparing structural ensembles to LiP-MS and XL-MS 
 ### Example setup
 
 ```python
-from EntDetect.order_params import CalculateOP
+from NCLEdetector.order_params import CalculateOP
 
 Traj = 1
 PSF = "./1zmr_model_clean.pdb"
@@ -758,7 +758,7 @@ This is the key step that integrates simulation and experiment.
 ### Example setup
 
 ```python
-from EntDetect.compare_sim2exp import MassSpec
+from NCLEdetector.compare_sim2exp import MassSpec
 
 outdir = "./MassSpec_ConsistencyTest/"
 msm_data_file = "./MSM/1ZMR_prod_MSMmapping.csv"
@@ -904,7 +904,7 @@ Use the `ProteomeLogisticRegression` class to model whether the odds of conforma
 ### Example setup
 
 ```python
-from EntDetect.statistics import ProteomeLogisticRegression
+from NCLEdetector.statistics import ProteomeLogisticRegression
 
 dataframe_files = "/path/to/dataframe/files"
 outdir = "./population_modeling/"
@@ -961,7 +961,7 @@ The Monte Carlo workflow is meant to identify subsets of proteins whose entangle
 ### Example setup
 
 ```python
-from EntDetect.statistics import MonteCarlo
+from NCLEdetector.statistics import MonteCarlo
 
 dataframe_files = "/path/to/dataframe/files"
 outdir = "./monte_carlo/"
@@ -1096,7 +1096,7 @@ Do not delete intermediate files too early. Many downstream steps depend on:
 
 # What to verify against the package documentation
 
-This tutorial is based on the written protocol and preserves its intended workflow, but you should still verify several details against the current EntDetect codebase and GitHub documentation before running a production analysis.
+This tutorial is based on the written protocol and preserves its intended workflow, but you should still verify several details against the current NCLEdetector codebase and GitHub documentation before running a production analysis.
 
 In particular, confirm:
 
@@ -1122,13 +1122,13 @@ Before starting a full run, make sure you can answer **yes** to all of the follo
 - Do I know which outputs from one step are required by the next?
 - Have I planned enough storage, memory, and runtime for the larger steps?
 
-If yes, you are ready to begin using EntDetect productively.
+If yes, you are ready to begin using NCLEdetector productively.
 
 ---
 
 ## Suggested first run for beginners
 
-If you are completely new to EntDetect, the best starting point is:
+If you are completely new to NCLEdetector, the best starting point is:
 
 1. run **Workflow 1** on a single cleaned structure;
 2. inspect the representative NCLEs visually;
@@ -1141,4 +1141,4 @@ That approach will help you learn the package in manageable stages.
 
 ## Source note
 
-This tutorial was derived from the uploaded EntDetect execution protocol and reorganized into a beginner-facing markdown guide.
+This tutorial was derived from the uploaded NCLEdetector execution protocol and reorganized into a beginner-facing markdown guide.

@@ -19,7 +19,7 @@ Comprehensive PDB file preprocessing and cleaning utilities for removing duplica
 
 #### Initialization
 ```python
-from EntDetect.utilities import PDBcleaner
+from NCLEdetector.utilities import PDBcleaner
 
 cleaner = PDBcleaner(
     pdb_file="protein_structure.pdb",
@@ -107,7 +107,7 @@ Handles molecular dynamics trajectory preprocessing and frame extraction for ent
 
 #### Initialization
 ```python
-from EntDetect.utilities import TrajectoryProcessor
+from NCLEdetector.utilities import TrajectoryProcessor
 
 processor = TrajectoryProcessor(
     topology_file="system.pdb",
@@ -154,7 +154,7 @@ Utilities for converting between different structural and analysis data formats.
 
 #### Initialization
 ```python
-from EntDetect.utilities import DataConverter
+from NCLEdetector.utilities import DataConverter
 
 converter = DataConverter(
     input_format="pdb",
@@ -191,7 +191,7 @@ converted_data = converter.convert_analysis_data(
 ### Basic PDB Cleaning
 
 ```python
-from EntDetect.utilities import PDBcleaner
+from NCLEdetector.utilities import PDBcleaner
 
 # Initialize cleaner for problematic PDB file
 cleaner = PDBcleaner(
@@ -227,7 +227,7 @@ print(f"Cleaned structure saved to: {standardized_pdb}")
 ### Comprehensive Preprocessing Pipeline
 
 ```python
-from EntDetect.utilities import PDBcleaner, DataConverter
+from NCLEdetector.utilities import PDBcleaner, DataConverter
 import os
 
 def preprocess_pdb_collection(pdb_directory, output_directory):
@@ -283,8 +283,8 @@ print(f"\nProcessed {len(processed_structures)} structures successfully")
 ### Trajectory Processing for Entanglement Analysis
 
 ```python
-from EntDetect.utilities import TrajectoryProcessor
-from EntDetect.gaussian_entanglement import GaussianEntanglement
+from NCLEdetector.utilities import TrajectoryProcessor
+from NCLEdetector.gaussian_entanglement import GaussianEntanglement
 
 # Process MD trajectory for entanglement analysis
 processor = TrajectoryProcessor(
@@ -325,7 +325,7 @@ print("Entanglement evolution analysis complete!")
 ### Multi-Format Data Conversion
 
 ```python
-from EntDetect.utilities import DataConverter
+from NCLEdetector.utilities import DataConverter
 import pickle
 import json
 
@@ -360,7 +360,7 @@ for pdb_file in pdb_files:
 
 ## Integration with Scripts
 
-The utilities module integrates seamlessly with all EntDetect scripts for preprocessing and data preparation:
+The utilities module integrates seamlessly with all NCLEdetector scripts for preprocessing and data preparation:
 
 ### Script Integration Examples
 

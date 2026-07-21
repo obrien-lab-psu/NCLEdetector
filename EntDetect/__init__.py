@@ -1,4 +1,4 @@
-"""EntDetect - Entanglement Detection in Protein Structures
+"""NCLEdetector - Entanglement Detection in Protein Structures
 
 A package for identifying and analyzing non-covalent lasso-like entanglements
 in protein structures using Gaussian linking numbers and topological analysis.

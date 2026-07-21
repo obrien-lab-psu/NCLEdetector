@@ -19,7 +19,7 @@ Converts all-atom protein structures to coarse-grained representations with cust
 
 #### Initialization
 ```python
-from EntDetect.change_resolution import CoarseGrain
+from NCLEdetector.change_resolution import CoarseGrain
 
 CoarseGrainer = CoarseGrain(
     pdbfile="protein.pdb",
@@ -83,7 +83,7 @@ Reconstructs all-atom structures from coarse-grained representations using refer
 
 #### Initialization
 ```python
-from EntDetect.change_resolution import BackMapping
+from NCLEdetector.change_resolution import BackMapping
 
 backMapper = BackMapping(
     nproc=4,
@@ -149,7 +149,7 @@ minimized = backMapper.OpenMM_vacuum_minimization(
 ### Basic Coarse-Graining Workflow
 
 ```python
-from EntDetect.change_resolution import CoarseGrain
+from NCLEdetector.change_resolution import CoarseGrain
 
 # Initialize coarse-graining with 2x scaling
 CoarseGrainer = CoarseGrain(
@@ -180,7 +180,7 @@ print("Coarse-graining complete!")
 ### Complete Round-Trip Workflow
 
 ```python
-from EntDetect.change_resolution import CoarseGrain, BackMapping
+from NCLEdetector.change_resolution import CoarseGrain, BackMapping
 
 # Step 1: Coarse-grain all-atom structure
 CoarseGrainer = CoarseGrain(
@@ -213,7 +213,7 @@ print("Round-trip conversion complete!")
 
 ```python
 import os
-from EntDetect.change_resolution import CoarseGrain
+from NCLEdetector.change_resolution import CoarseGrain
 
 # Process multiple structures
 protein_list = [

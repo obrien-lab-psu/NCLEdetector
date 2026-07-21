@@ -18,7 +18,7 @@ import numpy
 import pathlib
 import subprocess
 import logging
-from EntDetect._logging import setup_logger
+from NCLEdetector._logging import setup_logger
 
 sys.setrecursionlimit(int(1e6))
 
@@ -271,7 +271,7 @@ class CoarseGrain:
 
         ## Check dependency installation ##
         # find stride resource
-        self.stride_path = files('EntDetect.resources').joinpath('stride')
+        self.stride_path = files('NCLEdetector.resources').joinpath('stride')
         self.logger.debug(f'stride_path: {self.stride_path}')
 
         #if os.popen('stride 2>&1').readlines()[0].strip().endswith('command not found'):
@@ -387,11 +387,11 @@ class CoarseGrain:
         # initialize nonbonding potential
         root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
         if self.potential_name.startswith('MJ'):
-            miya = files('EntDetect.resources.shared_files').joinpath('mj_contact_potential.dat')
+            miya = files('NCLEdetector.resources.shared_files').joinpath('mj_contact_potential.dat')
         elif self.potential_name.startswith('KGS'):
-            miya = files('EntDetect.resources.shared_files').joinpath('kgs_contact_potential.dat')
+            miya = files('NCLEdetector.resources.shared_files').joinpath('kgs_contact_potential.dat')
         elif self.potential_name.startswith('BT'):
-            miya = files('EntDetect.resources.shared_files').joinpath('bt_contact_potential.dat')
+            miya = files('NCLEdetector.resources.shared_files').joinpath('bt_contact_potential.dat')
         else:
             self.logger.error("ERROR: Unrecognized force-field %s"%self.potential_name)
             sys.exit()
@@ -451,7 +451,7 @@ class CoarseGrain:
         # requested by user.
         if self.dihedral_go == 0:
             dihedb_nongo = [[[] for j in range(20)] for i in range(20)]
-            kpot_f = files('EntDetect.resources.shared_files').joinpath('karanicolas_dihe_parm.dat')
+            kpot_f = files('NCLEdetector.resources.shared_files').joinpath('karanicolas_dihe_parm.dat')
             f = open(kpot_f)
             lines = f.readlines()
             f.close()
@@ -2212,7 +2212,7 @@ class BackMapping:
     #######################################################################################################
     def Call_Pulchra(self, rebult_pdb):
         self.logger.info("-> Calling pulchra to reconstruct all-atom PDB")
-        self.pulchra = files('EntDetect.resources').joinpath('pulchra')
+        self.pulchra = files('NCLEdetector.resources').joinpath('pulchra')
         self.logger.debug(f'pulchra: {self.pulchra}')
         pulchra_cmd = f'{self.pulchra} -v -g -q {rebult_pdb} > pulchra.log'
         self.logger.debug(f'CALL: {pulchra_cmd}')

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import requests, logging, os, sys
-from EntDetect._logging import setup_logger
+from NCLEdetector._logging import setup_logger
 import time
 import argparse
 import pandas as pd
@@ -13,9 +13,9 @@ from scipy.spatial.distance import pdist, squareform
 from topoly import lasso_type  # used pip
 import itertools
 import concurrent.futures
-from EntDetect.gaussian_entanglement import GaussianEntanglement
-from EntDetect.clustering import ClusterNativeEntanglements
-from EntDetect.Jwalk import PDBTools, GridTools, SurfaceTools, SASDTools
+from NCLEdetector.gaussian_entanglement import GaussianEntanglement
+from NCLEdetector.clustering import ClusterNativeEntanglements
+from NCLEdetector.Jwalk import PDBTools, GridTools, SurfaceTools, SASDTools
 from importlib.resources import files
 import subprocess
 import pathlib
@@ -285,7 +285,7 @@ class CalculateOP:
             Qoutput = pd.read_csv(renamed_outfile, sep = ',')
             return {'outfile':renamed_outfile, 'result':Qoutput}
 
-        script_path = files('EntDetect.resources').joinpath('calc_Q.pl')
+        script_path = files('NCLEdetector.resources').joinpath('calc_Q.pl')
         self.logger.debug(f'script_path: {script_path}')
 
         if chunk_frames is None:
@@ -587,7 +587,7 @@ class CalculateOP:
             Koutput = pd.read_csv(renamed_outfile, sep=',')
             return {'outfile':renamed_outfile, 'result':Koutput}
 
-        script_path = files('EntDetect.resources').joinpath('calc_K.pl')
+        script_path = files('NCLEdetector.resources').joinpath('calc_K.pl')
 
         if chunk_frames is None:
             cmd = f'perl {script_path} -i {self.cor} -t {self.dcd} -d {self.domain} -s {self.sec_elements} -b {self.start + 1} -e {self.end} -o {self.KPATH}'

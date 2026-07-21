@@ -18,7 +18,7 @@ Clusters native entanglements to remove degeneracies and identify unique topolog
 
 #### Initialization
 ```python
-from EntDetect.clustering import ClusterNativeEntanglements
+from NCLEdetector.clustering import ClusterNativeEntanglements
 
 clustering = ClusterNativeEntanglements(organism='Ecoli', cut_off=57)
 ```
@@ -54,7 +54,7 @@ Analyzes dynamic entanglement changes across multiple simulation trajectories.
 
 #### Initialization  
 ```python
-from EntDetect.clustering import ClusterNonNativeEntanglements
+from NCLEdetector.clustering import ClusterNonNativeEntanglements
 
 nn_clustering = ClusterNonNativeEntanglements(
     pkl_file_path="pkl_files/",
@@ -88,7 +88,7 @@ Builds Markov State Models from ensemble simulation data with entanglement analy
 
 #### Initialization
 ```python
-from EntDetect.clustering import MSMNonNativeEntanglementClustering
+from NCLEdetector.clustering import MSMNonNativeEntanglementClustering
 
 MSM = MSMNonNativeEntanglementClustering(
     outdir="results/MSM/",
@@ -124,7 +124,7 @@ MSM.run()
 ### Native Entanglement Clustering
 
 ```python
-from EntDetect.clustering import ClusterNativeEntanglements
+from NCLEdetector.clustering import ClusterNativeEntanglements
 
 # Initialize for E. coli proteins
 clustering = ClusterNativeEntanglements(organism='Ecoli')
@@ -142,7 +142,7 @@ print(f"Clustered data saved to: {result['outfile']}")
 ### Non-Native Entanglement Analysis
 
 ```python
-from EntDetect.clustering import ClusterNonNativeEntanglements
+from NCLEdetector.clustering import ClusterNonNativeEntanglements
 
 # Set up non-native clustering
 nn_clustering = ClusterNonNativeEntanglements(
@@ -159,7 +159,7 @@ nn_clustering.cluster(start_frame=6332)
 ### MSM Construction
 
 ```python
-from EntDetect.clustering import MSMNonNativeEntanglementClustering
+from NCLEdetector.clustering import MSMNonNativeEntanglementClustering
 
 # Build MSM with entanglement analysis
 MSM = MSMNonNativeEntanglementClustering(

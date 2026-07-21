@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from EntDetect._logging import setup_logger
+from NCLEdetector._logging import setup_logger
 
 if __package__ in {None, ""}:
     import sys
@@ -30,16 +30,16 @@ When both are provided, CLI flags override config values.
 Example
 -------
 python scripts/run_workflow4_nativeNCLE_batch.py \
-  --pdb_dir /scratch/ims86/EntDetect_Datastore/user_input/proteome_structures/AF \
-  --gene_list /scratch/ims86/EntDetect_Datastore/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_all_genes.txt \
-  --outdir /scratch/ims86/EntDetect_Datastore/outputs/workflow4/nativeNCLE_all \
+  --pdb_dir /scratch/ims86/NCLEdetector_Datastore/user_input/proteome_structures/AF \
+  --gene_list /scratch/ims86/NCLEdetector_Datastore/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_all_genes.txt \
+  --outdir /scratch/ims86/NCLEdetector_Datastore/outputs/workflow4/nativeNCLE_all \
   --organism Ecoli \
   --model AF \
   --ent_detection_method 3 \
     --g_threshold 0.6 \
     --density 1.0 \
     --nproc 16 \
-    --residue_features_file /scratch/ims86/EntDetect_Datastore/user_input/experimental_data/PDB_residue_features/AF/residueFeatures.csv \
+    --residue_features_file /scratch/ims86/NCLEdetector_Datastore/user_input/experimental_data/PDB_residue_features/AF/residueFeatures.csv \
     --reg_formula "cut_C_Rall ~ AA + region"
 """
 

@@ -8,7 +8,7 @@ import parmed as pmd
 import mdtraj as mdt
 import pathlib, re
 import logging
-from EntDetect._logging import setup_logger
+from NCLEdetector._logging import setup_logger
 
 class MassSpec:
     """
@@ -94,7 +94,7 @@ class MassSpec:
             else:
                 if n_traj is None or sasa_xp_frames_per_traj is None:
                     raise ValueError('n_traj and sasa_xp_frames_per_traj are required to collect SASA from sasa_dir')
-                from EntDetect.order_params import CollectOP
+                from NCLEdetector.order_params import CollectOP
                 self.logger.info(f'Collecting SASA from {sasa_dir} into {self.outdir}/SASA.npy')
                 collector = CollectOP(sasa_dir=sasa_dir, xp_dir=self.xp_dir, outdir=self.outdir,
                                       ID=self.ID, n_traj=n_traj, sasa_xp_frames_per_traj=sasa_xp_frames_per_traj, prot_len=self.prot_len)
@@ -110,7 +110,7 @@ class MassSpec:
                 else:
                     if n_traj is None or sasa_xp_frames_per_traj is None:
                         raise ValueError('n_traj and sasa_xp_frames_per_traj are required to collect Jwalk from xp_dir')
-                    from EntDetect.order_params import CollectOP
+                    from NCLEdetector.order_params import CollectOP
                     self.logger.info(f'Collecting Jwalk from {self.xp_dir} into {self.outdir}/Jwalk.npy')
                     collector = CollectOP(sasa_dir=sasa_dir, xp_dir=self.xp_dir, outdir=self.outdir,
                                           ID=self.ID, n_traj=n_traj, sasa_xp_frames_per_traj=sasa_xp_frames_per_traj, prot_len=self.prot_len)

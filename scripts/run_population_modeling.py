@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-from EntDetect.statistics import ProteomeLogisticRegression
-from EntDetect._logging import setup_logger
+from NCLEdetector.statistics import ProteomeLogisticRegression
+from NCLEdetector._logging import setup_logger
 
 if __package__ in {None, ""}:
     import sys
@@ -19,7 +19,7 @@ Run Workflow 4 proteome-level logistic regression from residue feature tables.
 Provide parameters directly as CLI flags, through `--config` JSON/YAML, or both.
 When both are provided, CLI flags override config values.
 
-This script wraps EntDetect.statistics.ProteomeLogisticRegression and writes
+This script wraps NCLEdetector.statistics.ProteomeLogisticRegression and writes
 the final regression table as a pipe-delimited CSV.
 
 If batch-native-NCLE arguments are provided, the script first calls

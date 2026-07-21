@@ -3,7 +3,7 @@
 def process_frame(args):
     frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, Calpha, CG, g_threshold, density, ent_detection_method = args
     import MDAnalysis as mda
-    from EntDetect.gaussian_entanglement import GaussianEntanglement
+    from NCLEdetector.gaussian_entanglement import GaussianEntanglement
     univ = mda.Universe(PSF, dcd)
     chain_atoms = univ.select_atoms(f"segid {chain}")
     univ.trajectory[frame_idx]
@@ -23,7 +23,7 @@ def process_frame(args):
             crossingsC = ','.join(crossingsC)
 
             result_rows.append((ID, chain, frame_idx, i, j, crossingsN, crossingsC, f'{ij_gN_gC[2]: .5f}', f'{ij_gN_gC[3]: .5f}', ij_gN_gC[4], ij_gN_gC[5], ij_gN_gC[6], ij_gN_gC[7]))
-    logging.getLogger('EntDetect.GaussianEntanglement').info(f'Frame idx: {frame_idx} processed with {len(result_rows)} contact(s) found.')
+    logging.getLogger('NCLEdetector.GaussianEntanglement').info(f'Frame idx: {frame_idx} processed with {len(result_rows)} contact(s) found.')
     return result_rows
 ###################################################################################################
 
@@ -49,7 +49,7 @@ from collections import defaultdict
 import time
 import multiprocessing as mp
 import shutil
-from EntDetect._logging import setup_logger
+from NCLEdetector._logging import setup_logger
 from typing import Optional
 filterwarnings("ignore")
 

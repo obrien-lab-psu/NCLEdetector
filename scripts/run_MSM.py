@@ -1,5 +1,5 @@
-from EntDetect.clustering import MSMNonNativeEntanglementClustering
-from EntDetect._logging import setup_logger
+from NCLEdetector.clustering import MSMNonNativeEntanglementClustering
+from NCLEdetector._logging import setup_logger
 
 """
 Build a Markov state model (MSM) from pre-computed order-parameter data across

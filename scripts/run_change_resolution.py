@@ -30,7 +30,7 @@ def main(argv=None):
     ID = args.ID
 
     # Import here so `run_change_resolution -h` works without OpenMM installed.
-    from EntDetect.change_resolution import CoarseGrain, BackMapping
+    from NCLEdetector.change_resolution import CoarseGrain, BackMapping
 
     ## Coarse grain the all-atom structure
     CoarseGrainer = CoarseGrain(outdir=outdir,

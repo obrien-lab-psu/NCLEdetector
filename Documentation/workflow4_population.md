@@ -50,7 +50,7 @@ It assumes you can provide, for each protein in your study:
 Pre-downloaded proteome structure libraries are available at:
 
 ```bash
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 STRUCTDIR=$DATASTORE/user_input/proteome_structures
 
 $STRUCTDIR/AF    # AlphaFold structures (example filenames: A0A385XJ53.pdb)
@@ -83,9 +83,9 @@ OUTDIR=$DATASTORE/outputs/workflow4
 
 ```bash
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 STRUCTDIR=$DATASTORE/user_input/proteome_structures
 OUTDIR=$DATASTORE/outputs/workflow4
 GENELIST_AF=$DATASTORE/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_ent_genes.txt
@@ -111,10 +111,10 @@ Use the dedicated Workflow 4 batch runner to:
 ```bash
 # ── Activation ─────────────────────────────────────────────────────────────
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 STRUCTDIR=$DATASTORE/user_input/proteome_structures
 OUTDIR=$DATASTORE/outputs/workflow4
 GENELIST_AF=$DATASTORE/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_ent_genes.txt
@@ -156,10 +156,10 @@ Use `ProteomeLogisticRegression` to test enrichment while controlling for confou
 ### Python API example
 
 ```python
-from EntDetect.statistics import ProteomeLogisticRegression
+from NCLEdetector.statistics import ProteomeLogisticRegression
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-DATASTORE    = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE    = "/scratch/ims86/NCLEdetector_Datastore"
 OUTDIR       = f"{DATASTORE}/outputs/workflow4"
 GENELIST_AF  = f"{DATASTORE}/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_ent_genes.txt"
 
@@ -222,10 +222,10 @@ Use `scripts/run_population_modeling.py` to test whether the NCLE-derived `regio
 ```bash
 # ── Activation ─────────────────────────────────────────────────────────────
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 STRUCTDIR=$DATASTORE/user_input/proteome_structures
 OUTDIR=$DATASTORE/outputs/workflow4
 GENELIST_AF=$DATASTORE/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_ent_genes.txt
@@ -267,13 +267,13 @@ Container equivalent (same config and optional CLI override):
 
 ```bash
 CONFIG=scripts/configs/workflow4_population_modeling_config.json
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_population_modeling.py \
         --config "$CONFIG" \
         --batch_nproc 32
@@ -284,19 +284,19 @@ Config file example (matches `scripts/configs/workflow4_population_modeling_conf
 ```json
 {
     "run_batch_native_ncle": true,
-    "batch_pdb_dir": "/scratch/ims86/EntDetect_Datastore/user_input/proteome_structures/AF",
-    "batch_outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/nativeNCLE_all",
+    "batch_pdb_dir": "/scratch/ims86/NCLEdetector_Datastore/user_input/proteome_structures/AF",
+    "batch_outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow4/nativeNCLE_all",
     "batch_nproc": 16,
     "batch_organism": "Ecoli",
     "batch_model": "AF",
     "batch_ent_detection_method": 3,
     "batch_g_threshold": 0.6,
     "batch_density": 1.0,
-    "batch_residue_features_file": "/scratch/ims86/EntDetect_Datastore/user_input/experimental_data/PDB_residue_features/AF/residueFeatures.csv",
-    "batch_design_matrix_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/residue_dataframes_workflow4.csv",
-    "dataframe_files": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/residue_dataframes_workflow4.csv",
-    "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/population_modeling",
-    "gene_list": "/scratch/ims86/EntDetect_Datastore/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_ent_genes.txt",
+    "batch_residue_features_file": "/scratch/ims86/NCLEdetector_Datastore/user_input/experimental_data/PDB_residue_features/AF/residueFeatures.csv",
+    "batch_design_matrix_file": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow4/residue_dataframes_workflow4.csv",
+    "dataframe_files": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow4/residue_dataframes_workflow4.csv",
+    "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow4/population_modeling",
+    "gene_list": "/scratch/ims86/NCLEdetector_Datastore/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_ent_genes.txt",
     "ID": "Ecoli_population",
     "reg_formula": "cut_C_Rall ~ AA + region",
     "sep": "|",
@@ -304,7 +304,7 @@ Config file example (matches `scripts/configs/workflow4_population_modeling_conf
     "response_var": "cut_C_Rall",
     "var2binarize": ["cut_C_Rall", "region"],
     "mask_column": "mapped_resid",
-    "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/logs",
+    "logdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow4/logs",
     "log_level": "INFO"
 }
 ```
@@ -525,10 +525,10 @@ Use `MonteCarlo` to partition proteins into groups and optimize an objective com
 ### Python API example
 
 ```python
-from EntDetect.statistics import MonteCarlo
+from NCLEdetector.statistics import MonteCarlo
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-DATASTORE    = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE    = "/scratch/ims86/NCLEdetector_Datastore"
 OUTDIR       = f"{DATASTORE}/outputs/workflow4"
 GENELIST_AF  = f"{DATASTORE}/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_ent_genes.txt"
 
@@ -580,10 +580,10 @@ When both are provided, **CLI flags override config values** for the same parame
 ```bash
 # ── Activation ─────────────────────────────────────────────────────────────
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 OUTDIR=$DATASTORE/outputs/workflow4
 GENELIST_AF=$DATASTORE/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_ent_genes.txt
 
@@ -619,13 +619,13 @@ Container equivalent (same config and optional CLI override):
 
 ```bash
 CONFIG=scripts/configs/workflow4_monte_carlo_config.json
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_montecarlo.py \
         --config "$CONFIG" \
         --n_groups 6
@@ -635,9 +635,9 @@ Config file example (matches `scripts/configs/workflow4_monte_carlo_config.json`
 
 ```json
 {
-    "dataframe_files": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/residue_dataframes_workflow4.csv",
-    "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/monte_carlo",
-    "gene_list": "/scratch/ims86/EntDetect_Datastore/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_ent_genes.txt",
+    "dataframe_files": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow4/residue_dataframes_workflow4.csv",
+    "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow4/monte_carlo",
+    "gene_list": "/scratch/ims86/NCLEdetector_Datastore/user_input/experimental_data/Gene_lists/AF/AF_0.6g_C_Rall_spa50_LiPMScov50_ent_genes.txt",
     "ID": "Ecoli_population_mc",
     "reg_formula": "cut_C_Rall ~ region + AA",
     "response_var": "cut_C_Rall",
@@ -653,7 +653,7 @@ Config file example (matches `scripts/configs/workflow4_monte_carlo_config.json`
     "C1": 1.0,
     "C2": 2.5,
     "beta": 0.05,
-    "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow4/logs",
+    "logdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow4/logs",
     "log_level": "INFO"
 }
 ```

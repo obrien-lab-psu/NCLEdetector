@@ -1,6 +1,6 @@
 ## Benchmark Wall Times
 
-Wall times measured from `NORMAL TERMINATION` markers in the SLURM logs (`assets/slurm/logs/`) and the per-analysis application logs at the datastore output destinations (for example `/scratch/ims86/EntDetect_Datastore/outputs/workflow2/*/logs/`) on the PSU Roar Collab cluster (basic partition). Times reflect processing of a 387-residue protein (ecPGK, 1ZMR) with the parameters used in the tutorials, except Workflow 4 which is proteome-scale. The `minimal_workflow` column matches the numbered Minimal Workflow sections in the tutorial markdowns. Averages and ranges are based on successful runs (logs containing NORMAL TERMINATION).
+Wall times measured from `NORMAL TERMINATION` markers in the SLURM logs (`assets/slurm/logs/`) and the per-analysis application logs at the datastore output destinations (for example `/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/*/logs/`) on the PSU Roar Collab cluster (basic partition). Times reflect processing of a 387-residue protein (ecPGK, 1ZMR) with the parameters used in the tutorials, except Workflow 4 which is proteome-scale. The `minimal_workflow` column matches the numbered Minimal Workflow sections in the tutorial markdowns. Averages and ranges are based on successful runs (logs containing NORMAL TERMINATION).
 
 | workflow | minimal_workflow | script | n_cpus | wall_time_avg | wall_time_range | notes |
 |---|---|---|---|---|---|---|

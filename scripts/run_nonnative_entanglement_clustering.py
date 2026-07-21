@@ -1,5 +1,5 @@
-from EntDetect.clustering import ClusterNonNativeEntanglements
-from EntDetect._logging import setup_logger
+from NCLEdetector.clustering import ClusterNonNativeEntanglements
+from NCLEdetector._logging import setup_logger
 
 """
 Cluster non-native entanglement changes across an ensemble of simulation trajectories.

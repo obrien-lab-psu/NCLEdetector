@@ -70,7 +70,7 @@ $DATASTORE/outputs/workflow3/
 
 Where:
 ```bash
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 OUTDIR=$DATASTORE/outputs/workflow3
 ```
 
@@ -101,9 +101,9 @@ OUTDIR=$DATASTORE/outputs/workflow3
 
 ```bash
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 OUTDIR=$DATASTORE/outputs/workflow3
 
 mkdir -p $OUTDIR/MassSpec_ConsistencyTest $OUTDIR/logs
@@ -124,10 +124,10 @@ When you initialize `MassSpec`, it will automatically:
 ### Initialize `MassSpec` and run the consistency test
 
 ```python
-from EntDetect.compare_sim2exp import MassSpec
+from NCLEdetector.compare_sim2exp import MassSpec
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-DATASTORE   = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE   = "/scratch/ims86/NCLEdetector_Datastore"
 OUTDIR      = f"{DATASTORE}/outputs/workflow3"
 sasa_dir    = f"{DATASTORE}/outputs/workflow2/OP_AA/SASA"  # per-traj SASA files
 xp_dir      = f"{DATASTORE}/outputs/workflow2/OP_AA/XP"    # per-traj XP files
@@ -279,9 +279,9 @@ When both are provided, **CLI flags override config values** for the same parame
 
 ```bash
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 
 python scripts/run_compare_sim2exp.py \
     --msm_data_file   $DATASTORE/outputs/workflow2/MSM/1ZMR_prod_MSMmapping.csv \
@@ -327,13 +327,13 @@ Container equivalent (same config and optional CLI override):
 
 ```bash
 CONFIG=scripts/configs/workflow3_consistency_config.json
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_compare_sim2exp.py \
         --config "$CONFIG" \
         --state_idx_list 5 7
@@ -343,17 +343,17 @@ apptainer exec \
 
 ```json
 {
-    "msm_data_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM/1ZMR_prod_MSMmapping.csv",
-    "meta_dist_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM/1ZMR_prod_meta_dist.npy",
-    "LiPMS_exp_file": "/scratch/ims86/EntDetect_Datastore/user_input/experimental_data/ecPGK_significant_LiPMS_peptide_R1_merged.xlsx",
-    "XLMS_exp_file": "/scratch/ims86/EntDetect_Datastore/user_input/experimental_data/ecPGK_significant_XLMS_peptide_R1_merged.xlsx",
-    "cluster_data_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/nonnative_clustering_last335/cluster_data_topoly_linking_number.npz",
-    "OPpath": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last335/",
-    "AAdcd_dir": "/scratch/ims86/EntDetect_Datastore/user_input/aa_trajectories/",
-    "native_AA_pdb": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean.pdb",
-    "sasa_dir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA/SASA",
-    "xp_dir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA/XP",
-    "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow3/MassSpec_ConsistencyTest",
+    "msm_data_file": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM/1ZMR_prod_MSMmapping.csv",
+    "meta_dist_file": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM/1ZMR_prod_meta_dist.npy",
+    "LiPMS_exp_file": "/scratch/ims86/NCLEdetector_Datastore/user_input/experimental_data/ecPGK_significant_LiPMS_peptide_R1_merged.xlsx",
+    "XLMS_exp_file": "/scratch/ims86/NCLEdetector_Datastore/user_input/experimental_data/ecPGK_significant_XLMS_peptide_R1_merged.xlsx",
+    "cluster_data_file": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/nonnative_clustering_last335/cluster_data_topoly_linking_number.npz",
+    "OPpath": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP_last335/",
+    "AAdcd_dir": "/scratch/ims86/NCLEdetector_Datastore/user_input/aa_trajectories/",
+    "native_AA_pdb": "/scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/1zmr_model_clean.pdb",
+    "sasa_dir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP_AA/SASA",
+    "xp_dir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP_AA/XP",
+    "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow3/MassSpec_ConsistencyTest",
     "ID": "1ZMR",
     "state_idx_list": [4, 6, 8],
     "prot_len": 387,

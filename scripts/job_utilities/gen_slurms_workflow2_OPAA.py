@@ -24,13 +24,13 @@ run_OP_on_simulation_traj_template_slurm_XPonly = """#!/bin/bash
 # Expected runtime: 12–20 h for G (Topoly, 6667 frames, nproc=10)
 # Submit: sbatch assets/slurm/scripts/run_OP_traj{traj_num}.slurm
 
-cd /storage/group/epo2/default/ims86/git_repos/EntDetect
+cd /storage/group/epo2/default/ims86/git_repos/NCLEdetector
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 set -euo pipefail
 
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 REFSTRUCT=$DATASTORE/user_input/reference_structures
 
 mkdir -p $DATASTORE/outputs/workflow2/{outdir}/SASA
@@ -75,13 +75,13 @@ run_OP_on_simulation_traj_template_slurm_SASAonly = """#!/bin/bash
 # Expected runtime: 12–20 h for G (Topoly, 6667 frames, nproc=10)
 # Submit: sbatch assets/slurm/scripts/run_OP_traj{traj_num}.slurm
 
-cd /storage/group/epo2/default/ims86/git_repos/EntDetect
+cd /storage/group/epo2/default/ims86/git_repos/NCLEdetector
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 set -euo pipefail
 
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 REFSTRUCT=$DATASTORE/user_input/reference_structures
 
 mkdir -p $DATASTORE/outputs/workflow2/{outdir}/SASA
@@ -126,13 +126,13 @@ run_OP_on_simulation_traj_template_slurm_XPSASA = """#!/bin/bash
 # Expected runtime: 12–20 h for G (Topoly, 6667 frames, nproc=10)
 # Submit: sbatch assets/slurm/scripts/run_OP_traj{traj_num}.slurm
 
-cd /storage/group/epo2/default/ims86/git_repos/EntDetect
+cd /storage/group/epo2/default/ims86/git_repos/NCLEdetector
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 set -euo pipefail
 
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 REFSTRUCT=$DATASTORE/user_input/reference_structures
 
 mkdir -p $DATASTORE/outputs/workflow2/{outdir}/SASA
@@ -166,10 +166,10 @@ nproc = 1
 for i in range(1, 1001):
     job_name = f"OP_traj{i}"
 
-    ## check if .XP for this traj already exists /scratch/ims86/EntDetect_Datastore/outputs/workflow2/{outdir}/XP/1ZMR_Traj1.XP and if so use the SASA-only template
+    ## check if .XP for this traj already exists /scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/{outdir}/XP/1ZMR_Traj1.XP and if so use the SASA-only template
     ## else use the SASA+XP template
-    xp_file = f"/scratch/ims86/EntDetect_Datastore/outputs/workflow2/{outdir}/XP/1ZMR_Traj{i}.XP"
-    SASA_file = f"/scratch/ims86/EntDetect_Datastore/outputs/workflow2/{outdir}/SASA/1ZMR_Traj{i}.SASA"
+    xp_file = f"/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/{outdir}/XP/1ZMR_Traj{i}.XP"
+    SASA_file = f"/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/{outdir}/SASA/1ZMR_Traj{i}.SASA"
 
     if os.path.exists(SASA_file) and os.path.exists(xp_file):
         print(f"Both SASA and XP files for trajectory {i} already exist at {SASA_file} and {xp_file}. Skipping SLURM script generation.")

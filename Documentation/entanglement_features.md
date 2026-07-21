@@ -18,7 +18,7 @@ Main class for generating entanglement-related structural features from clustere
 
 #### Initialization
 ```python
-from EntDetect.entanglement_features import FeatureGen
+from NCLEdetector.entanglement_features import FeatureGen
 
 FGen = FeatureGen(
     pdb_file="structure.pdb",
@@ -83,7 +83,7 @@ features = FGen.get_uent_features(
 ### Basic Feature Generation
 
 ```python
-from EntDetect.entanglement_features import FeatureGen
+from NCLEdetector.entanglement_features import FeatureGen
 
 # Initialize feature generator
 FGen = FeatureGen(
@@ -108,7 +108,7 @@ print(f"Feature categories: {list(features.keys())}")
 
 ```python
 import pandas as pd
-from EntDetect.entanglement_features import FeatureGen
+from NCLEdetector.entanglement_features import FeatureGen
 
 # Process multiple proteins
 proteins = [

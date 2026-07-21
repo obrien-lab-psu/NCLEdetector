@@ -1,10 +1,10 @@
-# EntDetect
+# NCLEdetector
 
 A comprehensive Python package for studying non-covalent lasso entanglements in protein folding through molecular dynamics simulations and experimental data analysis.
 
 ## Overview
 
-EntDetect provides a complete toolkit for analyzing protein entanglements across multiple scales - from individual structures to large-scale proteomic datasets. The package enables researchers to:
+NCLEdetector provides a complete toolkit for analyzing protein entanglements across multiple scales - from individual structures to large-scale proteomic datasets. The package enables researchers to:
 
 - **Identify and characterize** native entanglements in protein structures
 - **Calculate order parameters** for simulation trajectories (Q, G, K, SASA, Jwalk, XP)
@@ -25,18 +25,18 @@ EntDetect provides a complete toolkit for analyzing protein entanglements across
 
 Container-first setup (recommended for reproducible HPC usage):
 
-- See [Documentation/container_usage.md](Documentation/container_usage.md) for pulling and running the EntDetect container with Apptainer/Singularity.
+- See [Documentation/container_usage.md](Documentation/container_usage.md) for pulling and running the NCLEdetector container with Apptainer/Singularity.
 
-Create a new conda environment and install EntDetect (from this repo checkout):
+Create a new conda environment and install NCLEdetector (from this repo checkout):
 
 ```bash
 conda env create -f environment.yml
-conda activate entdetect
+conda activate ncledetector
 ```
 
 Notes:
 - The provided conda environment targets Python 3.11 for best compatibility with the scientific stack.
-- Run `conda env create` from the EntDetect repo root (the environment file uses `pip -e .`).
+- Run `conda env create` from the NCLEdetector repo root (the environment file uses `pip -e .`).
 - If you prefer installing into an existing env, use `pip install -e .` from the repo root.
 
 macOS (Miniconda) notes:
@@ -45,14 +45,14 @@ macOS (Miniconda) notes:
 
 ```bash
 conda env create -f environment-mac.yml
-conda activate entdetect
+conda activate ncledetector
 ```
 
 - On Apple Silicon, if a dependency is missing for `osx-arm64`, a common workaround is:
 
 ```bash
 CONDA_SUBDIR=osx-64 conda env create -f environment-mac.yml
-conda activate entdetect
+conda activate ncledetector
 ```
 
 ## Tutorials
@@ -71,8 +71,8 @@ python scripts/run_OP_on_simulation_traj.py --help
 ## Package Structure
 
 ```
-EntDetect/
-├── EntDetect/                    # Main package
+NCLEdetector/
+├── NCLEdetector/                    # Main package
 │   ├── __init__.py
 │   ├── gaussian_entanglement.py  # Core entanglement calculations
 │   ├── clustering.py             # Entanglement clustering methods
@@ -129,17 +129,17 @@ Detailed documentation for each module:
 
 ## Citation
 
-If you use EntDetect in your research, please cite:
+If you use NCLEdetector in your research, please cite:
 
 ```bibtex
-@software{entdetect2024,
-  title={EntDetect: A Python Package for Protein Entanglement Analysis},
+@software{ncledetector2024,
+  title={NCLEdetector: A Python Package for Protein Entanglement Analysis},
   author={Ian Sitarik},
   author={Yang Jiang},
   author={Hyebin Song},
   author={Edward O'Brien},
   year={2026},
-  url={https://github.com/obrien-lab-psu/EntDetect}
+  url={https://github.com/obrien-lab-psu/NCLEdetector}
 }
 ```
 

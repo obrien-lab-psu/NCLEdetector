@@ -11,7 +11,7 @@ The frame extraction step is system-specific and typically done with MDAnalysis 
 ```python
 import MDAnalysis as mda
 
-DATASTORE   = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE   = "/scratch/ims86/NCLEdetector_Datastore"
 CG_TRAJ_DIR = f"{DATASTORE}/user_input/cg_trajectories"
 OUTDIR      = f"{DATASTORE}/outputs/workflow3"
 
@@ -32,9 +32,9 @@ for i, ts in enumerate(u.trajectory[-335:]):   # last 335 frames
 ### 3b. Back-map each Cα frame to all-atom
 
 ```python
-from EntDetect.change_resolution import BackMapping
+from NCLEdetector.change_resolution import BackMapping
 
-DATASTORE = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE = "/scratch/ims86/NCLEdetector_Datastore"
 OUTDIR    = f"{DATASTORE}/outputs/workflow3"
 
 # cg_pdb : a single CG (Cα-only) PDB frame extracted above

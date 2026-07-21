@@ -1,12 +1,12 @@
 Below is a README-ready Markdown block you can give users. I’d recommend **GoCommands (`gocmd`)** as the primary route because CyVerse documents it as a lightweight cross-platform command-line tool for Data Store transfer/sync, including checksum verification, diff-based syncing, and multithreaded transfers. ([CyVerse Learning Materials][1])
 
 ````markdown
-# Downloading the EntDetect CyVerse Data Store Dataset from the Command Line
+# Downloading the NCLEdetector CyVerse Data Store Dataset from the Command Line
 
 This dataset is hosted on the CyVerse Data Store:
 
 ```text
-/iplant/home/shared/NCEMS/EntDetect/EntDetect_Datastore
+/iplant/home/shared/NCEMS/NCLEdetector/NCLEdetector_Datastore
 ````
 
 For large downloads, **do not use the browser download button**. Use the command line so the transfer can be resumed, verified, and run in a terminal multiplexer such as `tmux` or `screen`.
@@ -76,7 +76,7 @@ password: <your CyVerse password>
 Test access:
 
 ```bash
-gocmd ls /iplant/home/shared/NCEMS/EntDetect/EntDetect_Datastore
+gocmd ls /iplant/home/shared/NCEMS/NCLEdetector/NCLEdetector_Datastore
 ```
 
 ### Option B: Anonymous/public access
@@ -100,7 +100,7 @@ gocmd init
 Then test:
 
 ```bash
-gocmd ls /iplant/home/shared/NCEMS/EntDetect/EntDetect_Datastore
+gocmd ls /iplant/home/shared/NCEMS/NCLEdetector/NCLEdetector_Datastore
 ```
 
 If anonymous access fails, use a CyVerse account or confirm that the folder has been shared with `anonymous` read permissions, not only the CyVerse `public` user.
@@ -125,14 +125,14 @@ gocmd get \
   -k \
   --diff \
   --thread_num 8 \
-  /iplant/home/shared/NCEMS/EntDetect/EntDetect_Datastore \
+  /iplant/home/shared/NCEMS/NCLEdetector/NCLEdetector_Datastore \
   /path/to/local/downloads/
 ```
 
 This will create:
 
 ```text
-/path/to/local/downloads/EntDetect_Datastore/
+/path/to/local/downloads/NCLEdetector_Datastore/
 ```
 
 ### What the options mean
@@ -170,7 +170,7 @@ gocmd get \
   -k \
   --diff \
   --thread_num 8 \
-  /iplant/home/shared/NCEMS/EntDetect/EntDetect_Datastore \
+  /iplant/home/shared/NCEMS/NCLEdetector/NCLEdetector_Datastore \
   /path/to/local/downloads/
 ```
 
@@ -183,7 +183,7 @@ Because `--diff` is enabled, files that already downloaded successfully should b
 For very large downloads, run the command inside `tmux` so it continues even if your SSH session disconnects.
 
 ```bash
-tmux new -s entdetect_download
+tmux new -s ncledetector_download
 ```
 
 Run the `gocmd get ...` command inside the session.
@@ -197,7 +197,7 @@ Ctrl-b d
 Reconnect later with:
 
 ```bash
-tmux attach -t entdetect_download
+tmux attach -t ncledetector_download
 ```
 
 ---
@@ -209,15 +209,15 @@ On an HPC or cloud instance, download to a high-capacity scratch directory rathe
 Example:
 
 ```bash
-mkdir -p /scratch/$USER/EntDetect_download
+mkdir -p /scratch/$USER/NCLEdetector_download
 
 gocmd get \
   --progress \
   -k \
   --diff \
   --thread_num 8 \
-  /iplant/home/shared/NCEMS/EntDetect/EntDetect_Datastore \
-  /scratch/$USER/EntDetect_download/
+  /iplant/home/shared/NCEMS/NCLEdetector/NCLEdetector_Datastore \
+  /scratch/$USER/NCLEdetector_download/
 ```
 
 ---
@@ -235,7 +235,7 @@ https://data.cyverse.org/dav
 Dataset path:
 
 ```text
-https://data.cyverse.org/dav/iplant/home/shared/NCEMS/EntDetect/EntDetect_Datastore
+https://data.cyverse.org/dav/iplant/home/shared/NCEMS/NCLEdetector/NCLEdetector_Datastore
 ```
 
 For anonymous access, CyVerse WebDAV may be accessed using:
@@ -293,7 +293,7 @@ gocmd get \
   -k \
   --diff \
   --thread_num 8 \
-  /iplant/home/shared/NCEMS/EntDetect/EntDetect_Datastore \
+  /iplant/home/shared/NCEMS/NCLEdetector/NCLEdetector_Datastore \
   /path/to/local/downloads/
 ```
 

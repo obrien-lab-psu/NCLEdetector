@@ -19,7 +19,7 @@ Performs logistic regression analysis to quantify associations between experimen
 
 #### Initialization
 ```python
-from EntDetect.statistics import ProteomeLogisticRegression
+from NCLEdetector.statistics import ProteomeLogisticRegression
 
 ProtRegression = ProteomeLogisticRegression(
     dataframe_files="proteome_data/",
@@ -75,7 +75,7 @@ Performs Monte Carlo optimization to identify protein groups with poor per-prote
 
 #### Initialization
 ```python
-from EntDetect.statistics import MonteCarlo
+from NCLEdetector.statistics import MonteCarlo
 
 MC = MonteCarlo(
     dataframe_files="proteome_data/",
@@ -149,7 +149,7 @@ Analyzes statistical properties of protein folding pathways from temperature que
 
 #### Initialization
 ```python
-from EntDetect.statistics import FoldingPathwayStats
+from NCLEdetector.statistics import FoldingPathwayStats
 
 FP = FoldingPathwayStats(
     msm_data=msm_dataframe,
@@ -187,7 +187,7 @@ pathway_stats = FP.analyze_pathways()
 ### Population-Level Logistic Regression
 
 ```python
-from EntDetect.statistics import ProteomeLogisticRegression
+from NCLEdetector.statistics import ProteomeLogisticRegression
 
 # Initialize regression analysis for proteome study
 ProtRegression = ProteomeLogisticRegression(
@@ -221,7 +221,7 @@ results.to_csv("population_regression_results.csv", index=False)
 ### Monte Carlo Group Optimization
 
 ```python
-from EntDetect.statistics import MonteCarlo
+from NCLEdetector.statistics import MonteCarlo
 
 # Set up Monte Carlo optimization
 MC = MonteCarlo(
@@ -260,7 +260,7 @@ print("Optimization complete! Check output directory for results.")
 
 ```python
 import pandas as pd
-from EntDetect.statistics import FoldingPathwayStats
+from NCLEdetector.statistics import FoldingPathwayStats
 
 # Load MSM trajectory data
 msm_data = pd.read_csv("MSM_analysis/trajectory_data.csv")

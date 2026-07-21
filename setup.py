@@ -4,20 +4,20 @@ with open('README.md', 'r', encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='EntDetect',
+    name='NCLEdetector',
     version='2.0.0',
     description='Non-covalent Lasso-like Entanglement (NCLE) Detection in Protein Structures and trajectories',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/obrien-lab-psu/EntDetect',
+    url='https://github.com/obrien-lab-psu/NCLEdetector',
     project_urls={
-        'Source': 'https://github.com/obrien-lab-psu/EntDetect',
-        'Bug Tracker': 'https://github.com/obrien-lab-psu/EntDetect/issues',
+        'Source': 'https://github.com/obrien-lab-psu/NCLEdetector',
+        'Bug Tracker': 'https://github.com/obrien-lab-psu/NCLEdetector/issues',
     },
     packages=find_packages(),
     include_package_data=True,
     package_data={
-        'EntDetect': [
+        'NCLEdetector': [
             'resources/calc_Q.pl',
             'resources/calc_K.pl',
             'resources/pulchra',

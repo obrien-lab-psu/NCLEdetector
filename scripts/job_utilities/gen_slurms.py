@@ -21,13 +21,13 @@ run_OP_on_simulation_traj_template_slurm = """#!/bin/bash
 # Expected runtime: 12–20 h for G (Topoly, 6667 frames, nproc=10)
 # Submit: sbatch assets/slurm/scripts/run_OP_traj{traj_num}.slurm
 
-cd /storage/group/epo2/default/ims86/git_repos/EntDetect
+cd /storage/group/epo2/default/ims86/git_repos/NCLEdetector
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 set -euo pipefail
 
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 REFSTRUCT=$DATASTORE/user_input/reference_structures
 
 mkdir -p $DATASTORE/outputs/workflow2/OP/G
@@ -95,13 +95,13 @@ run_OP_on_simulation_traj_template_slurm_v2 = """#!/bin/bash
 # Expected runtime: 12–20 h for G (Topoly, 6667 frames, nproc=10)
 # Submit: sbatch assets/slurm/scripts/run_OP_traj{traj_num}.slurm
 
-cd /storage/group/epo2/default/ims86/git_repos/EntDetect
+cd /storage/group/epo2/default/ims86/git_repos/NCLEdetector
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 set -euo pipefail
 
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 REFSTRUCT=$DATASTORE/user_input/reference_structures
 
 mkdir -p $DATASTORE/outputs/workflow2/OP_AA/SASA
@@ -145,13 +145,13 @@ run_OP_on_simulation_traj_template_slurm_v3 = """#!/bin/bash
 # Expected runtime: 12–20 h for G (Topoly, 6667 frames, nproc=10)
 # Submit: sbatch assets/slurm/scripts/run_OP_traj{traj_num}.slurm
 
-cd /storage/group/epo2/default/ims86/git_repos/EntDetect
+cd /storage/group/epo2/default/ims86/git_repos/NCLEdetector
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 set -euo pipefail
 
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 REFSTRUCT=$DATASTORE/user_input/reference_structures
 
 mkdir -p $DATASTORE/outputs/workflow2/OP/G

@@ -1,6 +1,6 @@
-from EntDetect.gaussian_entanglement import GaussianEntanglement
-from EntDetect.clustering import ClusterNativeEntanglements, MSMNonNativeEntanglementClustering
-from EntDetect.compare_sim2exp import MassSpec
+from NCLEdetector.gaussian_entanglement import GaussianEntanglement
+from NCLEdetector.clustering import ClusterNativeEntanglements, MSMNonNativeEntanglementClustering
+from NCLEdetector.compare_sim2exp import MassSpec
 
 if __package__ in {None, ""}:
     import sys

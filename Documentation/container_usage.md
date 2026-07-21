@@ -1,6 +1,6 @@
-# Using EntDetect via Container (Apptainer/Singularity)
+# Using NCLEdetector via Container (Apptainer/Singularity)
 
-This guide shows how to run EntDetect without creating a local Conda environment.
+This guide shows how to run NCLEdetector without creating a local Conda environment.
 Instead, pull the published container image from GHCR and run commands inside it.
 
 ---
@@ -33,14 +33,14 @@ singularity version
 From your project directory:
 
 ```bash
-cd /path/to/EntDetect
-apptainer pull -F entdetect-latest.sif docker://ghcr.io/obrien-lab-psu/entdetect:latest
+cd /path/to/NCLEdetector
+apptainer pull -F ncledetector-latest.sif docker://ghcr.io/obrien-lab-psu/ncledetector:latest
 ```
 
 If you want a specific released tag:
 
 ```bash
-apptainer pull -F entdetect-vX.Y.Z.sif docker://ghcr.io/obrien-lab-psu/entdetect:vX.Y.Z
+apptainer pull -F ncledetector-vX.Y.Z.sif docker://ghcr.io/obrien-lab-psu/ncledetector:vX.Y.Z
 ```
 
 If you see "manifest unknown", the tag has not been published yet. Use latest or wait for the tag-triggered container workflow to finish.
@@ -64,26 +64,26 @@ Enter your GitHub PAT (with package read scope) when prompted.
 Run the built-in smoke test:
 
 ```bash
-apptainer exec entdetect-latest.sif bash /opt/EntDetect/container/smoke_test.sh
+apptainer exec ncledetector-latest.sif bash /opt/NCLEdetector/container/smoke_test.sh
 ```
 
 You should see: SMOKE TEST PASSED
 
 ---
 
-## Run EntDetect scripts inside the container
+## Run NCLEdetector scripts inside the container
 
 Use bind mounts so your input/output paths are visible in the container.
 
 Example using an HPC datastore:
 
 ```bash
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 apptainer exec \
   --bind "$DATASTORE:$DATASTORE" \
   --bind "$PWD:$PWD" \
   --pwd "$PWD" \
-  entdetect-latest.sif \
+  ncledetector-latest.sif \
   python scripts/run_nativeNCLE.py --help
 ```
 
@@ -94,7 +94,7 @@ apptainer exec \
   --bind "$DATASTORE:$DATASTORE" \
   --bind "$PWD:$PWD" \
   --pwd "$PWD" \
-  entdetect-latest.sif \
+  ncledetector-latest.sif \
   python scripts/run_OP_on_simulation_traj.py --config scripts/configs/workflow2_MSM_config.json
 ```
 

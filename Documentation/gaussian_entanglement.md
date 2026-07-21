@@ -18,7 +18,7 @@ Main class for entanglement calculations and analysis.
 
 #### Initialization
 ```python
-from EntDetect.gaussian_entanglement import GaussianEntanglement
+from NCLEdetector.gaussian_entanglement import GaussianEntanglement
 
 ge = GaussianEntanglement(g_threshold=0.6, density=0.0, Calpha=False, CG=False)
 ```
@@ -90,7 +90,7 @@ hq_result = ge.select_high_quality_entanglements(
 ### Basic Native Entanglement Analysis
 
 ```python
-from EntDetect.gaussian_entanglement import GaussianEntanglement
+from NCLEdetector.gaussian_entanglement import GaussianEntanglement
 
 # Initialize for experimental structure analysis
 ge = GaussianEntanglement(g_threshold=0.6, Calpha=False, CG=False)
@@ -117,7 +117,7 @@ hq_ents = ge.select_high_quality_entanglements(
 ### Multi-Chain Analysis
 
 ```python
-from EntDetect.gaussian_entanglement import GaussianEntanglement
+from NCLEdetector.gaussian_entanglement import GaussianEntanglement
 import MDAnalysis as mda
 
 # Initialize
@@ -175,7 +175,7 @@ python scripts/run_nativeNCLE.py \
   --organism Ecoli
 ```
 
-**Note:** The conversion utility automatically sets chain ID to 'A' for compatibility with EntDetect.
+**Note:** The conversion utility automatically sets chain ID to 'A' for compatibility with NCLEdetector.
 
 ## Integration with Scripts
 
@@ -341,7 +341,7 @@ A dictionary containing output file paths and filtered entanglement data.
 
 ## Usage Example
 ```python
-from EntDetect.gaussian_entanglement import GaussianEntanglement
+from NCLEdetector.gaussian_entanglement import GaussianEntanglement
 
 ge = GaussianEntanglement(g_threshold=0.6, density=0.0, Calpha=False, CG=False)
 native_ent = ge.calculate_native_entanglements("protein_clean.pdb", outdir="results/Native_GE", ID="protein1_A", chain="A")
@@ -359,4 +359,4 @@ hq_ent = ge.select_high_quality_entanglements(native_ent['outfile'], "protein_cl
 - **Coarse-Grained Models**: Use `--cg` flag with run_nativeNCLE.py and set `Calpha=True, CG=True` for GaussianEntanglement initialization.
 - **CHARMM Format**: Convert .cor/.psf files to .pdb using the `convert_cor_psf_to_pdb.py` utility before analysis.
 
-For further details, refer to the source code in `EntDetect/gaussian_entanglement.py` or the package documentation.
+For further details, refer to the source code in `NCLEdetector/gaussian_entanglement.py` or the package documentation.

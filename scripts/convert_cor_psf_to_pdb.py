@@ -6,7 +6,7 @@ Usage:
     python scripts/convert_cor_psf_to_pdb.py --cor structure.cor --psf structure.psf --output structure.pdb
 
 This script uses MDAnalysis to read CHARMM coordinate (.cor/.crd) and topology (.psf) files
-and writes them as a single PDB file that can be used with EntDetect analysis tools.
+and writes them as a single PDB file that can be used with NCLEdetector analysis tools.
 """
 
 import argparse

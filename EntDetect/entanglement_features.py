@@ -12,7 +12,7 @@ from Bio import PDB
 from scipy.spatial.distance import pdist, squareform
 import MDAnalysis as mda
 import requests, sys
-from EntDetect._logging import setup_logger
+from NCLEdetector._logging import setup_logger
 np.set_printoptions(linewidth=np.inf, precision=4)
 pd.set_option('display.max_rows', None)
 

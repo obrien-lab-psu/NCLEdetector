@@ -1,4 +1,4 @@
-# Rename Plan: EntDetect -> NCLEdetector
+# Rename Plan: NCLEdetector -> NCLEdetector
 
 ## Goal
 Rename the repository and package safely while keeping a rollback path and minimizing user disruption.
@@ -19,7 +19,7 @@ Use a two-phase approach:
 4. Rename the remote repository (GitHub UI or gh CLI).
 5. Update local origin URL to the new remote path.
 6. Verify fetch/push still works.
-7. Rename local folder from EntDetect to NCLEdetector.
+7. Rename local folder from NCLEdetector to NCLEdetector.
 8. Re-open the renamed folder in VS Code.
 
 Why first:
@@ -33,9 +33,9 @@ Why first:
 Create a branch specifically for the rename sweep.
 
 Scope:
-- Directory rename: EntDetect -> NCLEdetector
-- Import rename: EntDetect -> NCLEdetector
-- Lowercase references: entdetect -> ncledetector where appropriate
+- Directory rename: NCLEdetector -> NCLEdetector
+- Import rename: NCLEdetector -> NCLEdetector
+- Lowercase references: ncledetector -> ncledetector where appropriate
 - Docs and config updates
 
 Important caution:
@@ -60,7 +60,7 @@ Suggested execution order:
 - setup.py
 - pyproject.toml
 - README.md
-- EntDetect/__init__.py
+- NCLEdetector/__init__.py
 - scripts/run_compare_sim2exp.py
 - scripts/configs/workflow3_consistency_config.json
 - container/Dockerfile
@@ -74,7 +74,7 @@ Also inspect:
 
 ## Compatibility Recommendation (Optional but Strongly Suggested)
 
-For one release cycle, keep a compatibility shim package named EntDetect that re-exports from NCLEdetector.
+For one release cycle, keep a compatibility shim package named NCLEdetector that re-exports from NCLEdetector.
 
 Benefits:
 - Prevents immediate breakage for existing user scripts/imports.

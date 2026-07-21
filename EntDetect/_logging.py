@@ -1,16 +1,16 @@
 """
-Internal logging helper for EntDetect.
+Internal logging helper for NCLEdetector.
 
 Usage within a class ``__init__``::
 
-    from EntDetect._logging import setup_logger
+    from NCLEdetector._logging import setup_logger
     self.logger = setup_logger('ClassName', outdir=self.outdir, ID=self.ID, log_level=log_level)
 
-Users of the package can control verbosity at the top-level ``EntDetect`` logger::
+Users of the package can control verbosity at the top-level ``NCLEdetector`` logger::
 
     import logging
-    logging.getLogger('EntDetect').setLevel(logging.WARNING)   # suppress INFO
-    logging.getLogger('EntDetect').setLevel(logging.DEBUG)     # enable DEBUG
+    logging.getLogger('NCLEdetector').setLevel(logging.WARNING)   # suppress INFO
+    logging.getLogger('NCLEdetector').setLevel(logging.DEBUG)     # enable DEBUG
 
 """
 import logging
@@ -24,7 +24,7 @@ def setup_logger(
     log_level: int = logging.INFO,
 ) -> logging.Logger:
     """
-    Create and return a named logger for an EntDetect class.
+    Create and return a named logger for an NCLEdetector class.
 
     Parameters
     ----------
@@ -42,9 +42,9 @@ def setup_logger(
     Returns
     -------
     logging.Logger
-        Configured logger under the ``EntDetect.<name>`` hierarchy.
+        Configured logger under the ``NCLEdetector.<name>`` hierarchy.
     """
-    logger = logging.getLogger(f'EntDetect.{name}')
+    logger = logging.getLogger(f'NCLEdetector.{name}')
     logger.setLevel(log_level)
 
     # Avoid adding duplicate handlers when the class is re-instantiated

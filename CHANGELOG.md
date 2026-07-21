@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to EntDetect will be documented in this file.
+All notable changes to NCLEdetector will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- **BREAKING** `EntDetect.compare_sim2exp.MassSpec` — renamed `last_num_frames` → `n_analysis_frames` (trailing-frame analysis window shared by the MSM/G/Q/SASA/XP slicing) and `EntDetect.order_params.CollectOP` / `MassSpec`'s `n_frames` → `sasa_xp_frames_per_traj` (frames per trajectory stored in each SASA/XP file), to disambiguate the two previously same-named-sounding but distinct concepts. Updated `run_compare_sim2exp.py` CLI flags (`--last_num_frames`→`--n_analysis_frames`, `--n_frames`→`--sasa_xp_frames_per_traj`), config JSON keys, the workflow3 SLURM script, and documentation accordingly.
+- **BREAKING** `NCLEdetector.compare_sim2exp.MassSpec` — renamed `last_num_frames` → `n_analysis_frames` (trailing-frame analysis window shared by the MSM/G/Q/SASA/XP slicing) and `NCLEdetector.order_params.CollectOP` / `MassSpec`'s `n_frames` → `sasa_xp_frames_per_traj` (frames per trajectory stored in each SASA/XP file), to disambiguate the two previously same-named-sounding but distinct concepts. Updated `run_compare_sim2exp.py` CLI flags (`--last_num_frames`→`--n_analysis_frames`, `--n_frames`→`--sasa_xp_frames_per_traj`), config JSON keys, the workflow3 SLURM script, and documentation accordingly.
 
 ### Fixed
 - `scripts/run_compare_sim2exp.py` — `select_rep_structs(...)` was called with hardcoded `last_num_frames=67` instead of the config-derived value, causing representative-structure frame indices (and `info.txt` frame numbers) to be offset from the correct trailing-frame window whenever the configured analysis window differed from 67 frames.
@@ -28,15 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING** `run_montecarlo.py` — renamed `--outpath`→`--outdir` and `--tag`→`--ID` to match the underlying `MonteCarlo` API and the rest of the toolkit.
 - **BREAKING** `run_population_modeling.py` — renamed `--tag`→`--ID`.
 - **BREAKING** `run_compare_sim2exp.py` — removed the dead `--start`/`--end`/`--stride` flags (they were never used in the consistency test).
-- **BREAKING** `EntDetect.statistics.MonteCarlo.load_data(...)` — no longer takes `response_var` (it is reused from the constructor); `test_var` is auto-appended to the loaded columns when omitted from `reg_var`.
-- **BREAKING** `EntDetect.statistics` — `MSMStats` and `FoldingPathwayStats` moved to a one-init / path-based method API.
-- `EntDetect.compare_sim2exp.MassSpec.__init__` — added `sasa_dir`, `n_traj`, `n_frames`, `collect_jwalk_npy` parameters for in-constructor collection.
+- **BREAKING** `NCLEdetector.statistics.MonteCarlo.load_data(...)` — no longer takes `response_var` (it is reused from the constructor); `test_var` is auto-appended to the loaded columns when omitted from `reg_var`.
+- **BREAKING** `NCLEdetector.statistics` — `MSMStats` and `FoldingPathwayStats` moved to a one-init / path-based method API.
+- `NCLEdetector.compare_sim2exp.MassSpec.__init__` — added `sasa_dir`, `n_traj`, `n_frames`, `collect_jwalk_npy` parameters for in-constructor collection.
 - Documentation: substantial Workflow 2/3/4 tutorial and I/O-reference updates; fixed all broken table-of-contents anchors across the workflow tutorials.
 
 ### Fixed
-- `EntDetect/order_params.py` — G computation crashed with `Cluster_NativeEntanglements() got an unexpected keyword argument 'outfile'`; corrected the call (`ID=`), unblocking all G/OP runs on CG structures.
-- `EntDetect/compare_sim2exp.py` — Workflow 3 consistency test aligned SASA/XP OP arrays to the MSM by **trajectory number** instead of MSM position, fixing a silent misalignment (and dropped trajectories) when the MSM mapping already excludes mirror trajectories.
-- `EntDetect/statistics.py` — `MonteCarlo` now handles single-entry gene lists (`np.atleast_1d`).
+- `NCLEdetector/order_params.py` — G computation crashed with `Cluster_NativeEntanglements() got an unexpected keyword argument 'outfile'`; corrected the call (`ID=`), unblocking all G/OP runs on CG structures.
+- `NCLEdetector/compare_sim2exp.py` — Workflow 3 consistency test aligned SASA/XP OP arrays to the MSM by **trajectory number** instead of MSM position, fixing a silent misalignment (and dropped trajectories) when the MSM mapping already excludes mirror trajectories.
+- `NCLEdetector/statistics.py` — `MonteCarlo` now handles single-entry gene lists (`np.atleast_1d`).
 
 ## [1.2.0] - 2026-06-11
 
@@ -49,14 +49,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation: `workflow3_collection_test_results.md` — detailed test results and performance analysis for OP collection (superseded by notebook).
 
 ### Fixed
-- `EntDetect/order_params.py` — **NaN coordinate handling in SASA and XP methods**: Added robust detection and fallback mechanism for trajectory frames with NaN coordinates (corrupted frames). When NaN detected:
+- `NCLEdetector/order_params.py` — **NaN coordinate handling in SASA and XP methods**: Added robust detection and fallback mechanism for trajectory frames with NaN coordinates (corrupted frames). When NaN detected:
   - **SASA method**: Uses previous frame's per-residue SASA values with current frame's timestamp; preserves frame indexing
   - **XP method**: Copies previous frame's cross-link DataFrame and updates Frame column to current index; supports both sequential and parallel execution modes
   - Frames with NaN are no longer skipped; frame counter increments normally to maintain alignment with original trajectory indexing
   - Comprehensive logging reports which frames/atoms contain NaN and whether fallback was successful
   - All 1000 trajectories now complete SASA/XP collection without errors or gaps
-- `EntDetect/order_params.py` — `CollectOP.collect_SASA()` now correctly converts units from nm² to Ų (×100) and properly handles trajectories with missing files (fills with NaN).
-- `EntDetect/order_params.py` — `CollectOP.collect_Jwalk()` now correctly parses XP file column names and maps `SASD` → `'Jwalk'` in output dictionary.
+- `NCLEdetector/order_params.py` — `CollectOP.collect_SASA()` now correctly converts units from nm² to Ų (×100) and properly handles trajectories with missing files (fills with NaN).
+- `NCLEdetector/order_params.py` — `CollectOP.collect_Jwalk()` now correctly parses XP file column names and maps `SASD` → `'Jwalk'` in output dictionary.
 
 ### Changed
 - **Workflow 2 documentation** (`workflow2_trajectory_analysis.md`):
@@ -83,8 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - SLURM scripts (`assets/slurm/scripts/run_OP_traj*.slurm`): corrected output directory paths from `OP_demo/` → `OP/` and `OP_demo_AA/` → `OP_AA/` to match production layout.
-- `EntDetect/clustering.py`: parallelised non-native entanglement clustering; fixed MSM logger output ordering.
-- `EntDetect/gaussian_entanglement.py`: refactored GE combination logic to support chunked pickle merging.
+- `NCLEdetector/clustering.py`: parallelised non-native entanglement clustering; fixed MSM logger output ordering.
+- `NCLEdetector/gaussian_entanglement.py`: refactored GE combination logic to support chunked pickle merging.
 - `Documentation/workflow2_trajectory_analysis.md`: corrected output-file schemas, column names, and parameter names throughout (e.g. `tarj_type_col` typo in `MSMStats`/`FoldingPathwayStats`).
 
 ## [1.1.4] - 2026-03-03
@@ -131,7 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Prevents out-of-memory errors on large structures
 
 - **Version Tracking**
-  - Added `__version__` to `EntDetect/__init__.py`
+  - Added `__version__` to `NCLEdetector/__init__.py`
   - Added CHANGELOG.md for release documentation
 
 ### Fixed
@@ -152,10 +152,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical Details
 - **Files Modified**:
-  - `EntDetect/gaussian_entanglement.py` - Added ENT detection methods, fixed crossing validation
-  - `EntDetect/clustering.py` - Removed placeholder logic
+  - `NCLEdetector/gaussian_entanglement.py` - Added ENT detection methods, fixed crossing validation
+  - `NCLEdetector/clustering.py` - Removed placeholder logic
   - `scripts/run_nativeNCLE.py` - Added CLI argument, AF model auto-optimization
-  - `EntDetect/__init__.py` - Added version and package metadata
+  - `NCLEdetector/__init__.py` - Added version and package metadata
   - `setup.py` - Updated version to 0.2.0
 
 ## [0.1.0] - Initial Release

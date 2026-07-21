@@ -19,7 +19,7 @@ Main class for comparing simulation results with experimental mass spectrometry 
 
 #### Initialization
 ```python
-from EntDetect.compare_sim2exp import MassSpec
+from NCLEdetector.compare_sim2exp import MassSpec
 
 MS = MassSpec(
     msm_data_file="msm_mapping.csv",
@@ -130,7 +130,7 @@ MS.select_rep_structs(
 ### Basic Consistency Analysis
 
 ```python
-from EntDetect.compare_sim2exp import MassSpec
+from NCLEdetector.compare_sim2exp import MassSpec
 
 # Initialize comprehensive analysis
 MS = MassSpec(
@@ -373,7 +373,7 @@ Selects representative structures from the simulation that are most consistent w
 
 **Typical Usage:**
 ```python
-from EntDetect.compare_sim2exp import MassSpec
+from NCLEdetector.compare_sim2exp import MassSpec
 
 MS = MassSpec(...)
 consist_data_file, consist_result_file = MS.LiP_XL_MS_ConsistencyTest()
@@ -388,7 +388,7 @@ MS.select_rep_structs(
 ## Usage Example
 
 ```python
-from EntDetect.compare_sim2exp import MassSpec
+from NCLEdetector.compare_sim2exp import MassSpec
 
 MS = MassSpec(
     msm_data_file='msm_data.csv',
@@ -421,5 +421,5 @@ MS.select_rep_structs(
 **Notes:**
 - The `compare_to_experiment` method does **not** exist; use `LiP_XL_MS_ConsistencyTest` and `select_rep_structs` for the main workflow.
 - Output directories and files will be created as needed.
-- For further details, refer to the source code in `EntDetect/compare_sim2exp.py` or the package documentation.
+- For further details, refer to the source code in `NCLEdetector/compare_sim2exp.py` or the package documentation.
 

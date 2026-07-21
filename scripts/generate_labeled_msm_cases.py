@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 import sys
 
-DATASTORE = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE = "/scratch/ims86/NCLEdetector_Datastore"
 OUTDIR = f"{DATASTORE}/outputs/workflow2"
 
 # Load the base MSM mapping

@@ -1,5 +1,5 @@
-from EntDetect.order_params import CalculateOP
-from EntDetect._logging import setup_logger
+from NCLEdetector.order_params import CalculateOP
+from NCLEdetector._logging import setup_logger
 
 """
 Calculate any combination of order parameters on CG and/or all-atom trajectories.
@@ -231,7 +231,7 @@ def main(argv=None):
     log_id    = f"{ID}_Traj{traj}"
     logdir    = args.logdir if args.logdir is not None else outdir
 
-    # Pre-configure all EntDetect loggers so they share one log file
+    # Pre-configure all NCLEdetector loggers so they share one log file
     logger = setup_logger('run_OP', outdir=logdir, ID=log_id, log_level=log_level)
     for _cls in ['CalculateOP', 'GaussianEntanglement']:
         setup_logger(_cls, outdir=logdir, ID=log_id, log_level=log_level)

@@ -13,7 +13,7 @@ import logging
 import sys, getopt, math, os, time, traceback, glob, copy
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from EntDetect._logging import setup_logger
+from NCLEdetector._logging import setup_logger
 from scipy.cluster.hierarchy import fcluster, linkage, cophenet
 from scipy.optimize import linear_sum_assignment
 try:

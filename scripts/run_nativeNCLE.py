@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-from EntDetect.gaussian_entanglement import GaussianEntanglement
-from EntDetect.clustering import ClusterNativeEntanglements
-from EntDetect.entanglement_features import FeatureGen
-from EntDetect._logging import setup_logger
+from NCLEdetector.gaussian_entanglement import GaussianEntanglement
+from NCLEdetector.clustering import ClusterNativeEntanglements
+from NCLEdetector.entanglement_features import FeatureGen
+from NCLEdetector._logging import setup_logger
 
 """
 Script to calculate native Gaussian entanglements in a given structure (PDB or COR file),
@@ -10,8 +10,8 @@ filter for high-quality entanglements, cluster them, and generate entanglement f
 
 Usage example (1ZMR / ecPGK):
     python scripts/run_nativeNCLE.py \\
-        --pdb_file  /scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean.pdb \\
-        --outdir  /scratch/ims86/EntDetect_Datastore/outputs/workflow1 \\
+        --pdb_file  /scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/1zmr_model_clean.pdb \\
+        --outdir  /scratch/ims86/NCLEdetector_Datastore/outputs/workflow1 \\
         --ID      1ZMR \\
         --chain   A \\
         --organism Ecoli \\
@@ -135,7 +135,7 @@ def main(argv=None):
     os.makedirs(outdir, exist_ok=True)
     ID = args.ID if args.ID is not None else os.path.splitext(os.path.basename(pdb_file))[0]
     logdir = args.logdir if args.logdir is not None else outdir
-    # Pre-configure all EntDetect loggers for this run so they share one log file
+    # Pre-configure all NCLEdetector loggers for this run so they share one log file
     logger = setup_logger('run_nativeNCLE', outdir=logdir, ID=ID, log_level=log_level)
     for _cls in ['GaussianEntanglement', 'ClusterNativeEntanglements', 'FeatureGen']:
         setup_logger(_cls, outdir=logdir, ID=ID, log_level=log_level)

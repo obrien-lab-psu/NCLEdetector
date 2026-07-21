@@ -20,7 +20,7 @@ Main class for order parameter calculations across simulation trajectories.
 
 #### Initialization
 ```python
-from EntDetect.order_params import CalculateOP
+from NCLEdetector.order_params import CalculateOP
 
 CalcOP = CalculateOP(
     outdir="results/OP/",
@@ -93,7 +93,7 @@ K_data = CalcOP.K()
 ### Basic Order Parameter Analysis
 
 ```python
-from EntDetect.order_params import CalculateOP
+from NCLEdetector.order_params import CalculateOP
 
 # Initialize for coarse-grained trajectory
 CalcOP = CalculateOP(
@@ -239,7 +239,7 @@ These scripts call the relevant methods in `CalculateOP` to compute and output t
 ## Example Workflow
 
 ```python
-from EntDetect.order_params import CalculateOP
+from NCLEdetector.order_params import CalculateOP
 
 CalcOP = CalculateOP(
     outdir='results',
@@ -265,5 +265,5 @@ XPdata = CalcOP.XP(pdb_file='protein.pdb')
 **Notes:**
 - The class is designed to be used in automated pipelines for large-scale simulation analysis.
 - Output files and formats are determined by the calling scripts.
-- For further details, refer to the source code in `EntDetect/order_params.py` or the package documentation.
+- For further details, refer to the source code in `NCLEdetector/order_params.py` or the package documentation.
 

@@ -45,7 +45,7 @@ Compute order parameters (Q, G, K, SASA, XP) across simulation trajectories, clu
 Tutorial outputs from re-running the steps below are written to:
 
 ```bash
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 OUTDIR=$DATASTORE/outputs/workflow2
 ```
 
@@ -98,7 +98,7 @@ AA_TRAJ_DIR=$DATASTORE/user_input/aa_trajectories
 ## Step 0. Activate your environment and set paths
 ```bash
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 ```
 
 ---
@@ -108,10 +108,10 @@ conda activate entdetect
 Compute the three canonical order parameters for the coarse-grained trajectory using the parameters from `assets/slurm/scripts/run_OP_traj420.slurm`.
 
 ```python
-from EntDetect.order_params import CalculateOP
+from NCLEdetector.order_params import CalculateOP
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-DATASTORE    = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE    = "/scratch/ims86/NCLEdetector_Datastore"
 REFSTRUCT    = f"{DATASTORE}/user_input/reference_structures"
 CG_TRAJ_DIR  = f"{DATASTORE}/user_input/cg_trajectories"
 AA_TRAJ_DIR  = f"{DATASTORE}/user_input/aa_trajectories"
@@ -231,7 +231,7 @@ For direct CLI usage, pass `--CG --Calpha` for the CG `Q/G/K` runs. For the AA `
 ```bash
 # ── Activation ──────────────────────────────────────────────────────────────────
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 # ── Config files ───────────────────────────────────────────────────────────────
 CFG_OP=scripts/configs/workflow2_OP_config.json
@@ -255,13 +255,13 @@ python scripts/run_OP_on_simulation_traj.py \
 python scripts/run_OP_on_simulation_traj.py \
         --config $CFG_OP_LAST335 \
         --Traj 421 \
-        --DCD /scratch/ims86/EntDetect_Datastore/user_input/cg_trajectories/421_prod.dcd
+        --DCD /scratch/ims86/NCLEdetector_Datastore/user_input/cg_trajectories/421_prod.dcd
 ```
 
 Container equivalent (same configs and optional CLI override):
 
 ```bash
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 CFG_OP=scripts/configs/workflow2_OP_config.json
 CFG_OP_LAST335=scripts/configs/workflow2_OP_last335_config.json
 CFG_OP_AA_LAST335=scripts/configs/workflow2_OP_AA_last335_config.json
@@ -270,32 +270,32 @@ apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_OP_on_simulation_traj.py --config "$CFG_OP"
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_OP_on_simulation_traj.py --config "$CFG_OP_LAST335"
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_OP_on_simulation_traj.py --config "$CFG_OP_AA_LAST335"
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_OP_on_simulation_traj.py \
         --config "$CFG_OP_LAST335" \
         --Traj 421 \
-        --DCD /scratch/ims86/EntDetect_Datastore/user_input/cg_trajectories/421_prod.dcd
+        --DCD /scratch/ims86/NCLEdetector_Datastore/user_input/cg_trajectories/421_prod.dcd
 ```
 
 Config file example 1 (matches `scripts/configs/workflow2_OP_config.json`):
@@ -304,13 +304,13 @@ Config file example 1 (matches `scripts/configs/workflow2_OP_config.json`):
 {
     "Traj": "420",
     "ID": "1ZMR",
-    "PSF": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean_ca.psf",
-    "COR": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean_ca.cor",
-    "DCD": "/scratch/ims86/EntDetect_Datastore/user_input/cg_trajectories/420_prod.dcd",
-    "sec_elements": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/secondary_struc_defs.txt",
-    "domain": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/domain_def.dat",
-    "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP",
-    "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP/logs",
+    "PSF": "/scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/1zmr_model_clean_ca.psf",
+    "COR": "/scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/1zmr_model_clean_ca.cor",
+    "DCD": "/scratch/ims86/NCLEdetector_Datastore/user_input/cg_trajectories/420_prod.dcd",
+    "sec_elements": "/scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/secondary_struc_defs.txt",
+    "domain": "/scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/domain_def.dat",
+    "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP",
+    "logdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP/logs",
     "start": 0,
     "ops": ["Q", "G", "K"],
     "CG": true,
@@ -330,13 +330,13 @@ Config file example 2 (matches `scripts/configs/workflow2_OP_last335_config.json
 {
     "Traj": "420",
     "ID": "1ZMR",
-    "PSF": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean_ca.psf",
-    "COR": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean_ca.cor",
-    "DCD": "/scratch/ims86/EntDetect_Datastore/user_input/cg_trajectories/420_prod.dcd",
-    "sec_elements": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/secondary_struc_defs.txt",
-    "domain": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/domain_def.dat",
-    "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last335",
-    "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last335/logs",
+    "PSF": "/scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/1zmr_model_clean_ca.psf",
+    "COR": "/scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/1zmr_model_clean_ca.cor",
+    "DCD": "/scratch/ims86/NCLEdetector_Datastore/user_input/cg_trajectories/420_prod.dcd",
+    "sec_elements": "/scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/secondary_struc_defs.txt",
+    "domain": "/scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/domain_def.dat",
+    "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP_last335",
+    "logdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP_last335/logs",
     "start": 6332,
     "ops": ["Q", "G", "K"],
     "CG": true,
@@ -353,15 +353,15 @@ Config file example 3 (matches `scripts/configs/workflow2_OP_AA_last335_config.j
 {
     "Traj": "420",
     "ID": "1ZMR",
-    "PSF": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean.pdb",
-    "DCD": "/scratch/ims86/EntDetect_Datastore/user_input/aa_trajectories/420_prod_aa.dcd",
-    "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA_last335",
-    "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA_last335/logs",
+    "PSF": "/scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/1zmr_model_clean.pdb",
+    "DCD": "/scratch/ims86/NCLEdetector_Datastore/user_input/aa_trajectories/420_prod_aa.dcd",
+    "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP_AA_last335",
+    "logdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP_AA_last335/logs",
     "start": 0,
     "ops": ["SASA", "XP"],
     "CG": false,
     "Calpha": false,
-    "pdb_file": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean.pdb",
+    "pdb_file": "/scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/1zmr_model_clean.pdb",
     "nproc": 10,
     "log_level": "INFO"
 }
@@ -604,15 +604,15 @@ for pkl in $DATASTORE/outputs/workflow2/OP_last335/G/Combined_GE/*.pkl; do
     echo "$num,$pkl"
 done >> $DATASTORE/user_input/metadata/trajnum2file.txt
 ```
-If you used the `--chunk_frames` argument when calculating G, the `.pkl` files will be chunked and you must specify which chunk to use for each trajectory. EntDetect currently does not support using multiple chunks for a single trajectory number.
+If you used the `--chunk_frames` argument when calculating G, the `.pkl` files will be chunked and you must specify which chunk to use for each trajectory. NCLEdetector currently does not support using multiple chunks for a single trajectory number.
 
 > **Memory warning:** This step can require tens of gigabytes of RAM. Run on a high-memory node or reduce the number of frames per trajectory in the clustering pool.
 
 ```python
-from EntDetect.clustering import ClusterNonNativeEntanglements
+from NCLEdetector.clustering import ClusterNonNativeEntanglements
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-DATASTORE   = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE   = "/scratch/ims86/NCLEdetector_Datastore"
 OUTDIR      = f"{DATASTORE}/outputs/workflow2"
 traj_dir_prefix = f"{DATASTORE}/user_input/cg_trajectories"
 
@@ -635,7 +635,7 @@ clustering_NNents.cluster()
 import pandas as pd
 import numpy as np
 
-DATASTORE  = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE  = "/scratch/ims86/NCLEdetector_Datastore"
 clust_dir  = f"{DATASTORE}/outputs/workflow2/nonnative_clustering_last335"
 
 # Representative entanglement changes
@@ -664,7 +664,7 @@ When both are provided, **CLI flags override config values** for the same parame
 ```bash
 # ── Activation ──────────────────────────────────────────────────────────────────
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 # ── Config file ─────────────────────────────────────────────────────────────────
 CFG=scripts/configs/workflow2_nonnative_clustering_config.json
@@ -676,44 +676,44 @@ python scripts/run_nonnative_entanglement_clustering.py \
 # Example CLI override (swap in a different trajnum2file):
 python scripts/run_nonnative_entanglement_clustering.py \
     --config $CFG \
-    --trajnum2pklfile_path /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last335/trajnum2file.txt
+    --trajnum2pklfile_path /scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP_last335/trajnum2file.txt
 ```
 
 Container equivalent (same config and optional CLI override):
 
 ```bash
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 CFG=scripts/configs/workflow2_nonnative_clustering_config.json
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_nonnative_entanglement_clustering.py --config "$CFG"
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_nonnative_entanglement_clustering.py \
         --config "$CFG" \
-        --trajnum2pklfile_path /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_last335/trajnum2file.txt
+        --trajnum2pklfile_path /scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP_last335/trajnum2file.txt
 ```
 
 Config file (matches `scripts/configs/workflow2_nonnative_clustering_config.json`):
 
 ```json
 {
-  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/nonnative_clustering_last335",
-  "trajnum2pklfile_path": "/scratch/ims86/EntDetect_Datastore/user_input/metadata/OP_last335_trajnum2file.txt",
-  "traj_dir_prefix": "/scratch/ims86/EntDetect_Datastore/user_input/cg_trajectories",
+  "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/nonnative_clustering_last335",
+  "trajnum2pklfile_path": "/scratch/ims86/NCLEdetector_Datastore/user_input/metadata/OP_last335_trajnum2file.txt",
+  "traj_dir_prefix": "/scratch/ims86/NCLEdetector_Datastore/user_input/cg_trajectories",
   "start_frame": 0,
   "end_frame": 9999999,
   "nproc": 4,
   "log_level": "INFO",
-  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/nonnative_clustering_last335/logs"
+  "logdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/nonnative_clustering_last335/logs"
 }
 ```
 
@@ -878,10 +878,10 @@ Organize simulation frames into microstates and metastable states using the full
 ### Build the MSM with Python
 
 ```python
-from EntDetect.clustering import MSMNonNativeEntanglementClustering
+from NCLEdetector.clustering import MSMNonNativeEntanglementClustering
 
 # ── Paths ────────────────────────────────────────────────
-DATASTORE = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE = "/scratch/ims86/NCLEdetector_Datastore"
 OUTDIR    = f"{DATASTORE}/outputs/workflow2"
 outdir         = f"{OUTDIR}/MSM"
 OPpath         = f"{OUTDIR}/OP/"
@@ -936,7 +936,7 @@ When both are provided, **CLI flags override config values** for the same parame
 ```bash
 # ── Activation ──────────────────────────────────────────────────────────────────
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 # ── Config file ─────────────────────────────────────────────────────────────────
 CFG=scripts/configs/workflow2_MSM_config.json
@@ -951,21 +951,21 @@ python scripts/run_MSM.py --config $CFG --n_large_states 15
 Container equivalent (same config and optional CLI override):
 
 ```bash
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 CFG=scripts/configs/workflow2_MSM_config.json
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_MSM.py --config "$CFG"
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_MSM.py --config "$CFG" --n_large_states 15
 ```
 
@@ -973,15 +973,15 @@ Config file (matches `scripts/configs/workflow2_MSM_config.json`):
 
 ```json
 {
-  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM",
+  "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM",
   "ID": "1ZMR_prod",
-  "OPpath": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP/",
+  "OPpath": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP/",
   "start": 0,
   "n_large_states": 10,
   "lagtime": 20,
   "rm_traj_list": [65, 75, 155, 162, 199, 231, 264, 286, 296, 314, 354, 417, 448, 472, 473, 474, 577, 579, 591, 703, 704, 732, 758, 812, 833, 870, 876, 944, 967],
   "log_level": "INFO",
-  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM/logs"
+  "logdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM/logs"
 }
 ```
 
@@ -1094,7 +1094,7 @@ This tutorial demonstrates two contrasting cases:
 import pandas as pd
 import numpy as np
 
-DATASTORE = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE = "/scratch/ims86/NCLEdetector_Datastore"
 OUTDIR    = f"{DATASTORE}/outputs/workflow2"
 
 msm_mapping = pd.read_csv(f"{OUTDIR}/MSM/1ZMR_prod_MSMmapping.csv")
@@ -1146,11 +1146,11 @@ Using `MSMStats`, compute how each trajectory population (A and B) distributes a
 ### Compute state probability statistics
 
 ```python
-from EntDetect.statistics import MSMStats
+from NCLEdetector.statistics import MSMStats
 import os
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-DATASTORE = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE = "/scratch/ims86/NCLEdetector_Datastore"
 OUTDIR    = f"{DATASTORE}/outputs/workflow2"
 outdir_stats_case1 = f"{OUTDIR}/MSM_StateProbabilityStats_QG_native"
 outdir_stats_case2 = f"{OUTDIR}/MSM_StateProbabilityStats_random"
@@ -1207,7 +1207,7 @@ When both are provided, **CLI flags override config values** for the same parame
 ```bash
 # ── Activation ──────────────────────────────────────────────────────────────────
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 # ── Config files ─────────────────────────────────────────────────────────────────
 CFG_CASE1=scripts/configs/workflow2_MSMStats_case1_config.json
@@ -1224,7 +1224,7 @@ python scripts/run_MSMStats.py --config $CFG_CASE2
 Container equivalent (same configs):
 
 ```bash
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 CFG_CASE1=scripts/configs/workflow2_MSMStats_case1_config.json
 CFG_CASE2=scripts/configs/workflow2_MSMStats_case2_config.json
 
@@ -1232,14 +1232,14 @@ apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_MSMStats.py --config "$CFG_CASE1"
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_MSMStats.py --config "$CFG_CASE2"
 ```
 
@@ -1247,13 +1247,13 @@ Config file example 1 (matches `scripts/configs/workflow2_MSMStats_case1_config.
 
 ```json
 {
-  "msm_data_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM/1ZMR_prod_MSMmapping_QG_native.csv",
-  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM_StateProbabilityStats_QG_native",
+  "msm_data_file": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM/1ZMR_prod_MSMmapping_QG_native.csv",
+  "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM_StateProbabilityStats_QG_native",
   "traj_type_col": "traj_type",
   "traj_type_list": ["A", "B"],
   "rm_traj_list": [65, 75, 155, 162, 199, 231, 264, 286, 296, 314, 354, 417, 448, 472, 473, 474, 577, 579, 591, 703, 704, 732, 758, 812, 833, 870, 876, 944, 967],
   "log_level": "INFO",
-  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM_StateProbabilityStats_QG_native/logs"
+  "logdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM_StateProbabilityStats_QG_native/logs"
 }
 ```
 
@@ -1261,13 +1261,13 @@ Config file example 2 (matches `scripts/configs/workflow2_MSMStats_case2_config.
 
 ```json
 {
-  "msm_data_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM/1ZMR_prod_MSMmapping_random.csv",
-  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM_StateProbabilityStats_random",
+  "msm_data_file": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM/1ZMR_prod_MSMmapping_random.csv",
+  "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM_StateProbabilityStats_random",
   "traj_type_col": "traj_type",
   "traj_type_list": ["A", "B"],
   "rm_traj_list": [65, 75, 155, 162, 199, 231, 264, 286, 296, 314, 354, 417, 448, 472, 473, 474, 577, 579, 591, 703, 704, 732, 758, 812, 833, 870, 876, 944, 967],
   "log_level": "INFO",
-  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM_StateProbabilityStats_random/logs"
+  "logdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM_StateProbabilityStats_random/logs"
 }
 ```
 
@@ -1346,10 +1346,10 @@ Run `FoldingPathwayStats` for each case. Both methods take the annotated MSM map
 **Case 1 — Biologically-informed split:**
 
 ```python
-from EntDetect.statistics import FoldingPathwayStats
+from NCLEdetector.statistics import FoldingPathwayStats
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-DATASTORE = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE = "/scratch/ims86/NCLEdetector_Datastore"
 OUTDIR    = f"{DATASTORE}/outputs/workflow2"
 outdir_case1   = f"{OUTDIR}/FoldingPathway_QG_native"
 outdir_case2   = f"{OUTDIR}/FoldingPathway_random"
@@ -1423,7 +1423,7 @@ When both are provided, **CLI flags override config values** for the same parame
 ```bash
 # ── Activation ──────────────────────────────────────────────────────────────────
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 # ── Config files ─────────────────────────────────────────────────────────────────
 CFG_CASE1=scripts/configs/workflow2_FoldingPathway_case1_config.json
@@ -1440,7 +1440,7 @@ python scripts/run_Foldingpathway.py --config $CFG_CASE2
 Container equivalent (same configs):
 
 ```bash
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 CFG_CASE1=scripts/configs/workflow2_FoldingPathway_case1_config.json
 CFG_CASE2=scripts/configs/workflow2_FoldingPathway_case2_config.json
 
@@ -1448,14 +1448,14 @@ apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_Foldingpathway.py --config "$CFG_CASE1"
 
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_Foldingpathway.py --config "$CFG_CASE2"
 ```
 
@@ -1463,14 +1463,14 @@ Config file example 1 (matches `scripts/configs/workflow2_FoldingPathway_case1_c
 
 ```json
 {
-  "msm_data_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM/1ZMR_prod_MSMmapping_QG_native.csv",
-  "meta_set_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM/1ZMR_prod_meta_set.csv",
-  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/FoldingPathway_QG_native",
+  "msm_data_file": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM/1ZMR_prod_MSMmapping_QG_native.csv",
+  "meta_set_file": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM/1ZMR_prod_meta_set.csv",
+  "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/FoldingPathway_QG_native",
   "traj_type_col": "traj_type",
   "traj_type_list": ["A", "B"],
   "rm_traj_list": [65, 75, 155, 162, 199, 231, 264, 286, 296, 314, 354, 417, 448, 472, 473, 474, 577, 579, 591, 703, 704, 732, 758, 812, 833, 870, 876, 944, 967],
   "log_level": "INFO",
-  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/FoldingPathway_QG_native/logs"
+  "logdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/FoldingPathway_QG_native/logs"
 }
 ```
 
@@ -1478,14 +1478,14 @@ Config file example 2 (matches `scripts/configs/workflow2_FoldingPathway_case2_c
 
 ```json
 {
-  "msm_data_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM/1ZMR_prod_MSMmapping_random.csv",
-  "meta_set_file": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM/1ZMR_prod_meta_set.csv",
-  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/FoldingPathway_random",
+  "msm_data_file": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM/1ZMR_prod_MSMmapping_random.csv",
+  "meta_set_file": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM/1ZMR_prod_meta_set.csv",
+  "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/FoldingPathway_random",
   "traj_type_col": "traj_type",
   "traj_type_list": ["A", "B"],
   "rm_traj_list": [65, 75, 155, 162, 199, 231, 264, 286, 296, 314, 354, 417, 448, 472, 473, 474, 577, 579, 591, 703, 704, 732, 758, 812, 833, 870, 876, 944, 967],
   "log_level": "INFO",
-  "logdir": "/scratch/ims86/EntDetect_Datastore/outputs/workflow2/FoldingPathway_random/logs"
+  "logdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/FoldingPathway_random/logs"
 }
 ```
 
@@ -1546,7 +1546,7 @@ Each file below is listed once, followed by column-level details for tabular out
 | `G()` hangs or is very slow | Normal for long trajectories; CG + Topoly is expensive | Reduce `nproc` if memory-limited; use a shorter demo trajectory |
 | `SASA()` returns NaN for some frames | Bad backmapped AA structure or topology mismatch | Inspect suspect frames in VMD; these frames are filtered in Workflow 3 |
 | Jwalk error: PDB not found | `pdb_file` path incorrect or file missing | Verify `1zmr_model_clean.pdb` is in `$DATASTORE/user_input/reference_structures/` |
-| Jwalk error: `freesasa` not found | Package not installed in env | `pip install freesasa` inside the `entdetect` conda env |
+| Jwalk error: `freesasa` not found | Package not installed in env | `pip install freesasa` inside the `ncledetector` conda env |
 | `Combined_GE/` is empty | Full OP run not yet complete | Use pre-computed results from `$DATASTORE/outputs/workflow2/OP/G/Combined_GE/` |
 | MSM produces fewer states than `n_large_states` | Empty states discarded | Normal; try a higher `n_large_states` |
 | `secondary_struc_defs.txt` not found | File not in `$DATASTORE/user_input/reference_structures/` | Verify files were rsynced to DATASTORE |

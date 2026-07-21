@@ -38,7 +38,7 @@ import glob
 # --------------------------------------------------------------------------- #
 # Paths
 # --------------------------------------------------------------------------- #
-REPO = "/storage/group/epo2/default/ims86/git_repos/EntDetect"
+REPO = "/storage/group/epo2/default/ims86/git_repos/NCLEdetector"
 SRC_BASE = ("/storage/group/epo2/default/ims86/git_slugs/"
             "Failure-to-Form_Native_Entanglements_slug/"
             "Simulations_of_Native_Entanglement_Misfolding/Temp_Quench_Dynamics")
@@ -46,7 +46,7 @@ DOMAINS_DIR = ("/storage/group/epo2/default/ims86/git_slugs/"
                "Failure-to-Form_Native_Entanglements_slug/"
                "Simulations_of_Native_Entanglement_Misfolding/"
                "Rebuild_AllAtom_structures/DOMAINS")
-DATASTORE = "/scratch/ims86/EntDetect_Datastore"
+DATASTORE = "/scratch/ims86/NCLEdetector_Datastore"
 
 BENCH_IN_ROOT = f"{DATASTORE}/user_input/benchmarks"
 OUT1_ROOT = f"{DATASTORE}/outputs/workflow1/benchmarks"

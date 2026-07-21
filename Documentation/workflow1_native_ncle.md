@@ -36,7 +36,7 @@ Identify all native NCLEs present in a reference protein structure, filter for h
 
 Tutorial outputs from re-running the steps below are written to:
 ```bash
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 OUTDIR=$DATASTORE/outputs/workflow1
 ```
 
@@ -56,7 +56,7 @@ native_HQ_outdir = f"{OUTDIR}/HQ_NCLE"
 
 ```bash
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 ```
 
 ---
@@ -79,12 +79,12 @@ Create a Python script `run_nativeNCLE.py` or run interactively:
 > *Note*: There is a complete version of this python script ready to use located at the end of the tutorial: [Jump to full workflow script section](#minimal-workflow--1-running-the-ncle-identification-pipeline-as-single-script)  
 
 ```python
-from EntDetect.gaussian_entanglement import GaussianEntanglement
-from EntDetect.clustering import ClusterNativeEntanglements
-from EntDetect.entanglement_features import FeatureGen
+from NCLEdetector.gaussian_entanglement import GaussianEntanglement
+from NCLEdetector.clustering import ClusterNativeEntanglements
+from NCLEdetector.entanglement_features import FeatureGen
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-DATASTORE = "/Path/to/EntDetect_Datastore"
+DATASTORE = "/Path/to/NCLEdetector_Datastore"
 OUTDIR    = f"{DATASTORE}/outputs/workflow1"
 NCLE_outdir  = f"{OUTDIR}/NCLE"
 HQ_NCLE_outdir = f"{OUTDIR}/HQ_NCLE"
@@ -262,9 +262,9 @@ Example with direct CLI flags:
 
 ```bash
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
-DATASTORE=/Path/to/EntDetect_Datastore
+DATASTORE=/Path/to/NCLEdetector_Datastore
 
 python scripts/run_nativeNCLE.py \
     --pdb_file  $DATASTORE/user_input/reference_structures/1zmr_model_clean.pdb \
@@ -291,14 +291,14 @@ Container equivalent (same config and override):
 
 ```bash
 CONFIG=scripts/configs/workflow1_nativeNCLE_config.json
-DATASTORE=/Path/to/EntDetect_Datastore
+DATASTORE=/Path/to/NCLEdetector_Datastore
 
 # Here, --ent_detection_method 2 overrides ent_detection_method=3 from the config file.
 apptainer exec \
     --bind "$DATASTORE:$DATASTORE" \
     --bind "$PWD:$PWD" \
     --pwd "$PWD" \
-    entdetect-latest.sif \
+    ncledetector-latest.sif \
     python scripts/run_nativeNCLE.py \
         --config "$CONFIG" \
         --ent_detection_method 2
@@ -308,8 +308,8 @@ Config file example (matches `scripts/configs/workflow1_nativeNCLE_config.json`)
 
 ```json
 {
-  "pdb_file": "/scratch/ims86/EntDetect_Datastore/user_input/reference_structures/1zmr_model_clean.pdb",
-  "outdir": "/scratch/ims86/EntDetect_Datastore/outputs/tmp/workflow1",
+  "pdb_file": "/scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/1zmr_model_clean.pdb",
+  "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/tmp/workflow1",
   "ID": "1ZMR",
   "chain": "A",
   "organism": "Ecoli",

@@ -1,5 +1,5 @@
-from EntDetect.statistics import MSMStats
-from EntDetect._logging import setup_logger
+from NCLEdetector.statistics import MSMStats
+from NCLEdetector._logging import setup_logger
 
 """
 Compute metastable-state probability evolution (MSMStats) from an MSM

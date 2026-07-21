@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from EntDetect._logging import setup_logger
+from NCLEdetector._logging import setup_logger
 
 """
 Bundle commands from a file into SLURM jobs and submit them.
@@ -39,9 +39,9 @@ _SLURM_TEMPLATE = """\
 #SBATCH -e assets/slurm/logs/%x-%j.err
 
 
-cd /storage/group/epo2/default/ims86/git_repos/EntDetect
+cd /storage/group/epo2/default/ims86/git_repos/NCLEdetector
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 set -euo pipefail
 {cmd}

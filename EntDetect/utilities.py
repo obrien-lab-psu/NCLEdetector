@@ -4,7 +4,7 @@ import numpy as np
 from Bio.PDB import PDBParser, PDBIO
 import pathlib
 import os
-from EntDetect._logging import setup_logger
+from NCLEdetector._logging import setup_logger
 
 class PDBcleaner:
     """

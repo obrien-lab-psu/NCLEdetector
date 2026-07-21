@@ -1,5 +1,5 @@
-from EntDetect.statistics import FoldingPathwayStats
-from EntDetect._logging import setup_logger
+from NCLEdetector.statistics import FoldingPathwayStats
+from NCLEdetector._logging import setup_logger
 import pandas as pd
 
 """
