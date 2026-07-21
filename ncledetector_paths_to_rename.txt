@@ -1,7 +1,0 @@
-# Paths containing EntDetect or entdetect
-
-## Directories
-(none)
-
-## Files
-(none)
