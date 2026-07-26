@@ -203,8 +203,8 @@ class GaussianEntanglement:
         for pair in resid_pairs:
             pair0_resid = resid_index_to_resid[pair[0]]
             pair1_resid = resid_index_to_resid[pair[1]]
-            # check that the resid are greater than 4 apart
-            if abs(pair1_resid - pair0_resid) > 4:
+            # check that the resid are greater than 3 apart
+            if abs(pair1_resid - pair0_resid) > 3:
                 if pair[0] in resid_index_to_ref_allatoms_idx and pair[1] in resid_index_to_ref_allatoms_idx:
                     res1_atoms = resid_index_to_ref_allatoms_idx[pair[0]]
                     res2_atoms = resid_index_to_ref_allatoms_idx[pair[1]]

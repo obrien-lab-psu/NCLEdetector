@@ -24,10 +24,10 @@
 # CPUs: 10
 #
 # Prerequisites:
-#   - Per-traj SASA files: /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA_last335/SASA/
-#   - Per-traj XP files: /scratch/ims86/EntDetect_Datastore/outputs/workflow2/OP_AA_last335/XP/
-#   - Experimental Excel files: /scratch/ims86/EntDetect_Datastore/exp_data/
-#   - MSM data: /scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM/
+#   - Per-traj SASA files: /scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP_AA_last335/SASA/
+#   - Per-traj XP files: /scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP_AA_last335/XP/
+#   - Experimental Excel files: /scratch/ims86/NCLEdetector_Datastore/exp_data/
+#   - MSM data: /scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM/
 #
 # Monitor progress:
 #   tail -f assets/slurm/logs/workflow3_consistency-<JOBID>.out
@@ -56,18 +56,18 @@ echo "==========================================================================
 echo ""
 
 # Navigate to project directory
-cd /storage/group/epo2/default/ims86/git_repos/EntDetect
+cd /storage/group/epo2/default/ims86/git_repos/NCLEdetector
 
 # Activate conda environment
 echo "Activating conda environment..."
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 # Verify required files exist
 echo ""
 echo "Verifying prerequisites..."
 
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 OUTDIR=$DATASTORE/outputs/workflow3
 
 
@@ -81,7 +81,7 @@ echo ""
 # Create logs directory
 mkdir -p $OUTDIR/logs
 
-python scripts/run_compare_sim2exp.py --config /storage/group/epo2/default/ims86/git_repos/EntDetect/scripts/configs/workflow3_consistency_config.json --restart
+python scripts/run_compare_sim2exp.py --config /storage/group/epo2/default/ims86/git_repos/NCLEdetector/scripts/configs/workflow3_consistency_config.json --restart
 
 # Check exit status
 EXIT_CODE=${PIPESTATUS[0]}

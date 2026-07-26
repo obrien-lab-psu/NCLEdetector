@@ -187,6 +187,48 @@ def main(argv=None):
     if collect_mode and args.sasa_xp_frames_per_traj is None:
         parser.error("--sasa_xp_frames_per_traj is required when using --sasa_dir (or provide it in --config)")
 
+    # ── Validate that all required files and directories exist ──────────────
+    from pathlib import Path
+    
+    # Check required files
+    required_files = {
+        "msm_data_file": msm_data_file,
+        "meta_dist_file": meta_dist_file,
+        "LiPMS_exp_file": LiPMS_exp_file,
+        "XLMS_exp_file": XLMS_exp_file,
+        "cluster_data_file": cluster_data_file,
+        "native_AA_pdb": native_AA_pdb,
+    }
+    
+    for name, filepath in required_files.items():
+        if not Path(filepath).exists():
+            parser.error(f"Required file does not exist: {name} = {filepath}")
+    
+    # Check required directories
+    required_dirs = {
+        "OPpath": OPpath,
+        "AAdcd_dir": AAdcd_dir,
+    }
+    
+    for name, dirpath in required_dirs.items():
+        if not Path(dirpath).is_dir():
+            parser.error(f"Required directory does not exist: {name} = {dirpath}")
+    
+    # Create output directory if it doesn't exist
+    Path(outdir).mkdir(parents=True, exist_ok=True)
+    
+    # Validate collection mode directories
+    if collect_mode:
+        if not Path(args.sasa_dir).is_dir():
+            parser.error(f"SASA directory does not exist: --sasa_dir = {args.sasa_dir}")
+        if not Path(args.xp_dir).is_dir():
+            parser.error(f"XP directory does not exist: --xp_dir = {args.xp_dir}")
+    
+    # Validate direct mode file
+    if direct_mode:
+        if not Path(sasa_data_file).exists():
+            parser.error(f"SASA data file does not exist: --sasa_data_file = {sasa_data_file}")
+
     # ── Step 1: Initialize MassSpec (it handles collection internally if needed)
     MS = MassSpec(msm_data_file=msm_data_file,
                     meta_dist_file=meta_dist_file,

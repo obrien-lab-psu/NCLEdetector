@@ -43,21 +43,16 @@ echo "Start time: $(date)"
 echo "================================================================================"
 echo ""
 
-cd /storage/group/epo2/default/ims86/git_repos/EntDetect
+cd /storage/group/epo2/default/ims86/git_repos/NCLEdetector
 
 echo "Activating conda environment..."
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 echo ""
 echo "Verifying prerequisites..."
 
 CONFIG_PATH=scripts/configs/workflow2_nonnative_clustering_config.json
-
-if [[ ! -f "$CONFIG_PATH" ]]; then
-    echo "ERROR: Missing config file: $CONFIG_PATH"
-    exit 1
-fi
 
 # Parse key paths from config for validation and logging.
 readarray -t CFG < <(python - <<'PY' "$CONFIG_PATH"
@@ -84,31 +79,7 @@ START_FRAME=${CFG[4]}
 END_FRAME=${CFG[5]}
 NPROC=${CFG[6]}
 
-if [[ -z "$OUTDIR" || -z "$TRAJNUM2FILE" || -z "$TRAJ_DIR_PREFIX" ]]; then
-    echo "ERROR: Config missing required keys (outdir, trajnum2pklfile_path, traj_dir_prefix): $CONFIG_PATH"
-    exit 1
-fi
-
-if [[ -z "$LOGDIR" ]]; then
-    LOGDIR=$OUTDIR
-fi
-
 OP_ROOT=$(dirname "$(dirname "$TRAJNUM2FILE")")
-
-if [[ ! -f "$TRAJNUM2FILE" ]]; then
-    echo "ERROR: Missing trajnum2pklfile file from config: $TRAJNUM2FILE"
-    exit 1
-fi
-
-if [[ ! -f scripts/run_nonnative_entanglement_clustering.py ]]; then
-    echo "ERROR: Missing script: scripts/run_nonnative_entanglement_clustering.py"
-    exit 1
-fi
-
-if [[ ! -d "$TRAJ_DIR_PREFIX" ]]; then
-    echo "ERROR: Missing trajectory directory: $TRAJ_DIR_PREFIX"
-    exit 1
-fi
 
 mkdir -p "$OUTDIR" "$LOGDIR"
 
@@ -142,17 +113,5 @@ echo "Exit code: $EXIT_CODE"
 echo "End time: $(date)"
 echo "================================================================================"
 
-if [[ $EXIT_CODE -eq 0 ]]; then
-    echo ""
-    echo "✓ Workflow 2 non-native clustering (OP_last335) completed successfully"
-    echo ""
-    echo "Output directory: $OUTDIR"
-    echo "Mapping file used: $TRAJNUM2FILE"
-    echo "Main log: $LOGDIR/workflow2_nonnative_clustering_OP_last335.log"
-else
-    echo ""
-    echo "✗ Workflow 2 non-native clustering (OP_last335) failed with exit code $EXIT_CODE"
-    echo "Check log: $LOGDIR/workflow2_nonnative_clustering_OP_last335.log"
-fi
 
 exit $EXIT_CODE

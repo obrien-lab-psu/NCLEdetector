@@ -28,9 +28,9 @@
 #   - Labeled MSM files: 1ZMR_prod_MSMmapping_QG_native.csv
 #                        1ZMR_prod_MSMmapping_random.csv
 #   - Meta set file: 1ZMR_prod_meta_set.csv
-#   - All in: /scratch/ims86/EntDetect_Datastore/outputs/workflow2/MSM/
-#   - Conda env: entdetect
-#   - Repo path: /storage/group/epo2/default/ims86/git_repos/EntDetect
+#   - All in: /scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/MSM/
+#   - Conda env: ncledetector
+#   - Repo path: /storage/group/epo2/default/ims86/git_repos/NCLEdetector
 #
 # Monitor progress:
 #   tail -f assets/slurm/logs/workflow2_MSMStats-<JOBID>.out
@@ -59,20 +59,19 @@ echo "==========================================================================
 echo ""
 
 # Navigate to project directory
-cd /storage/group/epo2/default/ims86/git_repos/EntDetect
+cd /storage/group/epo2/default/ims86/git_repos/NCLEdetector
 
 # Activate conda environment
 echo "Activating conda environment..."
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 # Verify required files exist
 echo ""
 echo "Verifying prerequisites..."
 
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 MSMDIR=$DATASTORE/outputs/workflow2/MSM
-STATSDIR=$DATASTORE/outputs/workflow2/MSM_StateProbabilityStats
 LOGDIR=$MSMDIR/logs
 
 # Check base MSM files
@@ -132,12 +131,11 @@ echo "Running Workflow 2 MSMStats Analysis"
 echo "================================================================================"
 echo "Start time: $(date)"
 echo "MSM directory: $MSMDIR"
-echo "Output base: $STATSDIR"
 echo "================================================================================"
 echo ""
 
 # Create output and log directories
-mkdir -p "$STATSDIR" "$LOGDIR"
+mkdir -p "$LOGDIR"
 
 # Case 1: Biologically-informed split
 echo "================================================================================"

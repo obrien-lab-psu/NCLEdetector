@@ -1,4 +1,4 @@
-name: entdetect
+name: ncledetector
 channels:
   - conda-forge
 dependencies:
@@ -10,7 +10,7 @@ dependencies:
   - pandas
   - biopython
   - numba
-  - matplotlib
+  - matplotlib>=3.5,<3.9
   - seaborn
   - scikit-learn
   - networkx
@@ -24,6 +24,7 @@ dependencies:
   - parmed
   # Optional but commonly used by the Jwalk/SASA pipeline
   - freesasa
+  - openpyxl
   - pip:
       # pyemma and deeptime have no conda-forge build for Python 3.11;
       # install via pip (pyemma pulls in deeptime as a dependency).
