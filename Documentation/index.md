@@ -62,7 +62,90 @@ All workflow tutorials derive every path from a **single variable**. Set it once
 DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 ```
 
-You can fetch the NCLEdetector datastore by using gocmds detailed in this [CyVerse Datastore Access Tutorial](./accessing_ncledetector_datastore.md).  
+#### Download and reconstruct the datastore
+
+Download the public NCLEdetector datastore release from our Cloudflare R2 public archive:
+
+```bash
+# Create target directory
+mkdir -p "$DATASTORE"
+cd "$DATASTORE"
+
+# Download all archives (version 1.0.0)
+BASE_URL="https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0"
+
+# User input data (36 GB)
+wget -q "$BASE_URL/user_input.tar.gz" && tar -xzf user_input.tar.gz
+
+# Workflow 1 analyses (16 KB total)
+wget -q "$BASE_URL/outputs/workflow1/NCLE.tar.gz" && tar -xzf outputs/workflow1/NCLE.tar.gz
+wget -q "$BASE_URL/outputs/workflow1/HQ_NCLE.tar.gz" && tar -xzf outputs/workflow1/HQ_NCLE.tar.gz
+wget -q "$BASE_URL/outputs/workflow1/clustered_HQ_NCLE.tar.gz" && tar -xzf outputs/workflow1/clustered_HQ_NCLE.tar.gz
+wget -q "$BASE_URL/outputs/workflow1/clustered_HQ_NCLE_features.tar.gz" && tar -xzf outputs/workflow1/clustered_HQ_NCLE_features.tar.gz
+
+# Workflow 2 analyses (48 GB total)
+wget -q "$BASE_URL/outputs/workflow2/OP.tar.gz" && tar -xzf outputs/workflow2/OP.tar.gz
+wget -q "$BASE_URL/outputs/workflow2/OP_AA_last335.tar.gz" && tar -xzf outputs/workflow2/OP_AA_last335.tar.gz
+wget -q "$BASE_URL/outputs/workflow2/OP_last335.tar.gz" && tar -xzf outputs/workflow2/OP_last335.tar.gz
+wget -q "$BASE_URL/outputs/workflow2/MSM.tar.gz" && tar -xzf outputs/workflow2/MSM.tar.gz
+wget -q "$BASE_URL/outputs/workflow2/MSM_StateProbabilityStats_QG_native.tar.gz" && tar -xzf outputs/workflow2/MSM_StateProbabilityStats_QG_native.tar.gz
+wget -q "$BASE_URL/outputs/workflow2/MSM_StateProbabilityStats_random.tar.gz" && tar -xzf outputs/workflow2/MSM_StateProbabilityStats_random.tar.gz
+wget -q "$BASE_URL/outputs/workflow2/nonnative_clustering_last335.tar.gz" && tar -xzf outputs/workflow2/nonnative_clustering_last335.tar.gz
+wget -q "$BASE_URL/outputs/workflow2/FoldingPathway_QG_native.tar.gz" && tar -xzf outputs/workflow2/FoldingPathway_QG_native.tar.gz
+wget -q "$BASE_URL/outputs/workflow2/FoldingPathway_random.tar.gz" && tar -xzf outputs/workflow2/FoldingPathway_random.tar.gz
+
+# Workflow 3 analyses (1.2 GB)
+wget -q "$BASE_URL/outputs/workflow3/MassSpec_ConsistencyTest.tar.gz" && tar -xzf outputs/workflow3/MassSpec_ConsistencyTest.tar.gz
+
+# Workflow 4 analyses (8.5 MB)
+wget -q "$BASE_URL/outputs/workflow4/nativeNCLE_all.tar.gz" && tar -xzf outputs/workflow4/nativeNCLE_all.tar.gz
+wget -q "$BASE_URL/outputs/workflow4/monte_carlo.tar.gz" && tar -xzf outputs/workflow4/monte_carlo.tar.gz
+wget -q "$BASE_URL/outputs/workflow4/population_modeling.tar.gz" && tar -xzf outputs/workflow4/population_modeling.tar.gz
+
+# (Optional) Download and verify integrity checksums
+wget -q "$BASE_URL/SHA256SUMS"
+sha256sum -c SHA256SUMS
+```
+
+**Alternatively, use `aria2c` for parallel downloads (faster):**
+
+```bash
+cd "$DATASTORE"
+
+# Create download list
+cat > downloads.txt << 'EOF'
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/user_input.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow1/NCLE.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow1/HQ_NCLE.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow1/clustered_HQ_NCLE.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow1/clustered_HQ_NCLE_features.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow2/OP.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow2/OP_AA_last335.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow2/OP_last335.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow2/MSM.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow2/MSM_StateProbabilityStats_QG_native.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow2/MSM_StateProbabilityStats_random.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow2/nonnative_clustering_last335.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow2/FoldingPathway_QG_native.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow2/FoldingPathway_random.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow3/MassSpec_ConsistencyTest.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow4/nativeNCLE_all.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow4/monte_carlo.tar.gz
+https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0/outputs/workflow4/population_modeling.tar.gz
+EOF
+
+# Download in parallel (8 concurrent connections)
+aria2c -x 8 -k 1M -i downloads.txt
+
+# Extract all archives
+for f in *.tar.gz; do tar -xzf "$f"; done
+for f in outputs/*/*.tar.gz; do tar -xzf "$f"; done
+```
+
+**Total download size:** ~100 GB (compressed archives)  
+**Extracted size:** ~1.6 TB
+
+> **Note:** The CyVerse Datastore Access method is deprecated. Use wget or aria2c for direct downloads from the public R2 archive instead.  
 
 The datastore has the following layout:
 
