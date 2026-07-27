@@ -33,6 +33,7 @@ find "$MASTER" -type f \
     ! -path './MANIFEST.tsv' \
     ! -path './MANIFEST.json' \
     ! -path './SHA256SUMS' \
+    ! -path './outputs/workflow2/OP.tar.gz' \
     -printf '%P\t%s\n' \
     | LC_ALL=C sort > "$MANIFEST_TSV"
 

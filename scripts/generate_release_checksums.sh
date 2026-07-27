@@ -23,11 +23,12 @@ echo ""
 cd "$MASTER"
 
 # Generate checksums for all files except the checksums file itself, 
-# manifests, and other metadata
+# manifests, other metadata, and OP.tar.gz (still being created)
 find . -type f \
     ! -path './MANIFEST.tsv' \
     ! -path './MANIFEST.json' \
     ! -path './SHA256SUMS' \
+    ! -path './outputs/workflow2/OP.tar.gz' \
     -print0 \
     | LC_ALL=C sort -z \
     | xargs -0 sha256sum > "$CHECKSUMS"
