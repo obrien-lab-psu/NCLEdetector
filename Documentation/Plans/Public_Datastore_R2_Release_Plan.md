@@ -1,17 +1,18 @@
 # Public Datastore R2 Release Plan
 
 ## Scope
-Publish NCLEdetector_Datastore as a hybrid release:
-- Exploded directory tree for per-file downloads
-- Per-analysis archives next to each analysis directory
-- Per-workflow archives next to each workflow directory
-- Optional full-datastore archive
+Publish NCLEdetector_Datastore as an archives-only release (no exploded tree):
+- Per-analysis archives (HQ_NCLE.tar.gz, MSM.tar.gz, monte_carlo.tar.gz, etc.)
+- Per-workflow archives (workflow1.tar.gz, workflow2.tar.gz, workflow3.tar.gz, workflow4.tar.gz)
+- Top-level user_input.tar.gz (reference structures, experimental data, benchmarks)
+- Exploded raw directory tree is NOT published (eliminates storage duplication, reduces R2 cost)
 
 Release target:
 - R2 bucket: ncle-public-data
 - Public domain: https://downloads.ncleweb.org
 - Catalog page: https://ncleweb.org/downloads
 - Versioned prefix: NCLEdetector_Datastore/v1.0.0/
+- Expected storage impact: ~500 GB (archives-only) vs 1.6T (archives + exploded tree)
 
 ## Operational boundaries
 - Repository work (plans, scripts, docs, validation helpers) is tracked and may require git commits in this repository.
@@ -209,10 +210,11 @@ Publish new versions under new prefixes, example v1.1.0.
 Rotate or revoke write token when release window closes.
 
 ## Immediate next actions
-1. Collect Step 1 release identifiers from the current repository state.
-2. Confirm the datastore publish root is /scratch/ims86/NCLEdetector_Datastore.
-3. Decide whether full-datastore archive is included in v1.0.0.
-4. Set a repository commit checkpoint before running release automation steps.
+1. Create per-analysis .tar.gz archives for all workflow subdirectories.
+2. Create user_input.tar.gz for top-level user_input directory.
+3. Create workflow-level .tar.gz archives (workflow1.tar.gz, etc.), each containing its analysis archives.
+4. Re-run Step 4 archive integrity validation on the new .tar.gz files.
+5. Proceed to Step 5 (manifest generation) with archives-only payload.
 
 ## Step 1 snapshot (captured 2026-07-26)
 - release_date: 2026-07-26
@@ -225,3 +227,63 @@ Rotate or revoke write token when release window closes.
 
 Checkpoint note:
 - Because there are many in-progress repository edits, create a checkpoint commit (or a clearly labeled WIP commit sequence) before running any release automation that modifies scripts/configs.
+
+## Audit snapshot (captured 2026-07-26)
+
+Step 3 results (payload audit):
+- datastore_root: /scratch/ims86/NCLEdetector_Datastore
+- total_size: 1.6T
+- file_count: 59546
+- symlink_count: 10
+- empty_file_count: 18
+- temp_like_file_count: 0
+- largest_files: dominated by workflow2 OP G pickle files around 1.3G each under outputs/workflow2/OP/G/Combined_NCLE/
+- workflow_dirs_present: workflow1, workflow2, workflow3, workflow4
+- workflow1_size: 78K
+- workflow1_file_count: 5
+
+Step 4 results (archive integrity):
+- total_archives_found (*.tar.gz): 0
+- gzip_failures: 0
+- tar_list_failures: 0
+
+Gate interpretation:
+- Integrity checks passed on existing state, but no archives have been created yet.
+- Next required action: create per-analysis .tar.gz, user_input.tar.gz, and workflow-level .tar.gz archives in the datastore. Then re-run Step 4 integrity validation.
+- Publishing strategy: archives-only (no exploded tree) reduces storage to ~500 GB, saving significant R2 costs compared to the full 1.6T tree.
+
+---
+
+## Implementation Progress (2026-07-26 Evening Session)
+
+### Completed ✓
+
+**Option A: Release Metadata Files**
+- README.md (3.3K) — describes release, workflows, download instructions
+- LICENSE (35K) — copied from repo (GNU GPL v3)
+- CITATION.cff — CFF format citation metadata
+- RELEASE.json — structured release metadata
+
+**Option B: Manifest & Checksum Scripts**
+- `scripts/generate_release_manifests.sh` — generates MANIFEST.tsv and MANIFEST.json
+- `scripts/generate_release_checksums.sh` — generates SHA256SUMS
+
+**Archive Jobs Submitted (Running)**
+- 17 per-analysis archive jobs (SLURM) — currently running in parallel
+- user_input.tar.gz job — currently running
+
+### Updated Strategy
+
+Changed from hybrid (exploded tree + archives) to **archives-only minimal viable release**:
+- Publish: user_input.tar.gz + 17 per-analysis .tar.gz + metadata files
+- Do NOT publish: exploded directory tree (saves storage, simpler upload/maintenance)
+- Do NOT create workflow-level archives yet (iterate from minimal viable first)
+
+### Next Actions (once archives complete)
+
+1. Run `bash scripts/generate_release_manifests.sh` to create MANIFEST.tsv/JSON
+2. Run `bash scripts/generate_release_checksums.sh` to create SHA256SUMS  
+3. Verify archive integrity (spot-check samples)
+4. Commit updated plan and scripts to repo
+5. Proceed to Phase 2: R2 bucket setup and private staging upload
+
