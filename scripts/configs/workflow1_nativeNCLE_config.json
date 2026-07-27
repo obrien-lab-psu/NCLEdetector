@@ -1,6 +1,6 @@
 {
   "pdb_file": "/scratch/ims86/NCLEdetector_Datastore/user_input/reference_structures/1zmr_model_clean.pdb",
-  "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/tmp/workflow1",
+  "outdir": "/scratch/ims86/NCLEdetector_Datastore/outputs/workflow1",
   "ID": "1ZMR",
   "chain": "A",
   "organism": "Ecoli",

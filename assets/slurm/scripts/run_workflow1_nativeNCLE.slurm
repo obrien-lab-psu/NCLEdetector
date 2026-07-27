@@ -57,26 +57,19 @@ echo "==========================================================================
 echo ""
 
 # Navigate to project directory
-cd /storage/group/epo2/default/ims86/git_repos/EntDetect
+cd /storage/group/epo2/default/ims86/git_repos/NCLEdetector
 
 # Activate conda environment
 echo "Activating conda environment..."
 source ~/.bashrc
-conda activate entdetect
+conda activate ncledetector
 
 # Verify required files exist
 echo ""
 echo "Verifying prerequisites..."
 
-DATASTORE=/scratch/ims86/EntDetect_Datastore
+DATASTORE=/scratch/ims86/NCLEdetector_Datastore
 OUTDIR=$DATASTORE/outputs/workflow1
-STRUCT_FILE=$DATASTORE/user_input/reference_structures/1zmr_model_clean.pdb
-
-if [[ ! -f "$STRUCT_FILE" ]]; then
-    echo "ERROR: Structure file not found: $STRUCT_FILE"
-    exit 1
-fi
-echo "✓ Found structure file: $STRUCT_FILE"
 
 if [[ ! -f "scripts/run_nativeNCLE.py" ]]; then
     echo "ERROR: Missing script: scripts/run_nativeNCLE.py"
@@ -89,8 +82,6 @@ echo "==========================================================================
 echo "Running Workflow 1 Native NCLE Analysis"
 echo "================================================================================"
 echo "Start time: $(date)"
-echo "Structure: $STRUCT_FILE"
-echo "Output dir: $OUTDIR"
 echo "ID: 1ZMR"
 echo "Chain: A"
 echo "Organism: Ecoli"
@@ -99,18 +90,7 @@ echo "Model: EXP"
 echo "================================================================================"
 echo ""
 
-# Create output and log directories
-mkdir -p "$OUTDIR" "$OUTDIR/logs"
-
-python scripts/run_nativeNCLE.py \
-    --struct "$STRUCT_FILE" \
-    --outdir "$OUTDIR" \
-    --ID 1ZMR \
-    --chain A \
-    --organism Ecoli \
-    --Accession P00558 \
-    --model EXP \
-    2>&1 | tee "$OUTDIR/logs/workflow1_nativeNCLE.log"
+python scripts/run_nativeNCLE.py --config /storage/group/epo2/default/ims86/git_repos/NCLEdetector/scripts/configs/workflow1_nativeNCLE_config.json
 
 # Check exit status
 EXIT_CODE=${PIPESTATUS[0]}
