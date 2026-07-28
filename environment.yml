@@ -25,6 +25,7 @@ dependencies:
   # Optional but commonly used by the Jwalk/SASA pipeline
   - freesasa
   - openpyxl
+  - py3Dmol
   - pip:
       # pyemma and deeptime have no conda-forge build for Python 3.11;
       # install via pip (pyemma pulls in deeptime as a dependency).
