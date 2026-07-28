@@ -21,6 +21,6 @@
     "num_perm": 10000,
     "n_boot": 10000,
     "lag_frame": 20,
-    "nproc": 10,
+    "nproc": 20,
     "verbose": false
 }

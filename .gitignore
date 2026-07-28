@@ -85,3 +85,5 @@ tmp.md
 
 # Container images (large binaries, pull via container_usage.md instead)
 *.sif
+
+webbapp/

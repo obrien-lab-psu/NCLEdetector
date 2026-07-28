@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH -J workflow3_consistency
-#SBATCH --partition=basic
+#SBATCH --partition=standard
 #SBATCH -N 1
-#SBATCH -n 10
+#SBATCH -n 20
 #SBATCH -t 36:00:00
 #SBATCH --account=read_crch_ims86
-#SBATCH --mem=100G
+#SBATCH --mem=250G
 #SBATCH -o assets/slurm/logs/%x-%j.out
 #SBATCH -e assets/slurm/logs/%x-%j.err
 
@@ -20,8 +20,8 @@
 #   - Jwalk collection: ~3-4 hours
 #   - Consistency test: ~1-3 hours
 #
-# Memory: 100 GB
-# CPUs: 10
+# Memory: 256 GB
+# CPUs: 20
 #
 # Prerequisites:
 #   - Per-traj SASA files: /scratch/ims86/NCLEdetector_Datastore/outputs/workflow2/OP_AA_last335/SASA/

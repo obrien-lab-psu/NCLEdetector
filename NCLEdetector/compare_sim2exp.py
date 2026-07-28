@@ -206,7 +206,7 @@ class MassSpec:
         N = norm(mu, sigma)
         
         if JWalk_dist == -1:
-            score = 0
+            score = np.nan  # Missing experimental data (residue buried or distance > 50A)
         elif JWalk_dist <= threshold:
             score = N.pdf(JWalk_dist)
         else:
@@ -543,7 +543,8 @@ class MassSpec:
                     key_0 = '-'.join([k[1:]+'|A' for k in key.split('-')])
                     xlms_targets.append((idx, key_0, pair_AA))
 
-                M_XLMS = np.zeros((*meta_dtrajs_last.shape, len(XLMS_sig_data)))
+                # Initialize M_XLMS with NaN to mark missing data (residues buried or distance > 50A)
+                M_XLMS = np.full((*meta_dtrajs_last.shape, len(XLMS_sig_data)), np.nan)
                 if self.dist_data_file is not None and os.path.exists(self.dist_data_file):
                     dist_traj_list = np.load(self.dist_data_file, allow_pickle=True)[:,-self.n_analysis_frames:]
                     self.logger.info(f'dist_traj_list.shape: {dist_traj_list.shape}')
@@ -659,6 +660,15 @@ class MassSpec:
                     self.logger.info('%s:'%(list(exp_data.keys())[idx_0]))
                     M_0 = M[:,:,idx_0]
                     index_str = list(exp_data.keys())[idx_0]
+                    
+                    # Report missing data statistics
+                    if M_str_list[idx] == 'XLMS':
+                        n_missing = np.isnan(M_0).sum()
+                        n_total = M_0.size
+                        if n_missing > 0:
+                            pct_missing = 100.0 * n_missing / n_total
+                            self.logger.info(f'Missing XP data for {index_str}: {n_missing}/{n_total} frames ({pct_missing:.1f}%) - likely due to buried residues or distance > 50A')
+                    
                     header = ['Near-native state', 'Sample size', '<M>']
                     header += ['p (!=)', 'Adjusted p (!=)']
                     if exp_data[list(exp_data.keys())[idx_0]]['qual_change'] > 0:
@@ -669,6 +679,11 @@ class MassSpec:
                         test_side = '<'
 
                     M_0_native = M_0[native_sel[:,0], native_sel[:,1]]
+                    # Filter out NaN values (missing experimental data: residues buried or distance > 50A)
+                    M_0_native = M_0_native[~np.isnan(M_0_native)]
+                    if len(M_0_native) == 0:
+                        self.logger.warning(f'No valid native state data for {index_str} (all frames have missing XP measurements)')
+                        continue
                     # bootstrapping to get 95%CI
                     boot_stat_native = self.bootstrap(np.mean, M_0_native, self.n_boot)
                     lb_native = np.percentile(boot_stat_native, 2.5)
@@ -683,6 +698,11 @@ class MassSpec:
                         near_native_sel = np.array(frame_list[idx_1], dtype=int)
                         self.logger.debug(near_native_sel)
                         M_0_near_native = M_0[near_native_sel[:,0], near_native_sel[:,1]]
+                        # Filter out NaN values (missing experimental data: residues buried or distance > 50A)
+                        M_0_near_native = M_0_near_native[~np.isnan(M_0_near_native)]
+                        if len(M_0_near_native) == 0:
+                            self.logger.warning(f'No valid near-native state {state_id} data for {index_str} (all frames have missing XP measurements)')
+                            continue
                         # bootstrapping to get 95%CI
                         boot_stat_near_native = self.bootstrap(np.mean, M_0_near_native, self.n_boot)
                         lb_near_native = np.percentile(boot_stat_near_native, 2.5)
@@ -710,14 +730,19 @@ class MassSpec:
                     # Select only frames seperated by #lag_frame for each state in the trajectory
                     near_native_sel_idx = []
                     for i in np.unique(near_native_sel[:,0]):
-                        idx = np.where(near_native_sel[:,0] == i)[0]
-                        near_native_sel_idx.append(idx[0])
-                        for iidx in idx[1:]:
+                        frame_indices = np.where(near_native_sel[:,0] == i)[0]
+                        near_native_sel_idx.append(frame_indices[0])
+                        for iidx in frame_indices[1:]:
                             if near_native_sel[iidx,1] - near_native_sel[near_native_sel_idx[-1],1] >= self.lag_frame:
                                 near_native_sel_idx.append(iidx)
                     near_native_sel = near_native_sel[near_native_sel_idx,:]
 
                     M_0_near_native = M_0[near_native_sel[:,0], near_native_sel[:,1]]
+                    # Filter out NaN values (missing experimental data: residues buried or distance > 50A)
+                    M_0_near_native = M_0_near_native[~np.isnan(M_0_near_native)]
+                    if len(M_0_near_native) == 0:
+                        self.logger.warning(f'No valid all-states data for {index_str} (all frames have missing XP measurements)')
+                        continue
                     # bootstrapping to get 95%CI
                     boot_stat_near_native = self.bootstrap(np.mean, M_0_near_native, self.n_boot)
                     lb_near_native = np.percentile(boot_stat_near_native, 2.5)
@@ -1210,6 +1235,17 @@ class MassSpec:
                 idx_list = np.array([sel for sel in idx_list if not sel.tolist() in nan_frame_sel.tolist()])
 
                 dist_list = M_XLMS[idx_list[:,0],idx_list[:,1],idx_pair]
+                
+                # Filter out frames with NaN distances (missing experimental data: residues buried or distance > 50A)
+                # This keeps frames with valid measurements while excluding frames lacking data
+                # Matches legacy code behavior: filter at frame level, proceed with downstream consistency check
+                valid_mask = ~np.isnan(dist_list)
+                if np.any(valid_mask):
+                    # Keep only frames with valid distance measurements
+                    dist_list = dist_list[valid_mask]
+                    idx_list = idx_list[valid_mask]
+                # If no valid measurements for this pair in this state, downstream check handles it
+                
                 for cluster_idx, keyword in enumerate(sorted_chg_ent_structure_keyword_list):
                     idx_list_1 = np.where(dtrajs_cluster_idx[idx_list[:,0],idx_list[:,1]] == cluster_idx)[0]
                     if len(idx_list_1) == 0:
