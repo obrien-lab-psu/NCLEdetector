@@ -206,7 +206,7 @@ class MassSpec:
         N = norm(mu, sigma)
         
         if JWalk_dist == -1:
-            score = np.nan  # Missing experimental data (residue buried or distance > 50A)
+            score = 0
         elif JWalk_dist <= threshold:
             score = N.pdf(JWalk_dist)
         else:
@@ -543,7 +543,8 @@ class MassSpec:
                     key_0 = '-'.join([k[1:]+'|A' for k in key.split('-')])
                     xlms_targets.append((idx, key_0, pair_AA))
 
-                # Initialize M_XLMS with NaN to mark missing data (residues buried or distance > 50A)
+                # Keep NaN for unavailable source data.  Valid Jwalk frames use the
+                # legacy convention: an unreported or -1 cross-link has score zero.
                 M_XLMS = np.full((*meta_dtrajs_last.shape, len(XLMS_sig_data)), np.nan)
                 if self.dist_data_file is not None and os.path.exists(self.dist_data_file):
                     dist_traj_list = np.load(self.dist_data_file, allow_pickle=True)[:,-self.n_analysis_frames:]
@@ -565,6 +566,7 @@ class MassSpec:
                             frame_data = dist_traj_list[i, j]
                             if frame_data is None:
                                 continue
+                            M_XLMS[i, j, :] = 0
                             for idx, key_0, pair_AA in xlms_targets:
                                 if key_0 not in frame_data:
                                     continue
@@ -595,6 +597,9 @@ class MassSpec:
 
                         frame_values = np.sort(df['Frame'].unique())
                         frame_to_idx = {int(f): idx for idx, f in enumerate(frame_values)}
+                        for frame_idx in frame_to_idx.values():
+                            if frame_idx < meta_dtrajs_last.shape[1]:
+                                M_XLMS[traj_idx, frame_idx, :] = 0
 
                         atom1_parts = df['Atom1'].str.split('-', expand=True)
                         atom2_parts = df['Atom2'].str.split('-', expand=True)
@@ -1152,8 +1157,8 @@ class MassSpec:
             LIPMS_consist_data[key][3][0] = np.percentile(native_M_LiPMS[:, LIPMS_consist_data[key][4]], 2.5)
             LIPMS_consist_data[key][3][1] = np.percentile(native_M_LiPMS[:, LIPMS_consist_data[key][4]], 97.5)
         for key in XLMS_consist_data:
-            XLMS_consist_data[key][3][0] = np.percentile(native_M_XLMS[:, XLMS_consist_data[key][4]], 2.5)
-            XLMS_consist_data[key][3][1] = np.percentile(native_M_XLMS[:, XLMS_consist_data[key][4]], 97.5)
+            XLMS_consist_data[key][3][0] = np.nanpercentile(native_M_XLMS[:, XLMS_consist_data[key][4]], 2.5)
+            XLMS_consist_data[key][3][1] = np.nanpercentile(native_M_XLMS[:, XLMS_consist_data[key][4]], 97.5)
         self.logger.debug(f'SAVED: {native_M_data_outfile}')
         ##############################################################################
 
@@ -1746,7 +1751,7 @@ def process_k(args):
                                 f'Available keys in frame_dict: {list(frame_data.keys()) if frame_data is not None else "None"}. '
                                 f'Skipping this signal in info file.'
                             )
-                            f.write('%s: M: %.4f Jwalk: N/A Euclidean: N/A (key not in XP data)\n' % (signal, M))
+                            # f.write('%s: M: %.4f Jwalk: N/A Euclidean: N/A (key not in XP data)\n' % (signal, M))
                         else:
                             d_data = frame_data[requested_key]
                             f.write('%s: M: %.4f Jwalk: %.4f Euclidean: %.4f\n' % (signal, M, d_data['Jwalk'], d_data['Euclidean']))

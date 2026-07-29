@@ -845,7 +845,7 @@ class ClusterNonNativeEntanglements:
     """
 
     ##########################################################################################################################################################
-    def __init__(self, trajnum2pklfile_path:str, traj_dir_prefix:str='./', outdir:str='./ClusterNonNativeEntanglements/', log_level:int=logging.INFO, logdir:str=None, nproc:int=1) -> None:
+    def __init__(self, pklfile_path:str, traj_dir_prefix:str='./', outdir:str='./ClusterNonNativeEntanglements/', log_level:int=logging.INFO, logdir:str=None, nproc:int=1) -> None:
         """
         Constructor for GaussianEntanglement class.
 
@@ -877,9 +877,22 @@ class ClusterNonNativeEntanglements:
         self.traj_dir_prefix = traj_dir_prefix
         
         ## Load the dataframe that maps trajectory numbers to pkl file paths
-        self.trajnum2pklfile_path = trajnum2pklfile_path
-        self.trajnum2pklfile = pd.read_csv(self.trajnum2pklfile_path)
-        
+        self.pklfile_path = pklfile_path
+        files = glob.glob(os.path.join(self.pklfile_path, '*.pkl'))
+        # print(files)
+        self.traj2num2pklfile = {'trajnum':[], 'pklfile':[]}
+        for f in files:
+            traj_num = os.path.basename(f).split('_traj')[1].replace('_NCLE.pkl', '')
+            if not traj_num.isdigit():
+                self.logger.error(f'Error: Could not extract trajectory number from filename {f}')
+                sys.exit()
+            traj_num = int(traj_num)
+            self.traj2num2pklfile['trajnum'].append(traj_num)
+            self.traj2num2pklfile['pklfile'].append(f)
+        self.trajnum2pklfile = pd.DataFrame(self.traj2num2pklfile)
+        print(self.trajnum2pklfile.head())
+
+
         ## Extract pkl file paths from the manifest (source of truth)
         if 'pklfile' not in self.trajnum2pklfile.columns:
             self.logger.error('Error: trajnum2pklfile CSV must contain a "pklfile" column')
@@ -2083,7 +2096,7 @@ class MSMNonNativeEntanglementClustering:
         Loads the GQ values of each trajectory into a 2D array and then appends it to a list
         The list should have Nt = number of trajectories and each array should be n x 2 where n is the number of frames
         """
-        self.logger.info(f'Loading G and Q order parameters...')
+        self.logger.info(f'Loading G and Q order parameters from {self.OPpath}...')
         cor_list = []
         cor_list_idx_2_traj = {}
         Qfiles = glob.glob(os.path.join(self.OPpath, 'Q/*.Q'))

@@ -8,6 +8,7 @@ def process_frame(args):
     chain_atoms = univ.select_atoms(f"segid {chain}")
     univ.trajectory[frame_idx]
     coor = chain_atoms.positions
+    logging.getLogger('NCLEdetector.GaussianEntanglement').info(f'Frame idx: {frame_idx} processed with {coor.shape} coordinates.')
     ge = GaussianEntanglement(g_threshold=g_threshold, density=density, Calpha=Calpha, CG=CG, ent_detection_method=ent_detection_method)
     ent_result = ge.get_traj_entanglements(coor, chain_res, resids, atom_names, topoly=topoly)
     result_rows = []
@@ -1241,7 +1242,7 @@ class GaussianEntanglement:
                         contact_exists = np.any(heavy_native_cmap[np.ix_(atoms_i, atoms_j)])
                         if contact_exists:
                             native_cmap[i, j] = 1
-                            native_cmap[j, i] = 1
+                            # native_cmap[j, i] = 1
                
                 return native_cmap, bb_coor, heavy_dist_matrix
     ##########################################################################################################################################################
