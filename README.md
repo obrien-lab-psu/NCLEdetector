@@ -6,7 +6,7 @@ A comprehensive Python package for studying non-covalent lasso entanglements in 
 
 NCLEdetector provides a complete toolkit for analyzing protein entanglements across multiple scales - from individual structures to large-scale proteomic datasets. The package enables researchers to:
 
-- **Identify and characterize** native non-covalent lasso entanglements in protein structures
+- **Identify and characterize** non-covalent lasso entanglements in protein structures
 - **Calculate order parameters** for simulation trajectories (Q, G, K, SASA, Jwalk, XP)
 - **Build Markov State Models** from coarse-grained simulation ensembles
 - **Compare simulations to experiments** using LiP-MS and XL-MS data
