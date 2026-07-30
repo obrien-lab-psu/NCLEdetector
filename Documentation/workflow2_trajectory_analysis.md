@@ -583,29 +583,7 @@ In this tutorial we identified the mirror artifact trajectories as: 65, 75, 155,
 ---
 
 ## Step 4. Cluster changes of NCLE status to remove redundancy
-
-This step identifies non-redundant changes in entanglement topology across all trajectories. The pkl file paths are specified in the trajectory-to-pkl mapping CSV (`trajnum2pklfile_path`), which serves as the single source of truth for which pkl files to analyze.
-
-### `trajnum2file.txt` — maps trajectory numbers to pkl files
-
-This file maps trajectory numbers to their **G-order-parameter pkl files** (not DCD files). The format is comma-separated:
-
-```
-trajnum,pklfile
-<trajectory_number>,<path_to_pkl_file>
-```
-
-The pre-populated copy at `$DATASTORE/user_input/metadata/trajnum2file.txt` maps all 1000 trajectories to the Combined_GE pkl files in the DATASTORE. It can be regenerated if needed:
-
-```bash
-echo "trajnum,pklfile" > $DATASTORE/user_input/metadata/trajnum2file.txt
-for pkl in $DATASTORE/outputs/workflow2/OP_last335/G/Combined_GE/*.pkl; do
-    num=$(basename $pkl | sed 's/1ZMR_traj\([0-9]*\)_GE.pkl/\1/')
-    echo "$num,$pkl"
-done >> $DATASTORE/user_input/metadata/trajnum2file.txt
-```
-If you used the `--chunk_frames` argument when calculating G, the `.pkl` files will be chunked and you must specify which chunk to use for each trajectory. NCLEdetector currently does not support using multiple chunks for a single trajectory number.
-
+This step identifies non-redundant changes in entanglement topology across all trajectories. 
 > **Memory warning:** This step can require tens of gigabytes of RAM. Run on a high-memory node or reduce the number of frames per trajectory in the clustering pool.
 
 ```python
