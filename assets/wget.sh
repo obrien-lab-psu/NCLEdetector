@@ -18,7 +18,7 @@ echo "Downloading NCLEdetector Datastore to $DATASTORE"
 BASE_URL="https://downloads.ncleweb.org/NCLEdetector_Datastore/v1.0.0"
 
 # User input data (36 GB) - Required for all tutorials 
-# wget "$BASE_URL/user_input.tar.gz" && tar -xzf user_input.tar.gz
+wget "$BASE_URL/user_input.tar.gz" && tar -xzf user_input.tar.gz
 
 # Workflow 1 analyses (16 KB total)
 mkdir -p "${DATASTORE}/outputs/workflow1/"
