@@ -359,7 +359,7 @@ class CalculateOP:
     #######################################################################################
 
     #######################################################################################
-    def G(self, topoly:bool=True, Calpha:bool=True, CG:bool=True, nproc: int = 10, chunk_frames:int=None, chunk_suffix:str='_chunk') -> dict:
+    def G(self, topoly:bool=True, Calpha:bool=True, CG:bool=True, nproc: int = 10, min_loop_length:int=6, chunk_frames:int=None, chunk_suffix:str='_chunk') -> dict:
         self.logger.info(f'Calculating the G entanglement order parameter')
         """
         Calculate the G entanglement order parameter for each frame of the DCD 
@@ -379,6 +379,7 @@ class CalculateOP:
         self.logger.debug(f'Calpha: {Calpha}')
         self.logger.debug(f'CG: {CG}')
         self.logger.debug(f'nproc: {nproc}')
+        self.logger.debug(f'min_loop_length: {min_loop_length}')
         self.logger.debug(f'chunk_frames: {chunk_frames}')
         self.logger.debug(f'chunk_suffix: {chunk_suffix}')
 
@@ -390,6 +391,7 @@ class CalculateOP:
             CG=CG,
             nproc=nproc,
             ent_detection_method=self.ent_detection_method,
+            min_loop_length=min_loop_length,
         ) # for CG structures and trajectories
         #ge = GaussianEntanglement(g_threshold=g_threshold, density=density, Calpha=False, CG=False) # for all-atom structures
         self.logger.debug(ge)

@@ -1,7 +1,7 @@
 ###################################################################################################
 ## Multiprocesing helper function(s)
 def process_frame(args):
-    frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, Calpha, CG, g_threshold, density, ent_detection_method = args
+    frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, Calpha, CG, g_threshold, density, ent_detection_method, min_loop_length = args
     import MDAnalysis as mda
     from NCLEdetector.gaussian_entanglement import GaussianEntanglement
     univ = mda.Universe(PSF, dcd)
@@ -9,7 +9,7 @@ def process_frame(args):
     univ.trajectory[frame_idx]
     coor = chain_atoms.positions
     logging.getLogger('NCLEdetector.GaussianEntanglement').info(f'Frame idx: {frame_idx} processed with {coor.shape} coordinates.')
-    ge = GaussianEntanglement(g_threshold=g_threshold, density=density, Calpha=Calpha, CG=CG, ent_detection_method=ent_detection_method)
+    ge = GaussianEntanglement(g_threshold=g_threshold, density=density, Calpha=Calpha, CG=CG, ent_detection_method=ent_detection_method, min_loop_length=min_loop_length)
     ent_result = ge.get_traj_entanglements(coor, chain_res, resids, atom_names, topoly=topoly)
     result_rows = []
     if not ent_result:
@@ -58,7 +58,7 @@ class GaussianEntanglement:
     """
     Gaussian Entanglement Class for calculating entanglements in protein structures derived from both experiments and AlphaFold. 
     """
-    def __init__(self, g_threshold: float = 0.6, density: float = 0.0, Calpha: bool = False, CG: bool = False, nproc: int = 10, ent_detection_method: int = 2, log_level: int = logging.INFO, logdir: str = None) -> None:
+    def __init__(self, g_threshold: float = 0.6, density: float = 0.0, Calpha: bool = False, CG: bool = False, nproc: int = 10, ent_detection_method: int = 2, min_loop_length: int = 6, log_level: int = logging.INFO, logdir: str = None) -> None:
         """
         Constructor for GaussianEntanglement class.
 
@@ -77,6 +77,10 @@ class GaussianEntanglement:
             1 = any nonzero GLN for either termini
             2 = any nonzero TLN for either termini (default)
             3 = both GLN and TLN must have nonzero for same termini
+        min_loop_length : int, optional
+            Minimum number of residues separating a native contact's i and j (i.e. j - i) for the
+            resulting loop to be considered for an NCLE, by default 6. Native contacts whose loop
+            is smaller than this are discarded before Gaussian linking / Topoly crossing detection.
         """
 
         self.logger = setup_logger('GaussianEntanglement', outdir=logdir, log_level=log_level)
@@ -86,7 +90,8 @@ class GaussianEntanglement:
         self.CG = CG
         self.nproc = nproc
         self.ent_detection_method = ent_detection_method
-        self.logger.debug(f'GaussianEntanglement initialized with g_threshold: {g_threshold}, density: {density}, Calpha: {Calpha}, CG: {CG}, nproc: {nproc}, ent_detection_method: {ent_detection_method}')
+        self.min_loop_length = min_loop_length
+        self.logger.debug(f'GaussianEntanglement initialized with g_threshold: {g_threshold}, density: {density}, Calpha: {Calpha}, CG: {CG}, nproc: {nproc}, ent_detection_method: {ent_detection_method}, min_loop_length: {min_loop_length}')
 
         self.change_codes = {'L-C~': 'loss of linking number & switched linking chirality', 
                         'L-C#': 'loss of linking number & no change of linking chirality', 
@@ -227,6 +232,8 @@ class GaussianEntanglement:
         native_cmap = res_ncmap 
 
         nc_indexs = np.stack(np.nonzero(native_cmap)).T # stack indices based on rows
+        # discard loops too small to be a valid NCLE before any GLN/Topoly work is done on them
+        nc_indexs = nc_indexs[(nc_indexs[:, 1] - nc_indexs[:, 0]) >= self.min_loop_length]
 
         # make R coordinate and gradient of R length N-1
         range_l = np.arange(0, l-1)
@@ -934,7 +941,7 @@ class GaussianEntanglement:
                 self.logger.info(f'Total frames to analyze: {len(frame_indices)}')
 
                 pool_args = [
-                    (frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, self.Calpha, self.CG, self.g_threshold, self.density, self.ent_detection_method)
+                    (frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, self.Calpha, self.CG, self.g_threshold, self.density, self.ent_detection_method, self.min_loop_length)
                     for frame_idx in frame_indices
                 ]
                 with mp.get_context("spawn").Pool(processes=self.nproc) as pool:
@@ -996,7 +1003,7 @@ class GaussianEntanglement:
                     continue
 
                 pool_args = [
-                    (frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, self.Calpha, self.CG, self.g_threshold, self.density, self.ent_detection_method)
+                    (frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, self.Calpha, self.CG, self.g_threshold, self.density, self.ent_detection_method, self.min_loop_length)
                     for frame_idx in batch_frame_indices
                 ]
                 with mp.get_context("spawn").Pool(processes=self.nproc) as pool:
@@ -1057,13 +1064,17 @@ class GaussianEntanglement:
         self.logger.debug(f'Finding entanglements with Nterm_thresh: {Nterm_thresh}, Cterm_thresh: {Cterm_thresh}, loop_Nthread_thresh: {loop_Nthread_thresh}, loop_Cthread_thresh: {loop_Cthread_thresh}')
 
         # make native contact contact map
-        native_cmap, bb_coor, dist_matrix = self.processes_coor(coor, resids, atom_names, CG=self.CG, Calpha=self.Calpha)
+        # bb_resids is the residue-level resid array aligned index-for-index with bb_coor/native_cmap;
+        # it must be used (instead of the atom-level `resids` argument) whenever indexing by residue position.
+        native_cmap, bb_coor, dist_matrix, bb_resids = self.processes_coor(coor, resids, atom_names, CG=self.CG, Calpha=self.Calpha)
         l = len(bb_coor)
         # print(f'native_cmap: {native_cmap.shape} {native_cmap}')
         # print(f'bb_coor: {bb_coor.shape} {bb_coor}')
         # print(f'dist_matrix: {dist_matrix.shape} {dist_matrix}')
 
         nc_indexs = np.stack(np.nonzero(native_cmap)).T # stack indices based on rows
+        # discard loops too small to be a valid NCLE before any GLN/Topoly work is done on them
+        nc_indexs = nc_indexs[(nc_indexs[:, 1] - nc_indexs[:, 0]) >= self.min_loop_length]
         # print(f'nc_indexs: {nc_indexs.shape} {nc_indexs}')
 
         # make R coordinate and gradient of R length N-1
@@ -1142,7 +1153,7 @@ class GaussianEntanglement:
         
         else:
             if topoly == True:
-                entangled_res = self.find_crossing(bb_coor.tolist(), nc_gdict, resids)
+                entangled_res = self.find_crossing(bb_coor.tolist(), nc_gdict, bb_resids)
                 # print(f'entangled_res: {entangled_res}')
                 # for k, v in entangled_res.items():
                 #     print(f'{k}: {v}')
@@ -1159,7 +1170,7 @@ class GaussianEntanglement:
                     GLNc = values[3]
                     TLNn = np.nan
                     TLNc = np.nan
-                    entangled_res[(resids[i], resids[j], gn, gc, GLNn, GLNc, TLNn, TLNc)] = [[], []]
+                    entangled_res[(bb_resids[i], bb_resids[j], gn, gc, GLNn, GLNc, TLNn, TLNc)] = [[], []]
                 return entangled_res
     ##########################################################################################################################################################
 
@@ -1171,7 +1182,9 @@ class GaussianEntanglement:
         If CG is False and Calpha is True, it uses the coordinates of the alpha carbons to determine if two residues are in contact.
         If CG is False and Calpha is False, it uses the coordinates of the heavy atoms to determine if two residues are in contact.
         In all cases the backbone coordinates are the alphacarbon coordinates of the residues.
-        Returns a tuple of the native contact map and backbone coordinates.
+        Returns a tuple of (native contact map, backbone coordinates, distance matrix, residue-level resids).
+        The returned resids array is aligned index-for-index with bb_coor/native_cmap (one resid per
+        residue), unlike the `resids` argument which is atom-level whenever CG is False.
         """
         heavy_atom_names = ['C', 'O', 'N', 'CA', 'CB', 'CG', 'CD', 'CE', 'CZ', 'SD', 'SG'] # heavy atoms for all atom models
         # for idx, c in enumerate(coor):
@@ -1186,12 +1199,13 @@ class GaussianEntanglement:
             #         print(f'Contact between residues at indexs {i} and {j} at distance {dist_matrix[i, j]} Å')
             native_cmap = np.where(dist_matrix <= 8.0, 1, 0) # if true then 1 will appear otherwise zero
             native_cmap = np.triu(native_cmap, k=4) # element below the 4th diagonal starting from middle are all zeros; # protein contact map
-            return native_cmap, bb_coor, dist_matrix
+            return native_cmap, bb_coor, dist_matrix, resids
         
         if CG == False:
             CA_idx = [i for i, resname in enumerate(atom_names) if resname == 'CA']
             # print(f'CA_idx: {CA_idx}')
             bb_coor = coor[CA_idx]
+            bb_resids = resids[CA_idx] # one resid per residue, aligned with bb_coor
             # print(f'bb_coor: {bb_coor.shape} {bb_coor}')
 
             if Calpha == True:
@@ -1203,7 +1217,7 @@ class GaussianEntanglement:
                 #         print(f'Contact between residues at indexs {i} and {j} at distance {dist_matrix[i, j]} Å')
                 native_cmap = np.where(dist_matrix <= 8.0, 1, 0) # if true then 1 will appear otherwise zero
                 native_cmap = np.triu(native_cmap, k=4) # element below the 4th diagonal starting from middle are all zeros; # protein contact map
-                return native_cmap, bb_coor, dist_matrix
+                return native_cmap, bb_coor, dist_matrix, bb_resids
 
             if Calpha == False:
 
@@ -1244,7 +1258,7 @@ class GaussianEntanglement:
                             native_cmap[i, j] = 1
                             # native_cmap[j, i] = 1
                
-                return native_cmap, bb_coor, heavy_dist_matrix
+                return native_cmap, bb_coor, heavy_dist_matrix, unique_resids
     ##########################################################################################################################################################
 
     ##########################################################################################################################################################

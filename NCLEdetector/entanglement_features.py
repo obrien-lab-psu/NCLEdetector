@@ -107,9 +107,15 @@ class FeatureGen:
     #############################################################################################################
 
     #############################################################################################################
-    def get_uent_features(self, pdb_file:str, outdir:str='./', cluster_file:str='None', gene:str='None', pdbid:str='None', chain:str='A'):
+    def get_uent_features(self, pdb_file:str, outdir:str='./', cluster_file:str='None', gene:str='None', pdbid:str='None', chain:str='A', thread_buffer:int=3):
         """
         Get the features for each unique entanglement provided in the clustered_unampped_GE file
+
+        Parameters
+        ----------
+        thread_buffer : int, optional
+            Number of residues +/- along the primary structure used to pad native contact and
+            crossing residues (formerly hardcoded as `rbuffer`), by default 3
         """
 
         self.pdb_file = pdb_file
@@ -180,7 +186,7 @@ class FeatureGen:
         self.logger.debug(f'gene: {gene}, chain: {chain}, pdbid: {pdbid}, prot_size: {self.prot_size}')
 
         ## parse lines to get native contacts, crossings,
-        rbuffer = 3
+        rbuffer = thread_buffer
         pdb_NC_list = [] # list of PDB native contact residues +/- rbuffer
         pdb_NC_core_list = [] # list of PDB natvie contact residues
         pdb_crossing_list = [] # list of PDB crossing residues +/- rbuffer

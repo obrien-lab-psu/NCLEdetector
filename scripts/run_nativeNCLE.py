@@ -37,6 +37,10 @@ Arguments:
                             1 = any nonzero GLN for either termini
                             2 = any nonzero TLN for either termini  (class default)
                             3 = both GLN and TLN nonzero for same termini  (recommended; script default)
+    --thread_buffer       Number of residues +/- along the primary structure used to pad native
+                          contact and crossing residues when generating entanglement features (default: 3)
+    --min_loop_length     Minimum residues separating a native contact's i and j (j - i) for the
+                          loop to be considered for an NCLE (default: 6)
 """
 
 
@@ -65,6 +69,8 @@ def main(argv=None):
     parser.add_argument("--cut_off", type=float, required=False, default=argparse.SUPPRESS, help="Clustering distance cutoff in Å. If omitted, uses the organism-specific default (Ecoli: 57, Human: 52, Yeast: 49).",)
     parser.add_argument("--model", type=str, required=False, default=argparse.SUPPRESS, help="Model type for high-quality selection: {EXP, AF}")
     parser.add_argument("--ent_detection_method", type=int, required=False, default=argparse.SUPPRESS, help="ENT detection method: 1=any GLN, 2=any TLN (default), 3=both GLN and TLN same termini")
+    parser.add_argument("--thread_buffer", type=int, required=False, default=argparse.SUPPRESS, help="Number of residues +/- along the primary structure used to pad native contact and crossing residues when generating entanglement features (default: 3)")
+    parser.add_argument("--min_loop_length", type=int, required=False, default=argparse.SUPPRESS, help="Minimum residues separating a native contact's i and j (j - i) for the loop to be considered for an NCLE (default: 6)")
     parser.add_argument("--log_level", type=str, default=argparse.SUPPRESS, choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging verbosity level (default: INFO)")
     parser.add_argument("--logdir", type=str, default=argparse.SUPPRESS, help="Directory for log file. Defaults to --outdir if not specified.")
 
@@ -112,6 +118,8 @@ def main(argv=None):
         "cut_off": None,
         "model": "EXP",
         "ent_detection_method": 2,
+        "thread_buffer": 3,
+        "min_loop_length": 6,
         "log_level": "INFO",
         "logdir": None,
     }
@@ -151,7 +159,7 @@ def main(argv=None):
     Calpha = bool(args.Calpha)
 
     # Set up Gaussian Entanglement and Clustering objects
-    ge = GaussianEntanglement(g_threshold=g_threshold, density=density, Calpha=Calpha, CG=CG, ent_detection_method=args.ent_detection_method, log_level=log_level, logdir=logdir)
+    ge = GaussianEntanglement(g_threshold=g_threshold, density=density, Calpha=Calpha, CG=CG, ent_detection_method=args.ent_detection_method, min_loop_length=args.min_loop_length, log_level=log_level, logdir=logdir)
     clustering = ClusterNativeEntanglements(organism=organism, cut_off=cut_off, log_level=log_level, logdir=logdir)
 
     # Determine which chains to process
@@ -202,7 +210,8 @@ def main(argv=None):
                              cluster_file=nativeClusteredEnt['outfile'],
                              gene=args.gene,
                              chain=chain_id,
-                             pdbid=ID)
+                             pdbid=ID,
+                             thread_buffer=args.thread_buffer)
         logger.info(f'Entanglement features saved to {EntFeatures["outfile"]}')
 
 

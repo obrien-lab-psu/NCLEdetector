@@ -7,11 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `NCLEdetector.entanglement_features.FeatureGen.get_uent_features(...)` — new `thread_buffer` parameter (default `3`, matches prior hardcoded behavior) controlling how many residues +/- along the primary structure are used to pad native-contact and crossing residues. Exposed as `--thread_buffer` in `scripts/run_nativeNCLE.py`.
+- `NCLEdetector.gaussian_entanglement.GaussianEntanglement` — new `min_loop_length` parameter (default `6`) that discards native contacts whose loop (`j - i`) is smaller than this before any GLN/Topoly work is performed on them, since such loops cannot form a valid NCLE. Exposed as `--min_loop_length` in `scripts/run_nativeNCLE.py` and `scripts/run_OP_on_simulation_traj.py`, and as `NCLEdetector.order_params.CollectOP.G(..., min_loop_length=6)`.
+
 ### Changed
 - **BREAKING** `NCLEdetector.compare_sim2exp.MassSpec` — renamed `last_num_frames` → `n_analysis_frames` (trailing-frame analysis window shared by the MSM/G/Q/SASA/XP slicing) and `NCLEdetector.order_params.CollectOP` / `MassSpec`'s `n_frames` → `sasa_xp_frames_per_traj` (frames per trajectory stored in each SASA/XP file), to disambiguate the two previously same-named-sounding but distinct concepts. Updated `run_compare_sim2exp.py` CLI flags (`--last_num_frames`→`--n_analysis_frames`, `--n_frames`→`--sasa_xp_frames_per_traj`), config JSON keys, the workflow3 SLURM script, and documentation accordingly.
 
 ### Fixed
 - `scripts/run_compare_sim2exp.py` — `select_rep_structs(...)` was called with hardcoded `last_num_frames=67` instead of the config-derived value, causing representative-structure frame indices (and `info.txt` frame numbers) to be offset from the correct trailing-frame window whenever the configured analysis window differed from 67 frames.
+- `NCLEdetector.gaussian_entanglement.GaussianEntanglement.get_traj_entanglements(...)` — native contacts detected on all-atom trajectories (`CG=False`, both `Calpha=True` and `Calpha=False`) were reported with the wrong `(i, j)` residue IDs: `processes_coor(...)` builds the contact map indexed by residue position, but the caller indexed the atom-level `resids` array (one entry per atom) with those residue-position indices. `processes_coor(...)` now also returns a residue-aligned resid array that is used everywhere a native contact's residue IDs are reported or passed to Topoly.
 
 ## [2.0.0] - 2026-07-08
 
