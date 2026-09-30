@@ -1,16 +1,33 @@
 ###################################################################################################
 ## Multiprocesing helper function(s)
-def process_frame(args):
-    frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, Calpha, CG, g_threshold, density, ent_detection_method, min_loop_length = args
+## Worker-local state populated once per worker process by _init_worker(), rather than being
+## rebuilt (fresh mda.Universe + GaussianEntanglement construction) on every single frame task.
+## Re-doing that setup per-task was previously the dominant per-frame cost and effectively
+## negated any speedup from nproc > 1 (observed: nproc=1 and nproc=4 took ~the same wall time
+## for the same batch of frames).
+_worker_state = {}
+
+def _init_worker(dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, Calpha, CG, g_threshold, density, ent_detection_method, min_loop_length):
     import MDAnalysis as mda
     from NCLEdetector.gaussian_entanglement import GaussianEntanglement
     univ = mda.Universe(PSF, dcd)
     chain_atoms = univ.select_atoms(f"segid {chain}")
+    ge = GaussianEntanglement(g_threshold=g_threshold, density=density, Calpha=Calpha, CG=CG, ent_detection_method=ent_detection_method, min_loop_length=min_loop_length)
+    _worker_state.update(
+        univ=univ, chain_atoms=chain_atoms, ge=ge, chain=chain, chain_res=chain_res,
+        resids=resids, atom_names=atom_names, topoly=topoly, ID=ID,
+    )
+
+def process_frame(frame_idx):
+    univ = _worker_state['univ']
+    chain_atoms = _worker_state['chain_atoms']
+    ge = _worker_state['ge']
+    chain = _worker_state['chain']
+    ID = _worker_state['ID']
     univ.trajectory[frame_idx]
     coor = chain_atoms.positions
     logging.getLogger('NCLEdetector.GaussianEntanglement').info(f'Frame idx: {frame_idx} processed with {coor.shape} coordinates.')
-    ge = GaussianEntanglement(g_threshold=g_threshold, density=density, Calpha=Calpha, CG=CG, ent_detection_method=ent_detection_method, min_loop_length=min_loop_length)
-    ent_result = ge.get_traj_entanglements(coor, chain_res, resids, atom_names, topoly=topoly)
+    ent_result = ge.get_traj_entanglements(coor, _worker_state['chain_res'], _worker_state['resids'], _worker_state['atom_names'], topoly=_worker_state['topoly'])
     result_rows = []
     if not ent_result:
         result_rows.append((ID, chain, frame_idx, '', '', '', '', '', '', '', '', '', '', ''))
@@ -394,6 +411,12 @@ class GaussianEntanglement:
         entangled_res = {}
 
         native_contacts = [[ij[0], ij[1]] for ij, values in nc_data.items() if values is not None]
+        # topoly's lasso_type requires each loop_indices pair to satisfy i < j. Both callers
+        # (get_entanglements for native structures and get_traj_entanglements for trajectories)
+        # build nc_data from a strictly upper-triangular contact map, so this should always hold;
+        # assert defensively so a future regression fails loudly instead of hitting topoly's
+        # opaque triangulation errors.
+        assert all(i < j for i, j in native_contacts), f'find_crossing received non i<j loop indices: {[p for p in native_contacts if not p[0] < p[1]]}'
 
         data = lasso_type(coor, loop_indices=native_contacts, more_info=True, density=self.density, min_dist=[10, loop_buff, terminal_buff])
         # data = lasso_type(coor, loop_indices=native_contacts, more_info=True, density=self.density, min_dist=[0, 4, 5])
@@ -940,12 +963,9 @@ class GaussianEntanglement:
                 self.logger.info(f'Analyzing frames from {start} to {stop} with stride {stride}')
                 self.logger.info(f'Total frames to analyze: {len(frame_indices)}')
 
-                pool_args = [
-                    (frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, self.Calpha, self.CG, self.g_threshold, self.density, self.ent_detection_method, self.min_loop_length)
-                    for frame_idx in frame_indices
-                ]
-                with mp.get_context("spawn").Pool(processes=self.nproc) as pool:
-                    all_rows = pool.map(process_frame, pool_args)
+                init_args = (dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, self.Calpha, self.CG, self.g_threshold, self.density, self.ent_detection_method, self.min_loop_length)
+                with mp.get_context("spawn").Pool(processes=self.nproc, initializer=_init_worker, initargs=init_args) as pool:
+                    all_rows = pool.map(process_frame, frame_indices)
 
                 for frame_rows in all_rows:
                     rows.extend(frame_rows)
@@ -1002,12 +1022,9 @@ class GaussianEntanglement:
                     self.logger.info(f'Chunk {chunk_idx} (chain {chain}) already computed, skipping: {part_file}')
                     continue
 
-                pool_args = [
-                    (frame_idx, dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, self.Calpha, self.CG, self.g_threshold, self.density, self.ent_detection_method, self.min_loop_length)
-                    for frame_idx in batch_frame_indices
-                ]
-                with mp.get_context("spawn").Pool(processes=self.nproc) as pool:
-                    batch_all_rows = pool.map(process_frame, pool_args)
+                init_args = (dcd, PSF, chain, chain_res, resids, atom_names, topoly, ID, self.Calpha, self.CG, self.g_threshold, self.density, self.ent_detection_method, self.min_loop_length)
+                with mp.get_context("spawn").Pool(processes=self.nproc, initializer=_init_worker, initargs=init_args) as pool:
+                    batch_all_rows = pool.map(process_frame, batch_frame_indices)
 
                 batch_rows = []
                 for frame_rows in batch_all_rows:

@@ -52,6 +52,9 @@ Flags
   --ent_detection_method ENT detection: 1=GLN, 2=TLN (default), 3=GLN+TLN same termini
   --min_loop_length      Minimum residues separating a native contact's i and j (j - i) for the
                          loop to be considered for an NCLE when computing G (default: 6)
+  --density              Topoly minimal-surface triangulation density for lasso_type() when
+                         computing G (default: 1.0). Lower values (e.g. 0.0) are much faster at
+                         the cost of coarser/less accurate crossing detection.
   --no_topoly            Disable topoly; use GLN-only workflow
   --nproc                CPU cores for G calculation (default: 10)
   --COR                  CG COR reference coordinates (required for Q, G, K)
@@ -104,6 +107,7 @@ def main(argv=None):
     parser.add_argument("--Calpha", "--calpha", action='store_true', dest="Calpha", default=argparse.SUPPRESS, help="Use C-alpha contacts when computing G")
     parser.add_argument("--ent_detection_method", type=int, default=argparse.SUPPRESS, help="ENT detection: 1=GLN, 2=TLN (default), 3=GLN+TLN same termini")
     parser.add_argument("--min_loop_length", type=int, default=argparse.SUPPRESS, help="Minimum residues separating a native contact's i and j (j - i) for the loop to be considered for an NCLE when computing G (default: 6)")
+    parser.add_argument("--density", type=float, default=argparse.SUPPRESS, help="Topoly minimal-surface triangulation density for lasso_type() when computing G (default: 1.0, matches run_nativeNCLE.py/default_params.md). Lower values (e.g. 0.0) are much faster (measured ~50x for density=1.0 vs 0.0 on the same structure) at the cost of coarser/less accurate crossing detection.")
     parser.add_argument("--no_topoly", action="store_true", default=argparse.SUPPRESS, help="Disable topoly crossing detection (uses GLN-only workflow)")
     parser.add_argument("--nproc",  type=int, default=argparse.SUPPRESS, help="CPU cores for G (default: 10)")
 
@@ -185,6 +189,7 @@ def main(argv=None):
         "Calpha": None,
         "ent_detection_method": 1,
         "min_loop_length": 6,
+        "density": 1.0,
         "no_topoly": False,
         "nproc": 10,
         "COR": None,
@@ -276,7 +281,7 @@ def main(argv=None):
         logger.info(f'Q keys: {list(Qdata_dict.keys())}')
 
     if 'G' in ops:
-        Gdata_dict = CalcOP.G(topoly=topoly, Calpha=Calpha, CG=CG, nproc=args.nproc, min_loop_length=args.min_loop_length, chunk_frames=args.chunk_frames, chunk_suffix=args.chunk_suffix)
+        Gdata_dict = CalcOP.G(topoly=topoly, Calpha=Calpha, CG=CG, nproc=args.nproc, min_loop_length=args.min_loop_length, chunk_frames=args.chunk_frames, chunk_suffix=args.chunk_suffix, density=args.density)
         logger.info(f'G keys: {list(Gdata_dict.keys())}')
 
     if 'K' in ops:

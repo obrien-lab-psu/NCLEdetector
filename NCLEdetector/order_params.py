@@ -359,7 +359,7 @@ class CalculateOP:
     #######################################################################################
 
     #######################################################################################
-    def G(self, topoly:bool=True, Calpha:bool=True, CG:bool=True, nproc: int = 10, min_loop_length:int=6, chunk_frames:int=None, chunk_suffix:str='_chunk') -> dict:
+    def G(self, topoly:bool=True, Calpha:bool=True, CG:bool=True, nproc: int = 10, min_loop_length:int=6, chunk_frames:int=None, chunk_suffix:str='_chunk', density:float=1.0) -> dict:
         self.logger.info(f'Calculating the G entanglement order parameter')
         """
         Calculate the G entanglement order parameter for each frame of the DCD 
@@ -372,7 +372,13 @@ class CalculateOP:
 
         # parse some of the default parameters
         g_threshold = 0.6
-        density = 1.0
+        # NOTE: density controls topoly's minimal-surface triangulation resolution used by
+        # lasso_type(). Measured: the (single-threaded, non-parallelized, but cached-after-first-
+        # run) native-entanglement lasso_type() call takes ~50x longer at density=1.0 than at
+        # density=0.0 for the same structure (2s vs 116s), and this dominates total G() runtime
+        # on the first run for a given protein regardless of --nproc. 1.0 matches the documented
+        # default (Documentation/default_params.md) and run_nativeNCLE.py's default, kept here for
+        # consistency/accuracy; this was previously hardcoded with no way to override it for speed.
         
         self.logger.debug(f'g_threshold: {g_threshold}')
         self.logger.debug(f'density: {density}')

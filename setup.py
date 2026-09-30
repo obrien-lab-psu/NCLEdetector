@@ -5,7 +5,7 @@ with open('README.md', 'r', encoding='utf-8') as f:
 
 setup(
     name='NCLEdetector',
-    version='2.0.0',
+    version='2.1.0',
     description='Non-covalent Lasso-like Entanglement (NCLE) Detection in Protein Structures and trajectories',
     long_description=long_description,
     long_description_content_type='text/markdown',

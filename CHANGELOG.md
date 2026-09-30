@@ -5,11 +5,12 @@ All notable changes to NCLEdetector will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.1.0] - 2026-09-29
 
 ### Added
 - `NCLEdetector.entanglement_features.FeatureGen.get_uent_features(...)` — new `thread_buffer` parameter (default `3`, matches prior hardcoded behavior) controlling how many residues +/- along the primary structure are used to pad native-contact and crossing residues. Exposed as `--thread_buffer` in `scripts/run_nativeNCLE.py`.
 - `NCLEdetector.gaussian_entanglement.GaussianEntanglement` — new `min_loop_length` parameter (default `6`) that discards native contacts whose loop (`j - i`) is smaller than this before any GLN/Topoly work is performed on them, since such loops cannot form a valid NCLE. Exposed as `--min_loop_length` in `scripts/run_nativeNCLE.py` and `scripts/run_OP_on_simulation_traj.py`, and as `NCLEdetector.order_params.CollectOP.G(..., min_loop_length=6)`.
+- `NCLEdetector.order_params.CollectOP.G(...)` — the Topoly `density` triangulation parameter, previously hardcoded to `1.0` with no way to override it, is now a configurable parameter (`density: float = 1.0`, same default) exposed as `--density` in `scripts/run_OP_on_simulation_traj.py`. Profiling found a single `lasso_type()` call at `density=1.0` takes ~50x longer than at `density=0.0` (116s vs 2.3s for the same structure), so users hitting long runtimes on the one-time native-entanglement step can now trade some crossing-detection resolution for speed.
 
 ### Changed
 - **BREAKING** `NCLEdetector.compare_sim2exp.MassSpec` — renamed `last_num_frames` → `n_analysis_frames` (trailing-frame analysis window shared by the MSM/G/Q/SASA/XP slicing) and `NCLEdetector.order_params.CollectOP` / `MassSpec`'s `n_frames` → `sasa_xp_frames_per_traj` (frames per trajectory stored in each SASA/XP file), to disambiguate the two previously same-named-sounding but distinct concepts. Updated `run_compare_sim2exp.py` CLI flags (`--last_num_frames`→`--n_analysis_frames`, `--n_frames`→`--sasa_xp_frames_per_traj`), config JSON keys, the workflow3 SLURM script, and documentation accordingly.
@@ -17,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `scripts/run_compare_sim2exp.py` — `select_rep_structs(...)` was called with hardcoded `last_num_frames=67` instead of the config-derived value, causing representative-structure frame indices (and `info.txt` frame numbers) to be offset from the correct trailing-frame window whenever the configured analysis window differed from 67 frames.
 - `NCLEdetector.gaussian_entanglement.GaussianEntanglement.get_traj_entanglements(...)` — native contacts detected on all-atom trajectories (`CG=False`, both `Calpha=True` and `Calpha=False`) were reported with the wrong `(i, j)` residue IDs: `processes_coor(...)` builds the contact map indexed by residue position, but the caller indexed the atom-level `resids` array (one entry per atom) with those residue-position indices. `processes_coor(...)` now also returns a residue-aligned resid array that is used everywhere a native contact's residue IDs are reported or passed to Topoly.
+- `NCLEdetector.gaussian_entanglement.calculate_traj_entanglements(...)` — the multiprocessing worker (`process_frame`) reconstructed a full `MDAnalysis.Universe` (re-parsing the PSF/DCD from disk) and a new `GaussianEntanglement` instance on *every single frame task*, instead of once per worker process. This per-task setup cost dominated total runtime and effectively erased any speedup from `--nproc` (measured: `nproc=1` and `nproc=4` took ~the same wall-clock time for the same batch of frames). Workers now build the `Universe`/`GaussianEntanglement` once via a `Pool` initializer and only seek/re-use it per frame; measured ~3x wall-clock speedup at `nproc=4` vs `nproc=1` on the same workload after the fix, with identical output.
+
+### Verified (no change needed)
+- Topoly's `lasso_type(loop_indices=...)` requires each pair to satisfy `i < j`. Traced every place a native-contact contact map is built (`get_entanglements` for native structures and `processes_coor`/`get_traj_entanglements` for trajectories, across the CG, C-alpha, and heavy-atom code paths) and confirmed each one is constructed as a strictly upper-triangular matrix (`np.triu(..., k=4)` or an explicit `j in range(i+4, n)` loop), so `find_crossing(...)` always receives `i < j` pairs. Added a defensive `assert` in `find_crossing(...)` so a future regression fails loudly instead of surfacing as an opaque Topoly triangulation error.
 
 ## [2.0.0] - 2026-07-08
 
