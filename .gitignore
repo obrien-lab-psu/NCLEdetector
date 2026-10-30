@@ -88,3 +88,9 @@ tmp.md
 
 webbapp/
 SANDBOX/
+
+# Datastore PDBs and results; distributed as a tarball via Zenodo
+/DataStore/
+/DataStore.tar.gz
+assets/fasta/
+logs/

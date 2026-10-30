@@ -235,10 +235,12 @@ python scripts/run_MSM.py \
 ## Algorithm Details
 
 ### Native Clustering Algorithm
-1. **Feature Extraction**: Calculate structural descriptors for each entanglement
-2. **Distance Matrix**: Compute pairwise similarities between entanglements  
-3. **Hierarchical Clustering**: Group similar entanglements using linkage criteria
-4. **Cluster Validation**: Assess cluster quality and select optimal number
+1. **Group by crossing set**: Group raw NCLEs that share the same signed crossing residues
+2. **Minimal loop and cross-count merging (Step 2)**: Keep the smallest loop per crossing set, then merge entanglements with different numbers of crossings that share nearby crossings
+3. **Same-count merging (Step 3)**: Merge overlapping entanglements with the same crossing count and chirality, keeping the shorter loop
+4. **Primary structure clustering (Step 4)**: Cluster within groups of the same crossing count and chirality using an organism-specific distance cutoff, then pick a representative per cluster
+
+See [native_clustering_algorithm.md](native_clustering_algorithm.md) for the full step-by-step description, including where the implementation differs from the published algorithm.
 
 ### Non-Native Clustering
 1. **Trajectory Alignment**: Synchronize entanglement data across trajectories

@@ -238,6 +238,7 @@ The full NCLEdetector analysis logic can be thought of as four connected layers:
 | Workflow | Description | Tutorial file |
 |----------|-------------|---------------|
 | **1** | Identify native NCLEs in a reference structure | [workflow1_native_ncle.md](workflow1_native_ncle.md) |
+| **1 examples** | Compare cleaned 1ZMR with a five-residue gap inside an NCLE loop; interactive tables and 3D views | [NCLEexamples.ipynb](NCLEexamples.ipynb) |
 | **2** | Detect entanglement changes across simulation trajectories | [workflow2_trajectory_analysis.md](workflow2_trajectory_analysis.md) |
 | **3** | Compare structural ensembles to LiP-MS / XL-MS experiments | [workflow3_sim2exp.md](workflow3_sim2exp.md) |
 | **4** | Population-level detection of misfolding enrichment | [workflow4_population.md](workflow4_population.md) |
